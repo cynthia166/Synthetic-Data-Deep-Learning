@@ -5,4 +5,9 @@ output_mi_patient.csv
 experiment_prepo
 data
 input_model_pred
+drugs1_preprosss_non_preprocess.csv
+experimento1.xlsx
+outs_visit
+models_cluster/
+
 

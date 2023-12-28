@@ -729,7 +729,7 @@ def firs_preprocesing(pivot_df,stri,agregacion_cl):
     transformer = FunctionTransformer(np.log)
     merge_input["L_1s_last_p1"] = list(transformer.transform(merge_input["L_1s_last"]))
     merge_input["L_1s_last_p1"] =np.where(np.isinf(merge_input["L_1s_last_p1"]) , 0, merge_input["L_1s_last_p1"])
-
+    # REVISAR****PAR CLUSTER PROCEDURES*
     
     if stri != "outs_visit" and stri != "Patient":
         X = merge_input.drop(['SUBJECT_ID', "HADM_ID","L_1s_last"], axis=1)
@@ -740,7 +740,7 @@ def firs_preprocesing(pivot_df,stri,agregacion_cl):
         X = merge_input.drop(["L_1s_last"], axis=1)
         print(merge_input.shape)
         X.columns
-
+    
     print(X.shape)
 
     return X
