@@ -3,6 +3,26 @@ import pandas as  pd
 from function_mapping import *
 from preprocess import *
 
+#mode
+def mode(x):
+    '''function to obtain the mode'''
+    return x.mode()[0]
+
+def max_patient_add(x):
+    return x.max() - x.min()
+
+def last_firs(archivo):
+    ADMISSIONS = pd.read_csv(archivo)
+    try: 
+        ADMISSIONS[['ADMITTIME','DISCHTIME']] = ADMISSIONS[['ADMITTIME','DISCHTIME']].apply(lambda x: pd.to_datetime(x, format='%Y-%m-%d %H:%M:%S'))
+    except:
+        ADMISSIONS[['ADMITTIME','DISCHTIME']] = ADMISSIONS[['ADMITTIME','DISCHTIME']].apply(lambda x: pd.to_datetime(x, infer_datetime_format=True))    
+        
+    ADMISSIONS["L_1s_last"] = ADMISSIONS.groupby('SUBJECT_ID')['ADMITTIME'].transform(lambda x: x - x.min())
+    return ADMISSIONS[["SUBJECT_ID","HADM_ID","L_1s_last"]] 
+
+
+
 def pivotm_ori(duplicados,real,stri,categorical_cols,archivo):
 
     if stri == "Patient":   

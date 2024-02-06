@@ -1,0 +1,32 @@
+
+  
+      {
+        "nom_t": "Diagnosis",
+        "u": "patient/",
+        "type_a": "Patient",
+        "ejemplo_dir": "input_model_patient/",
+        "list_cat_": [
+            "CCS_CODES_diagnosis",
+            "LEVE3 CODES",
+            "threshold_0.95_diagnosis",
+            "threshold_0.88_diagnosis",
+            "threshold_0.98_diagnosis",
+            "threshold_0.999_diagnosis",
+            "ICD9_CODE_diagnosis",
+            "sin_codigo"
+          ],
+        "list_cat": [
+            "CCS_CODES_diagnosis",
+            "LEVE3 CODES",
+            "threshold_0.95_diagnosis",
+            "threshold_0.88_diagnosis",
+            "threshold_0.98_diagnosis",
+            "threshold_0.999_diagnosis",
+            "ICD9_CODE_diagnosis"],
+      
+        
+        "prepo_li": ["max","max","max","max","std","power","power"],
+        
+        "ejemplo_dir2": "models_cluster/patient/"
+      }
+      

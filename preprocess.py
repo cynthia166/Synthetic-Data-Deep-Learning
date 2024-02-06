@@ -1,10 +1,23 @@
 
 import pandas as  pd
 from function_mapping import *
+import ast
+import numpy as np
 #'threshold_0.88', 'threshold_0.95',
  #      'threshold_0.98', 'threshold_0.999'
 
+def string_list(x):
+    '''funcion que se convierte una lista de string a una lista normal'''
+    '''Input '["\'44\'", "\'44\'", "\'50\'", "\'193\'", "\'222\'", "\'222\'", "\'222\'"]'
+    x: string as list
+    Output
+    list: list'''
 
+    try:
+        lista = ast.literal_eval(x)
+    except:
+        lista = np.nan
+    return lista
 
 def desconacat_codes_ori(drugs,real):
     ex_drug = drugs[drugs[real].notnull()][real].iloc[0]
@@ -83,8 +96,8 @@ def merge_df_ori(nuevo_df_x,nuevo_df4,df,categorical_cols,real):
 
 
     print("HADM_ID unicos",merge_atc["HADM_ID"].nunique())
-
-
+    if real == "ICD9_CODE_diagnosis":
+       merge_atc = merge_atc.iloc[:,:-1]
     merge_atc = merge_atc[merge_atc[real + "_preprocess"].notnull()]
     print("shape merged, despues de eliminar nulos",merge_atc.shape)
 

@@ -401,6 +401,24 @@ def kernel_density_plot(var,concat_var,title,path,name_p,days):
     
     
 
+def initialize_models(models_config):
+    model_instances = []
+    for model_info in models_config:
+        model_type = model_info
+        
+        
+        if model_type == "RandomForestClassifier":
+            model = RandomForestClassifier(n_estimators=100, max_depth=3)
+        elif model_type == "LogisticRegression":
+            model =LogisticRegression(penalty='l1', random_state=0, solver='liblinear')
+        elif model_type == "XGBClassifier":
+            model =  XGBClassifier()
+        else:
+            raise ValueError(f"Model type '{model_type}' not recognized.")
+        
+        model_instances.append(model)
+    
+    return model_instances
 
 
 def function_models(model, sampling,li_feature_selection,kfolds,lw,K,type_reg,X,y):
@@ -418,7 +436,7 @@ def function_models(model, sampling,li_feature_selection,kfolds,lw,K,type_reg,X,
     output:
     sensitivity;number of true postives /(number of true postives  of false positives plus the number of false positives)
     specificity: true negative /(true negative+false positives)
-    precision: number of true postives /(number of true postives  of false positives plus the number of false negatives)
+    precision: number of true| postives /(number of true postives  of false positives plus the number of false negatives)
     accuracy; number of correc prediccition/ total number of prediction
     f1_score: it is the armonic mean of precision and recall 
     '''
@@ -426,7 +444,7 @@ def function_models(model, sampling,li_feature_selection,kfolds,lw,K,type_reg,X,
     if kfolds == "strati":
        skf = StratifiedKFold(n_splits=K, shuffle=False, )
     else:   
-       skf = KFold(K, shuffle=False,)
+       skf = KFold(n_splits=K, shuffle=False,)
     #initializiate lists   
     y_true = []
     y_pred = []
@@ -456,7 +474,7 @@ def function_models(model, sampling,li_feature_selection,kfolds,lw,K,type_reg,X,
                 grid_search = GridSearchCV(estimator=logit_clf, param_grid=param_grid, scoring='roc_auc', cv=5)
                 grid_search.fit(X_train, y_train)
                 best_alpha = grid_search.best_params_['alpha']
-                logit_clf = Lasso(best_alpha)
+                logit_clf = Lasso(alpha=best_alpha)
                 
                 
 
@@ -524,7 +542,6 @@ def function_models(model, sampling,li_feature_selection,kfolds,lw,K,type_reg,X,
             y_pred_train = np.append(y_pred_train, y_pred_sub_train)
             
         try:
-            xgb1_pred_prob = rf_clf.predict_proba(X_test_new)
             xgb1_pred_prob = rf_clf.predict_proba(X_test_new)
             fpr, tpr, thresholds = roc_curve(y_test, xgb1_pred_prob[:, 1])
             mean_tpr += interp(mean_fpr, fpr, tpr)
@@ -595,12 +612,9 @@ def function_models(model, sampling,li_feature_selection,kfolds,lw,K,type_reg,X,
         
 
 
-def modelo_df(X,y,name_p,type_reg):
+def modelo_df(X,y,name_p,type_reg,model,sampling,li_feature_selection,kfolds,lw,K):
     #BaggingClassifier(KNeighborsClassifier(),max_samples=0.5, max_features=0.5),
-    #model =[RandomForestClassifier(n_estimators=100, max_depth=3),LogisticRegression(penalty='l1', random_state=0, solver='liblinear'), XGBClassifier()]
-    model =[LogisticRegression(penalty='l1', random_state=0, solver='liblinear'), XGBClassifier()]
-    #
-    result = {              'f1_test':[],
+    result = {    'f1_test':[],
                 'f1_train':[],
    
                 'sensitivity_test':[],
@@ -622,18 +636,7 @@ def modelo_df(X,y,name_p,type_reg):
             
             
             }               
-    #strati = ["strati","non"] 
-    #sampling = ["non","under","over"]
-    sampling = ["non","over"]
-    
-    li_feature_selection = [True,False]
-    #li_feature_selection = [True]
-   
-    kfolds = 5
 
-    #k
-    lw = 2
-    K = 5
 
     for i in tqdm(model):
         model_name = i.__class__.__name__
@@ -670,26 +673,29 @@ def modelo_df(X,y,name_p,type_reg):
     df_res = pd.DataFrame(result)
     return df_res              
                     
-def make_preds(ejemplo_dir,path,days,ficheros,kfolds,type_reg,prepro,archivo_input_label):
+def make_preds(ejemplo_dir,path,days,ficheros,kfolds,type_reg,prepro,archivo_input_label,nom_t,model,sampling,li_feature_selection,lw,K):
     fichero_y ="label_"+days+"j.csv"
     readmit_df = label_fun(days,archivo_input_label)
 
     # Se obtiene dataframe que sera el output del perfomance del entrenamiento
     df_res_aux = pd.DataFrame(columns=[ ])
+    j = 0
     # se obtiene el respectivo preprocesing de acuerdo al experimento que se realizo
     for i in tqdm(ficheros):
         #concat_var_ = create_var(ejemplo_dir,i,readmit_df)
         #eda_embedding(path,i,concat_var_,i)
         
         print(i)
-        if i in ['ICD9_CODE_procedures.csv', 'CCS CODES_proc.csv', 'cat_threshold .999 most frequent']:
+        '''if i in ['ICD9_CODE_procedures.csv', 'CCS CODES_proc.csv', 'cat_threshold .999 most frequent']:
             prepo = "max"
         elif i in ['cat_threshold .95 most frequent_proc','cat_threshold .88 most frequent']:
             prepo = "power"
         else:
             prepo = "std"
-        print(prepo)
+        print(prepo)'''
             # se obtiene la matriz de features y la variable response
+        prepo = prepro[j]
+        print(prepo)
         
         X,y ,concat_var  = lectura_variables(readmit_df,i,fichero_y,prepo,ejemplo_dir,days)
         try:
@@ -703,13 +709,13 @@ def make_preds(ejemplo_dir,path,days,ficheros,kfolds,type_reg,prepro,archivo_inp
             y = y
         
         # funcion de entrenamiento dem odelo
-        df_res = modelo_df(X,y,i,type_reg)
+        df_res = modelo_df(X,y,i,type_reg,model,sampling,li_feature_selection,kfolds,lw,K)
         
         #concatenación de dataframes 
         df_res_aux = pd.concat([df_res_aux,df_res])
-        
+        j +=1
         # se guarda dataframes    
-        df_res_aux.to_csv("./results_pred/results_prediction_"+days+"+_realv3.csv")   
+        df_res_aux.to_csv("./results_pred/results_prediction_"+days+"+non_filtered"+nom_t+".csv")   
 
 
 

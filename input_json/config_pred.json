@@ -1,0 +1,29 @@
+{
+    "nom_t": "Drugs",
+    "ejemplo_dir": "./input_model_pred/",
+    "archivo_input_label": "data_preprocess_non_filtered.csv",
+    "path": "./input_model_pred/images",
+    "days_list": ["30"],
+    "type_reg": "lasso",
+    "model_": ["RandomForestClassifier","LogisticRegression","XGBClassifier"],
+    "model": ["XGBClassifier"],
+    "sampling_": ["non", "over"],
+    "sampling": [ "over"],
+    "li_feature_selection_": [true, false],
+    "li_feature_selection": [true, false],
+    "kfolds": 5,
+    "lw": 2,
+    "K": 5,
+    "list_cat": [
+      "CCS_CODES_diagnosis",
+      "LEVE3 CODES",
+      "threshold_0.95_diagnosis",
+      "threshold_0.88_diagnosis",
+      "threshold_0.98_diagnosis",
+      "threshold_0.999_diagnosis",
+      "ICD9_CODE_diagnosis",
+      "sin_codigo"
+    ],
+    "prepro": ["max","max","std","max","max","std","std"]
+  }
+  

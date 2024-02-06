@@ -10,5 +10,7 @@ experimento1.xlsx
 outs_visit
 models_cluster/
 experimento1.xlsx
-
-
+results_pred
+experimento1.xlsx
+prepro_experiment_Patientkmeans_cat_threshold .88 most frequent_nonfiltered_aux.csv
+prepro_experiment_Patientkmeans_CCS CODES_proc_nonfiltered_aux.csv
