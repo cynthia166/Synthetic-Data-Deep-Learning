@@ -4,16 +4,21 @@ import argparse
 def main():
     nom_t = "Diagnosis"
     ori = "ICD9_CODE_diagnosis"
+    categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
+                    'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
+                    'MARITAL_STATUS', 'ETHNICITY','GENDER']
+    
+
     #ren el caso que solo se incluya una visita
     #archivo = "data_preprocess.csv"
     parser = argparse.ArgumentParser()
     #Patient/outs_visit
-    parser.add_argument('--type_a', type=str, default='outs_visit')
+    parser.add_argument('--type_a', type=str, default='Patient')
 
     global df_res
     #todas las visitass
-    archivo = "data/data_preprocess_non_filtered.csv"
-
+    archivo = "data/data_preprocess_nonfilteres.csv"
+    file_save = "input_model_diagnosis_patient/"
 
     df = pd.read_csv(archivo)
 
@@ -71,14 +76,21 @@ def main():
 
     #visit diagnosis  
     #prepo_li= ["max","max","std","max","max","std","std"]
-
-  
-    list_cat = [
-        
-       'CCS_CODES_diagnosis', 'LEVE3 CODES',
-       'threshold_0.95_diagnosis', 'threshold_0.88_diagnosis',
-       'threshold_0.98_diagnosis', 'threshold_0.999_diagnosis', 'ICD9_CODE_diagnosis']   
-
+    #list_cat = [
+    #   'ATC4', 'ATC3',  'threshold_0.88', 'threshold_0.95',
+    #   'threshold_0.98', 'threshold_0.999','DRUG_y']  
+ 
+    list_cat= [
+          "CCS_CODES_diagnosis",
+          "LEVE3 CODES",
+          "threshold_0.95_diagnosis",
+          "threshold_0.88_diagnosis",
+          "threshold_0.98_diagnosis",
+          "threshold_0.999_diagnosis",
+          "ICD9_CODE_diagnosis",
+         
+           ] 
+   
     result = {'Name':[],
                 'silhouette_avg':[],
             'davies_bouldin_avg':[],
@@ -87,25 +99,29 @@ def main():
     
     args = parser.parse_args()
     #type_a=stri =args.type_a
-    type_a = stri = "outs_visit"
+    #Patient,outs_visit
+    type_a = stri = "Patient"
     if type_a == "Patient":
-       file_save = "input_model_patient/"
+       file_save =file_save
     else:
-       file_save = "input_model_pred/"    
+       file_save = file_save   
     #prep_type = ["std","std","std","power","power","std"]
     #patient
     #prep_type = ["std","max","power","std","std","power"]
     
     #visit
     #prep_type = ["std","max","max","std","std","std"]
-    categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
-                    'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
-                    'MARITAL_STATUS', 'ETHNICITY','GENDER']
- 
 
+    
+    if nom_t == "Drugs" or nom_t == "Diagnosis":
+        archivo = "data/data_preprocess_nonfilteres.csv"
+        df = pd.read_csv(archivo)
+        nuevo_df_x = desconacat_codes_ori(df,ori)
+
+    
     for i in range(len(list_cat)):
         real = list_cat[i]
-        nam_p = nam_p_list[i]
+        #nam_p = nam_p_list[i]
         name = list_cat[i]
         if nom_t == "Drugs" or nom_t == "Diagnosis":
             #std max power
@@ -113,9 +129,9 @@ def main():
             archivo = "data/data_preprocess_nonfilteres.csv"
             df = pd.read_csv(archivo)
 
+       
       
-      
-            X = input_for_pred_mutualinfo(list_cat,df,categorical_cols,real,stri,archivo,type_a,ori)
+            X = input_for_pred_mutualinfo(df,categorical_cols,real,stri,archivo,type_a,nuevo_df_x)
         else:    
             X = clustering_icdcodes_aux(df,real,df1,type_a,prep_type[i],nam_p,categorical_cols,filtered,archivo)
         X.to_csv(file_save+real+"_"+type_a+"_non_filtered.csv")

@@ -1,32 +1,32 @@
-
-  
-      {
+ {
         "nom_t": "Diagnosis",
-        "u": "patient/",
-        "type_a": "Patient",
-        "ejemplo_dir": "input_model_patient/",
+        "u": "visit/",
+        "type_a": "outs_visit",
+        "ejemplo_dir": "input_model_pred_diagnosis_u/",
         "list_cat_": [
-            "CCS_CODES_diagnosis",
-            "LEVE3 CODES",
-            "threshold_0.95_diagnosis",
-            "threshold_0.88_diagnosis",
-            "threshold_0.98_diagnosis",
-            "threshold_0.999_diagnosis",
-            "ICD9_CODE_diagnosis",
-            "sin_codigo"
+            "CCS_CODES_diagnosis_max",
+            "LEVE3 CODES:max",
+            "threshold_0.95_diagnosis_std",
+            "threshold_0.88_diagnosis_max",
+            "threshold_0.98_diagnosis_max",
+            "threshold_0.999_diagnosis_std",
+            "ICD9_CODE_diagnosis_std",
+            "sin_codigo_std"
           ],
         "list_cat": [
-            "CCS_CODES_diagnosis",
-            "LEVE3 CODES",
-            "threshold_0.95_diagnosis",
-            "threshold_0.88_diagnosis",
-            "threshold_0.98_diagnosis",
-            "threshold_0.999_diagnosis",
-            "ICD9_CODE_diagnosis"],
+          "CCS_CODES_diagnosis",
+          "LEVE3 CODES",
+          "threshold_0.95_diagnosis",
+          "threshold_0.88_diagnosis",
+          "threshold_0.98_diagnosis",
+          "threshold_0.999_diagnosis",
+          "ICD9_CODE_diagnosis",
+          "sin_codigo"
+           ],
       
         
-        "prepo_li": ["max","max","max","max","std","power","power"],
+        "prepo_li": ["std","std","max","max","std","std","max","max"],
         
-        "ejemplo_dir2": "models_cluster/patient/"
+        "ejemplo_dir2": "models_cluster/visit/"
       }
       

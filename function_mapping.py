@@ -930,25 +930,25 @@ def clustering_icdcodes_aux(df,real,df1,type_a,norm_str,nam_p,categorical_cols,f
     #X = firs_preprocesing(pivot_df,"outs_visit")
     #X.to_csv("input_model_pred/cat_"+name+"_procedures.csv")                               
 
-def input_for_pred_mutualinfo(list_cat,df,categorical_cols,real,stri,archivo,type_a,ori):
-    nuevo_df_x = desconacat_codes_ori(df,ori)
-    for i in range(len(list_cat)):
-                real = list_cat[i]
-                
-                nuevo_df4 = desconacat_codes_ori(df,real)
-
-                
-
-                duplicados = merge_df_ori(nuevo_df_x,nuevo_df4,df,categorical_cols,real) 
-                #duplicados["MARITAL_STATUS"]= duplicados["MARITAL_STATUS"].replace(np.nan, "Unknown")
-
-               
-                pivot_df, agregacion_cl = pivotm_ori(duplicados,real,stri,categorical_cols,archivo)
-                agregacion_cl = demo_ad(categorical_cols,agregacion_cl)
-                X = firs_preprocesing_aux(pivot_df,type_a,agregacion_cl,categorical_cols)
+def input_for_pred_mutualinfo(df,categorical_cols,real,stri,archivo,type_a,nuevo_df_x):
+    
+  
+     
         
+        nuevo_df4 = desconacat_codes_ori(df,real)
+
+        
+
+        duplicados = merge_df_ori(nuevo_df_x,nuevo_df4,df,categorical_cols,real) 
+        #duplicados["MARITAL_STATUS"]= duplicados["MARITAL_STATUS"].replace(np.nan, "Unknown")
+
+        
+        pivot_df, agregacion_cl = pivotm_ori(duplicados,real,stri,categorical_cols,archivo)
+        agregacion_cl = demo_ad(categorical_cols,agregacion_cl)
+        X = firs_preprocesing_aux(pivot_df,type_a,agregacion_cl,categorical_cols)
+
                     
-    return X  
+        return X  
 
 def merge_df_ori(nuevo_df_x,nuevo_df4,df,categorical_cols,real):   
 

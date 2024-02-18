@@ -3,10 +3,11 @@ from function_mapping import *
 import pandas as pd
 import csv
 import json
+import argparse
 
-def main():
-    with open('input_json/config_mi_patient.json', 'r') as f:
-        config = json.load(f)
+def main(config):
+    #with open('input_json/config_mi_patient.json', 'r') as f:
+    #    config = json.load(f)
 
     nom_t = config["nom_t"]
     u = config["u"]
@@ -21,7 +22,7 @@ def main():
 
     for i in ficheros:
         print(i)
-    fit_kmean_model([ficheros[-1]],ejemplo_dir,type_a,4,prepo_li)
+    fit_kmean_model(ficheros,ejemplo_dir,type_a,4,prepo_li)
 
       
     
@@ -101,4 +102,13 @@ def main():
         writer = csv.writer(file)
         writer.writerows(df_res.values)
 if __name__ == "__main__":
-    main()  
+    parser = argparse.ArgumentParser(description='Run clustering analysis with dynamic input configuration.')
+    parser.add_argument('--config', type=str, help='Path to the JSON configuration file.',default="input_json/config_mi_visit_drugs.json")
+    args = parser.parse_args()
+
+    # Load the configuration settings from the JSON file
+    with open(args.config, 'r') as f:
+        config = json.load(f)
+
+    # Run the main function with the loaded configuration
+    main(config

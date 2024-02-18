@@ -14,6 +14,7 @@ def main(config_path):
     path = config["path"]
     days_list = config["days_list"]
     ficheros = read_director(ejemplo_dir)
+    ficheros = [i for i in ficheros if i != "sin_codigo.csv"]
     type_reg = config["type_reg"]
     
     # Instantiate the model based on the string in the JSON
@@ -25,19 +26,19 @@ def main(config_path):
     kfolds = config["kfolds"]
     lw = config["lw"]
     K = config["K"]
-    list_cat = config["list_cat"]
+    #list_cat = config["list_cat"]
     prepro = config["prepro"]
 
-    for days in days_list
+    for days in days_list:
          make_preds(ejemplo_dir, path, days, ficheros, kfolds, type_reg, prepro,
                    archivo_input_label, nom_t, model, sampling, li_feature_selection,
-                    lw, K)
+                    lw, K,models_config)
 
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', help='Path to the configuration JSON file',default='config_pred.json')
+    parser.add_argument('--config_path', help='Path to the configuration JSON file',default='config_pred_drugs1.json')
     args = parser.parse_args()
 
     main(args.config_path)
