@@ -45,3 +45,11 @@ wandb_example.py
 
 
 input_model_dinamic.py
+aux_.py
+.gitignore
+input_model_dinamic_.py
+mutualinformation_config_.py
+.gitignore
+readmission_pred_script_wandb_.py
+readmission_pred_script_wandb2_.py
+concat_input_.py
