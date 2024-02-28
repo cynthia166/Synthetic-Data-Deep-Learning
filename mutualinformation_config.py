@@ -103,7 +103,7 @@ def main(config):
         writer.writerows(df_res.values)
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run clustering analysis with dynamic input configuration.')
-    parser.add_argument('--config', type=str, help='Path to the JSON configuration file.',default="input_json/config_mi_visit_drugs.json")
+    parser.add_argument('config', type=str, help='Path to the JSON configuration file.')
     args = parser.parse_args()
 
     # Load the configuration settings from the JSON file
@@ -111,4 +111,4 @@ if __name__ == "__main__":
         config = json.load(f)
 
     # Run the main function with the loaded configuration
-    main(config
+    main(config)

@@ -65,7 +65,8 @@ def desconacat_codes_ori(drugs,real):
             nuevo_df3[real+"_preprocess"] = nuevo_df3[real+"_preprocess"].replace("Otro",-1)
 
             # Muestra el nuevo DataFrame resultante
-            print(nuevo_df3)
+            print(nuevo_df3.shape)
+
             nuevo_df2_gen=nuevo_df3.copy()
             
           

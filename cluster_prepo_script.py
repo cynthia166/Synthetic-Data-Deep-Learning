@@ -14,10 +14,18 @@ def main():
     global df_res,result
     #todas las visitass
     filtered = False
-    archivo = "data/data_preprocess_non_filtered.csv"
+    archivo2 = "data/data_preprocess_non_filtered.csv"
+    #procedures threshold
+    archivo = "data/procedures_preprocess_threshold_nonfiltered.csv"
+    
+    df1 = pd.read_csv(archivo)
+    df = pd.read_csv(archivo2)
+    # I change this
+    #df = df1.copy()
 
 
-    df = pd.read_csv(archivo)
+    #df.rename(columns={'ICD9_CODE':"ICD9_CODE_procedures"}, inplace=True)
+    #aux = pd.read_csv(archivo2)
 
     pd.set_option('display.max_columns', None)
         
@@ -39,17 +47,23 @@ def main():
 
     #df1=grouped_proc.copy()
     archivo_procedures = "procedures_preprocess_threshold_nonfiltered.csv"
-    df1 = pd.read_csv("data/"+archivo_procedures)
+    #df1 = pd.read_csv("data/"+archivo_procedures)
     #todas las visitas
+    
     #df1 = df.copy()
-
-    aux_demo = df[['ADMISSION_TYPE', 'ADMISSION_LOCATION',
+    # si es procedures threshold
+    
+    cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
             'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
-            'MARITAL_STATUS', 'ETHNICITY','GENDER']]
+            'MARITAL_STATUS', 'ETHNICITY','GENDER', ]
+
+
+    #aux_demo = df[cols]
 
     #PREPROCESSING
     list_cat = ["ICD9_CODE_procedures",'CCS CODES_proc', 'cat_threshold .95 most frequent_proc','cat_threshold .88 most frequent', 'cat_threshold .98 most frequent',
         'cat_threshold .999 most frequent']
+    list_cat_aux = ['CCS CODES_proc', 'cat_threshold .999 most frequent', ]
     categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
                     'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
                     'MARITAL_STATUS', 'ETHNICITY','GENDER']
@@ -63,10 +77,12 @@ def main():
     #type of mapping, 
     nam_p_list = ["allicd9Procedures",'CCS CODES_proc', 'cat_threshold .95 most frequent_proc','Threshold', 'Threshold',
         'Threshold']
+    nam_p_list_aux = ['CCS CODES_proc', 'Threshold']
     #type of leve.
-    type_a=stri ="outs_visit"
+    type_a=stri ="Patient"
     #preprocessing
     norm_str =["std","max", "power"]
+    #norm_str =[ "power"]
     #number of clusters
     num_cluste = [4,8,12]
     #information lists
@@ -79,16 +95,18 @@ def main():
     davies_bouldin_avg_l=[]
     real_l=[]
 
-    #for i in range(len(list_cat)-1, len(list_cat)):
-    for i in range(1,3):
+
+    #for i in range(5,len(list_cat)):
+    for i in range(0,len(list_cat_aux)):
+        #for i in range(1,3):
         print(i)
         # Your code here
         for j in norm_str:
             for n in num_cluste:
-                real = list_cat[i]
-                nam_p = nam_p_list[i]
-                name = list_cat[i]
-                X = clustering_icdcodes(df,real,df1,type_a,j,nam_p,categorical_cols,archivo,filtered)
+                real = list_cat_aux[i]
+                nam_p = nam_p_list_aux[i]
+                name = list_cat_aux[i]
+                X = clustering_icdcodes(df,real,df1,type_a,j,nam_p,categorical_cols,archivo2,filtered)
                 silhouette_avg,davies_bouldin_avg = clustering_prepo2(X,name,n,method)
                 result["Prepro"].append(j)
                 result["Num Cluster"].append(n)
@@ -99,7 +117,7 @@ def main():
                 df_res = pd.DataFrame(result)
                 df_res   
                 # the results are saved
-                df_res.to_csv("experiment_prepo/prepro_experiment_"+type_a+method+"_"+name+"_nonfiltered.csv")
+                df_res.to_csv("experiment_prepo/prepro_experiment_"+type_a+method+"_"+name+"_nonfiltered_aux.csv")
 
 if __name__ == "__main__":
     main()
