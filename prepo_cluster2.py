@@ -5,9 +5,10 @@ filtered = False
 stri = "outs_visit"
 #std max power
 norm_str =["std","max", "power"]
+#norm_str =[ "power"]
 archivo = "data/data_preprocess_nonfilteres.csv"
 df = pd.read_csv(archivo)
-real = 'threshold_0.95'
+
 ori = "DRUG_x"
 # kmeans or other
 clustering_method = "kmeans"
@@ -22,9 +23,10 @@ davies_bouldin_avg_l=[]
 real_l=[]
 save = False
 num_clusters = [4,8,12]
-list_cat = [
+''''list_cat = [
        'ATC4', 'ATC3',  'threshold_0.88', 'threshold_0.95',
-       'threshold_0.98', 'threshold_0.999']
+       'threshold_0.98', 'threshold_0.999','DRUG_y']'''
+list_cat = [ 'DRUG_y']
 # the dictionary where the results will be stores
 result = {'Name':[],
         'Prepro':[],
@@ -66,4 +68,4 @@ for i in range(len(list_cat)):
                 df_res = pd.DataFrame(result)
                    
                 # the results are saved
-                df_res.to_csv("experiment_prepo/prepro_experiment_"+stri+'_'+clustering_method+"_"+ori+"_nonfiltered.csv")
+                df_res.to_csv("experiment_prepo/drugs_prepro_experiment_"+stri+'_'+clustering_method+"_"+ori+"_nonfiltered13.csv")

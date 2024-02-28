@@ -1,13 +1,15 @@
 from model_eval import *
 #stri = "Patient"
 #option-->outs_visit /Patient
+
 filtered = False
-stri = "outs_visit"
-#std max power
-norm_str =["std","max", "power"]
+stri = "Patient"
+num_run = 11
+#norm_str =["std","max", "power"]
+norm_str =["power"]
 archivo = "data/data_preprocess_nonfilteres.csv"
 df = pd.read_csv(archivo)
-real = 'threshold_0.95'
+#real = 'threshold_0.95'
 ori = 'ICD9_CODE_diagnosis'
 # kmeans or other
 clustering_method = "kmeans"
@@ -22,12 +24,23 @@ davies_bouldin_avg_l=[]
 real_l=[]
 save = False
 num_clusters = [4,8,12]
-list_cat = [
+#num_clusters = [12]
+#num_clusters = [4,8]
+
+'''list_cat = [
         
        'CCS_CODES_diagnosis', 'LEVE3 CODES',
        'threshold_0.95_diagnosis', 'threshold_0.88_diagnosis',
-       'threshold_0.98_diagnosis', 'threshold_0.999_diagnosis']
+       'threshold_0.98_diagnosis', 'threshold_0.999_diagnosis', 'ICD9_CODE_diagnosis']
+list_cat = [
+        
+        'ICD9_CODE_diagnosis']'''
+
+
 # the dictionary where the results will be stores
+list_cat = [
+      'ICD9_CODE_diagnosis']
+
 result = {'Name':[],
         'Prepro':[],
         'Num Cluster':[],
@@ -68,4 +81,4 @@ for i in range(len(list_cat)):
                 df_res = pd.DataFrame(result)
                    
                 # the results are saved
-                df_res.to_csv("experiment_prepo/prepro_experiment_"+stri+'_'+clustering_method+"_"+ori+"_nonfiltered.csv")
+                df_res.to_csv("experiment_prepo/prepro_experiment_"+stri+'_'+clustering_method+"_"+ori+"_nonfiltered_"+str(num_run)+".csv")

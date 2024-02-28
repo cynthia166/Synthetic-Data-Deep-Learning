@@ -5,6 +5,7 @@ import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.datasets import make_blobs
 from sklearn.cluster import AgglomerativeClustering
+from model_eval import *
 #from yellowbrick.cluster import KElbowVisualizer
 
 import matplotlib.cm as cm
@@ -463,7 +464,11 @@ def max_visit_add(x):
 
 def last_firs(archivo):
     ADMISSIONS = pd.read_csv(archivo)
-    ADMISSIONS[['ADMITTIME','DISCHTIME']] = ADMISSIONS[['ADMITTIME','DISCHTIME']].apply(lambda x: pd.to_datetime(x, format='%Y-%m-%d %H:%M:%S'))
+    try: 
+        ADMISSIONS[['ADMITTIME','DISCHTIME']] = ADMISSIONS[['ADMITTIME','DISCHTIME']].apply(lambda x: pd.to_datetime(x, format='%Y-%m-%d %H:%M:%S'))
+    except:
+        ADMISSIONS[['ADMITTIME','DISCHTIME']] = ADMISSIONS[['ADMITTIME','DISCHTIME']].apply(lambda x: pd.to_datetime(x, infer_datetime_format=True))    
+        
     ADMISSIONS["L_1s_last"] = ADMISSIONS.groupby('SUBJECT_ID')['ADMITTIME'].transform(lambda x: x - x.min())
     return ADMISSIONS[["SUBJECT_ID","HADM_ID","L_1s_last"]] 
 
@@ -670,7 +675,7 @@ def firs_preprocesing_aux(pivot_df,stri,agregacion_cl,categorical_cols):
 
     return merge_input
 
-def firs_preprocesing(pivot_df,stri,agregacion_cl):
+def firs_preprocesing(pivot_df,stri,agregacion_cl,categorical_cols):
     '''function that preproces the pivot_df, which is the count matrix of icd9-codes, it divide the matrix by numer of non zeros
     it merges the pivot_df normalized by non zero with the demographic variables, log transformation is applied to variable las visit to 
     first visit, becaus it has large values and all the clustering was done considering this variable, it is done by patien and visit level
@@ -718,12 +723,12 @@ def firs_preprocesing(pivot_df,stri,agregacion_cl):
         result_df['SUBJECT_ID'] = pivot_df['SUBJECT_ID']
 
     if stri == "outs_visit" or stri =="visit":    
-        agregacion_df  = agregacion_cl.reset_index()[["SUBJECT_ID", "HADM_ID","Age_max","LOSRD_sum","L_1s_last","LOSRD_avg"]]
+        agregacion_df  = agregacion_cl.reset_index()[["SUBJECT_ID", "HADM_ID","Age_max","LOSRD_sum","L_1s_last","LOSRD_avg"] +categorical_cols]
         merge_input = pd.merge(result_df, agregacion_df, on=["SUBJECT_ID","HADM_ID"], how='inner')
 
     else: 
 
-        agregacion_df  = agregacion_cl.reset_index()[["SUBJECT_ID", "Age_max","LOSRD_sum","L_1s_last","LOSRD_avg"]]
+        agregacion_df  = agregacion_cl.reset_index()[["SUBJECT_ID", "Age_max","LOSRD_sum","L_1s_last","LOSRD_avg"]+categorical_cols]
         merge_input = pd.merge(result_df, agregacion_df, on=["SUBJECT_ID"], how='inner')
 
     transformer = FunctionTransformer(np.log)
@@ -731,7 +736,7 @@ def firs_preprocesing(pivot_df,stri,agregacion_cl):
     merge_input["L_1s_last_p1"] =np.where(np.isinf(merge_input["L_1s_last_p1"]) , 0, merge_input["L_1s_last_p1"])
     # REVISAR****PAR CLUSTER PROCEDURES*
     
-    if stri != "outs_visit" and stri != "Patient":
+    if stri != "outs_visit" or stri != "Patient":
         X = merge_input.drop(['SUBJECT_ID', "HADM_ID","L_1s_last"], axis=1)
     elif stri == "Patient":
         X = merge_input.drop(["L_1s_last","SUBJECT_ID"], axis=1)
@@ -812,11 +817,16 @@ def fit_kmean_model(ficheros,ejemplo_dir,type_a,num,prepo):
         for j in range(3):
         
             X = pd.read_csv(ejemplo_dir+ficheros[i])
+            #X = pd.read_csv(ejemplo_dir+X_)
             
-            X = X.drop(['SUBJECT_ID',"HADM_ID","Unnamed: 0" ,"L_1s_last"], axis=1)
+            if type_a == "Patient":
+                X = X.drop(['SUBJECT_ID',"Unnamed: 0" ,"L_1s_last"], axis=1)    
+            else:    
+                X = X.drop(['SUBJECT_ID',"HADM_ID","Unnamed: 0" ,"L_1s_last"], axis=1)
             X = preprocess(X, prepo[i])
 
             name = ficheros[i] + str(j)
+            #name = i
             kmeans = KMeans(n_clusters=num,).fit(X)
             print(i)
             if type_a == "outs_visit":
@@ -865,7 +875,7 @@ def clustering_icdcodes(df,real,df1,type_a,norm_str,nam_p,categorical_cols,archi
         #print(nuevo_df2_gen.SUBJECT_ID.nunique())
         duplicados = merge_df(df,nuevo_df4,nuevo_df_x,real,categorical_cols)
         pivot_df,agregacion_cl = pivotm(duplicados,real,type_a,categorical_cols,archivo)
-    X = firs_preprocesing(pivot_df,type_a,agregacion_cl)
+    X = firs_preprocesing(pivot_df,type_a,agregacion_cl,categorical_cols)
     X = preprocess(X, norm_str)
     return X
     #X = preprocess(X, "std")    
@@ -920,7 +930,66 @@ def clustering_icdcodes_aux(df,real,df1,type_a,norm_str,nam_p,categorical_cols,f
     #X = firs_preprocesing(pivot_df,"outs_visit")
     #X.to_csv("input_model_pred/cat_"+name+"_procedures.csv")                               
 
+def input_for_pred_mutualinfo(df,categorical_cols,real,stri,archivo,type_a,nuevo_df_x):
+    
+  
+     
+        
+        nuevo_df4 = desconacat_codes_ori(df,real)
 
+        
+
+        duplicados = merge_df_ori(nuevo_df_x,nuevo_df4,df,categorical_cols,real) 
+        #duplicados["MARITAL_STATUS"]= duplicados["MARITAL_STATUS"].replace(np.nan, "Unknown")
+
+        
+        pivot_df, agregacion_cl = pivotm_ori(duplicados,real,stri,categorical_cols,archivo)
+        agregacion_cl = demo_ad(categorical_cols,agregacion_cl)
+        X = firs_preprocesing_aux(pivot_df,type_a,agregacion_cl,categorical_cols)
+
+                    
+        return X  
+
+def merge_df_ori(nuevo_df_x,nuevo_df4,df,categorical_cols,real):   
+
+    nuevo_aux = pd.concat([nuevo_df4, nuevo_df_x[[nuevo_df_x.columns[-1]]]],axis = 1)
+
+    
+
+    
+    print(nuevo_df_x.shape)
+    print(nuevo_df4.shape)
+    print(nuevo_aux.shape)
+    print("Unicos Subjects",nuevo_aux["SUBJECT_ID"].nunique())
+
+
+    
+    merge_atc = pd.merge(df[categorical_cols+['ICD9_CODE_procedures',
+            'EXPIRE_FLAG', 'DOB', 'SUBJECT_ID',
+            'HADM_ID', 'ADMITTIME', 'age', 'year_age', "ADMITTIME","LOSRD"]], nuevo_aux, on=["HADM_ID","SUBJECT_ID"], how='right')
+
+    print("shape merged",merge_atc.shape)
+
+    print("Unicos Subjects",merge_atc["SUBJECT_ID"].nunique())
+
+
+    print("HADM_ID unicos",merge_atc["HADM_ID"].nunique())
+    if real == "ICD9_CODE_diagnosis":
+       merge_atc = merge_atc.iloc[:,:-1]
+    merge_atc = merge_atc[merge_atc[real + "_preprocess"].notnull()]
+    print("shape merged, despues de eliminar nulos",merge_atc.shape)
+
+    #verificas que solo se tienen lenght of stay
+
+    merge_atc = merge_atc[merge_atc["LOSRD"]>0]   
+    
+    merge_atc=merge_atc.loc[:, ~merge_atc.columns.duplicated(keep='first')]
+    merge_atc['ADMITTIME'] = pd.to_datetime(merge_atc["ADMITTIME"])
+    #eliminar nulos de variables demograficas
+    for i in categorical_cols:
+        merge_atc[i]= merge_atc[i].replace(np.nan, "Unknown")
+
+    return merge_atc
 
 def clustering_prepo2(X,name,num_clusters,method):
     '''function that obtain the the performance metrics of the clustering davis_bouldin and silhouette_avg
@@ -1089,52 +1158,4 @@ def create_results(result_stat,changes_per_patient,real,unique_r,unique_icd9):
     return    auc_d
     
 if __name__ == "__main__":
-    
-    df = pd.read_csv("/Users/cgarciay/Desktop/Laval_Master_Computer/research/data_preprocess.csv")
-    pd.set_option('display.max_columns', None)
-
-    #Lectures of dataframe that have the procedures icd-9 codes with different threshold
-    proc = pd.read_csv("/Users/cgarciay/Desktop/Laval_Master_Computer/research/procedures_preprocess_threshold.csv")
-    grouped = proc.groupby(['SUBJECT_ID', 'HADM_ID']).agg(lambda x: x.tolist())
-
-    # Reset
-    # the index to make 'SUBJECT_ID' and 'HADM_ID' regular columns
-    grouped_proc = grouped.reset_index()
-    df1=grouped_proc.copy()
-    categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
-                    'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
-                    'MARITAL_STATUS', 'ETHNICITY','GENDER']
-
-    list_cat = ["ICD9_CODE_procedures",'CCS CODES_proc', 'cat_threshold .95 most frequent_proc','cat_threshold .88 most frequent', 'cat_threshold .98 most frequent',
-        'cat_threshold .999 most frequent']
-    method = "agglomerative"
-    result = {'Name':[],
-                'silhouette_avg':[],
-            'davies_bouldin_avg':[],
-                        } 
-    nam_p_list = ["allicd9Procedures",'CCS CODES_proc', 'cat_threshold .95 most frequent_proc','Threshold', 'Threshold',
-        'Threshold']
-    type_a=stri ="Patient"
-    #prep_type = ["std","std","std","power","power","std"]
-    prep_type = ["std","std","std","std","std","power"]
-    mean_mutual_information_l=[]
-    mean_ccscodes_randindex_l=[]
-    silhouette_avg_l=[]
-    davies_bouldin_avg_l=[]
-    real_l=[]
-    num_clusters = 4
-    for i in range(len(list_cat[1:])):
-        real = list_cat[i]
-        nam_p = nam_p_list[i]
-        name = list_cat[i]
-        X = clustering_icdcodes(df,real,df1,type_a,prep_type[i],nam_p,categorical_cols,archivo)
-        #pd.DataFrame(X).to_csv("/Users/cgarciay/Desktop/Laval_Master_Computer/research/input_model_pred/"+real+".csv")
-        silhouette_avg,davies_bouldin_avg =clustering_(X,name,num_clusters,method)
-        result["silhouette_avg"].append(silhouette_avg)
-        result["davies_bouldin_avg"].append(davies_bouldin_avg)
-        result["Name"].append(name)
-
-    df_res = pd.DataFrame(result)
-    df_res   
-        
-
+    print("hola")

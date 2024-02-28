@@ -1,7 +1,8 @@
 import sqlite3
 import pandas as pd
 import numpy as np
-import pacmap
+import time
+#import pacmap
 from sklearn.model_selection import cross_val_score, train_test_split, GridSearchCV, StratifiedKFold, KFold
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -401,6 +402,24 @@ def kernel_density_plot(var,concat_var,title,path,name_p,days):
     
     
 
+def initialize_models(models_config):
+    model_instances = []
+    for model_info in models_config:
+        model_type = model_info
+        
+        
+        if model_type == "RandomForestClassifier":
+            model = RandomForestClassifier(n_estimators=100, max_depth=3)
+        elif model_type == "LogisticRegression":
+            model =LogisticRegression(penalty='l1', random_state=0, solver='liblinear')
+        elif model_type == "XGBClassifier":
+            model =  XGBClassifier()
+        else:
+            raise ValueError(f"Model type '{model_type}' not recognized.")
+        
+        model_instances.append(model)
+    
+    return model_instances
 
 
 def function_models(model, sampling,li_feature_selection,kfolds,lw,K,type_reg,X,y):
@@ -418,7 +437,7 @@ def function_models(model, sampling,li_feature_selection,kfolds,lw,K,type_reg,X,
     output:
     sensitivity;number of true postives /(number of true postives  of false positives plus the number of false positives)
     specificity: true negative /(true negative+false positives)
-    precision: number of true postives /(number of true postives  of false positives plus the number of false negatives)
+    precision: number of true| postives /(number of true postives  of false positives plus the number of false negatives)
     accuracy; number of correc prediccition/ total number of prediction
     f1_score: it is the armonic mean of precision and recall 
     '''
@@ -426,7 +445,7 @@ def function_models(model, sampling,li_feature_selection,kfolds,lw,K,type_reg,X,
     if kfolds == "strati":
        skf = StratifiedKFold(n_splits=K, shuffle=False, )
     else:   
-       skf = KFold(K, shuffle=False,)
+       skf = KFold(n_splits=K, shuffle=False,)
     #initializiate lists   
     y_true = []
     y_pred = []
@@ -450,13 +469,13 @@ def function_models(model, sampling,li_feature_selection,kfolds,lw,K,type_reg,X,
             elif type_reg =="lasso":
                 
                 logit_clf = Lasso()
-                alphas = [.0000001, 0.0000000001, 0.00001, .000001,.000000001,10,100 ]
+                alphas = [.0000001, 0.00001, .01 ]
                 #alphas = [2,3,10,100 ]
                 param_grid = {'alpha': alphas}
                 grid_search = GridSearchCV(estimator=logit_clf, param_grid=param_grid, scoring='roc_auc', cv=5)
                 grid_search.fit(X_train, y_train)
                 best_alpha = grid_search.best_params_['alpha']
-                logit_clf = Lasso(best_alpha)
+                logit_clf = Lasso(alpha=best_alpha)
                 
                 
 
@@ -525,7 +544,6 @@ def function_models(model, sampling,li_feature_selection,kfolds,lw,K,type_reg,X,
             
         try:
             xgb1_pred_prob = rf_clf.predict_proba(X_test_new)
-            xgb1_pred_prob = rf_clf.predict_proba(X_test_new)
             fpr, tpr, thresholds = roc_curve(y_test, xgb1_pred_prob[:, 1])
             mean_tpr += interp(mean_fpr, fpr, tpr)
             mean_tpr[0] = 0.0
@@ -593,14 +611,204 @@ def function_models(model, sampling,li_feature_selection,kfolds,lw,K,type_reg,X,
     
     return rf_sen,rf_spe,rf_prec,rf_acc,mean_auc_,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t,var_moin,var_ini
         
-
-
-def modelo_df(X,y,name_p,type_reg):
+import wandb
+def modelo_df_aux_grid_search(X,y,name_p,type_reg,model,sampling,li_feature_selection,kfolds,lw,K,models_config,config):
     #BaggingClassifier(KNeighborsClassifier(),max_samples=0.5, max_features=0.5),
-    #model =[RandomForestClassifier(n_estimators=100, max_depth=3),LogisticRegression(penalty='l1', random_state=0, solver='liblinear'), XGBClassifier()]
-    model =[LogisticRegression(penalty='l1', random_state=0, solver='liblinear'), XGBClassifier()]
-    #
-    result = {              'f1_test':[],
+
+    
+    wandb.init(project="Predic_Readmission", config={
+
+    "mapping_name": name_p,
+    "name_p":name_p,
+    "li_feature_selection": li_feature_selection,
+    "model":model,
+    "type_reg":type_reg,
+    "sampling":sampling,
+    "kfolds":kfolds,
+    "K":K,
+    "lw":lw})
+    config = wandb.config
+    if config.model_type == "XGBClassifier":
+        model = XGBClassifier(
+            tree_method='gpu_hist',
+            n_estimators=config.n_estimators,
+            learning_rate=config.learning_rate,
+            max_depth=config.max_depth
+        )
+    elif config.model_type == "LogisticRegression":
+        model = LogisticRegression(
+            penalty=config.penalty,
+            C=config.C,
+            solver='saga'
+        )
+    
+        
+              
+    
+
+    result = {    'f1_test':0,
+        'f1_train':0,
+
+        'sensitivity_test':0,
+        'specificity_test':0,
+        'precision_test':0,
+        'accuracy_test':0,
+        'sensitivity_train':0,
+        'specificity_train':0,
+        'precision_train':0,
+        'accuracy_train':0,
+        
+        'confusion matrix':0,
+        'Sampling':0,
+        'Feature selection':0,
+        'Classifiers':0,
+        'Mapping':0,
+        'var_change':0,
+        'var_ini':0,
+        'time_model':0
+
+    } 
+
+    model_name = i.__class__.__name__
+        
+    j =sampling[0]
+    k1 =li_feature_selection[0]
+            
+
+    timi_ini =time.time()
+    #model = LogisticRegression(penalty='l1', solver='saga')
+                
+    rf_sen,rf_spe,rf_prec,rf_acc,mean_auc_,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t ,var_moin,var_ini= function_models(i, sampling,k1,kfolds,lw,K,type_reg,X,y)
+    time_model = timi_ini-time.time()  
+    result['sensitivity_test']=rf_sen
+    result['specificity_test']=rf_spe
+    result['precision_test']=rf_prec
+    result['accuracy_test']=rf_acc
+    result['sensitivity_train']=rf_sen_t
+    result['specificity_train']=rf_spe_t
+    result['precision_train']=rf_prec_t
+    result['accuracy_train']=rf_acc_t
+    result['f1_test']=f1
+    result['f1_train']=f1_t
+    result['confusion matrix']=rf_conf
+    result['Sampling']=j
+    result['Feature selection']=k1
+    result['Classifiers']=model_name
+    result['Mapping']=name_p
+    result["var_change"]=var_moin
+    result["var_ini"]=var_ini
+    result["time_model"]=time_model
+
+    wandb.log(result)
+                        
+                
+# Close the WandB run
+        
+                  
+     
+    # Finalizar el run de WandB para esta iteración
+    wandb.finish() 
+                    
+    df_res = pd.DataFrame(result)
+    return df_res 
+
+def modelo_df_aux(X,y,name_p,type_reg,model,sampling,li_feature_selection,kfolds,lw,K,models_config):
+    #BaggingClassifier(KNeighborsClassifier(),max_samples=0.5, max_features=0.5),
+
+
+    wandb.init(project="Predic_Readmission", config={
+
+    "mapping_name": name_p,
+    "name_p":name_p,
+    "li_feature_selection": li_feature_selection,
+    "model":model,
+    "type_reg":type_reg,
+    "sampling":sampling,
+    "kfolds":kfolds,
+    "K":K,
+    "lw":lw})
+    model = []
+    for i in models_config:
+        if i == "XGBClassifier":
+                model_l = XGBClassifier(tree_method='gpu_hist')  # Asegúrate de especificar tus hiperparámetros aquí
+        else:
+                model_l = LogisticRegression(penalty='l1', solver='saga')
+                rf_sen,rf_spe,rf_prec,rf_acc,mean_auc_,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t ,var_moin,var_ini= function_models(i, sampling,k1,kfolds,lw,K,type_reg,X,y)
+                time_model = time.time()-timi_ini
+    model.append(model_l)
+        
+    result = {    'f1_test':0,
+                'f1_train':0,
+   
+                'sensitivity_test':0,
+                'specificity_test':0,
+                'precision_test':0,
+                'accuracy_test':0,
+                'sensitivity_train':0,
+                'specificity_train':0,
+                'precision_train':0,
+                'accuracy_train':0,
+              
+                'confusion matrix':0,
+                'Sampling':0,
+                'Feature selection':0,
+                'Classifiers':0,
+                'Mapping':0,
+                'var_change':0,
+                'var_ini':0,
+                'time_model':0
+            
+            }               
+    
+    for i in tqdm(model):
+        
+        model_name = i.__class__.__name__
+         
+        for j in sampling:
+            for k1 in li_feature_selection:
+                
+
+                    timi_ini =time.time()
+                    #model = LogisticRegression(penalty='l1', solver='saga')
+                             
+                    rf_sen,rf_spe,rf_prec,rf_acc,mean_auc_,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t ,var_moin,var_ini= function_models(i, sampling,k1,kfolds,lw,K,type_reg,X,y)
+        
+                    result['sensitivity_test']=rf_sen
+                    result['specificity_test']=rf_spe
+                    result['precision_test']=rf_prec
+                    result['accuracy_test']=rf_acc
+                    result['sensitivity_train']=rf_sen_t
+                    result['specificity_train']=rf_spe_t
+                    result['precision_train']=rf_prec_t
+                    result['accuracy_train']=rf_acc_t
+                    result['f1_test']=f1
+                    result['f1_train']=f1_t
+                    result['confusion matrix']=rf_conf
+                    result['Sampling']=j
+                    result['Feature selection']=k1
+                    result['Classifiers']=model_name
+                    result['Mapping']=name_p
+                    result["var_change"]=var_moin
+                    result["var_ini"]=var_ini
+                    result["time_model"]=time_model
+                
+                    wandb.log(result)
+                            
+                    
+        # Close the WandB run
+        
+                  
+     
+    # Finalizar el run de WandB para esta iteración
+    wandb.finish() 
+                    
+    df_res = pd.DataFrame(result)
+    return df_res 
+def modelo_df(X,y,name_p,type_reg,model,sampling,li_feature_selection,kfolds,lw,K,models_config):
+    #BaggingClassifier(KNeighborsClassifier(),max_samples=0.5, max_features=0.5),
+
+    
+    result = {    'f1_test':[],
                 'f1_train':[],
    
                 'sensitivity_test':[],
@@ -618,78 +826,104 @@ def modelo_df(X,y,name_p,type_reg):
                 'Classifiers':[],
                 'Mapping':[],
                 'var_change':[],
-                'var_ini':[]
-            
+                'var_ini':[],
+                'time_model':[]
             
             }               
-    #strati = ["strati","non"] 
-    #sampling = ["non","under","over"]
-    sampling = ["non","over"]
+
     
-    li_feature_selection = [True,False]
-    #li_feature_selection = [True]
-   
-    kfolds = 5
-
-    #k
-    lw = 2
-    K = 5
-
     for i in tqdm(model):
+        
         model_name = i.__class__.__name__
-    
+         
         for j in sampling:
             for k1 in li_feature_selection:
                 
+                with wandb.init(project="Predic_Readmission", config={
+        
+                    "mapping_name": name_p,
+                    "name_p":name_p,
+                    "li_feature_selection": li_feature_selection,
+                    "model":model,
+                    "type_reg":type_reg,
+                    "sampling":sampling,
+                    "kfolds":kfolds,
+                    "K":K,
+                    "lw":lw
+                    
+                    
+                }) as run:
+                    timi_ini =time.time()
+                    #model = LogisticRegression(penalty='l1', solver='saga')
+                    if models_config == "XGBClassifier":
+                        model = XGBClassifier(tree_method='gpu_hist')  # Asegúrate de especificar tus hiperparámetros aquí
+                    else:
+                         model = LogisticRegression(penalty='l1', solver='saga')
+                    rf_sen,rf_spe,rf_prec,rf_acc,mean_auc_,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t ,var_moin,var_ini= function_models(i, sampling,k1,kfolds,lw,K,type_reg,X,y)
+                    time_model = time.time()-timi_ini
                 
+                    
+                    result['sensitivity_test'].append(rf_sen)
+                    result['specificity_test'].append(rf_spe)
+                    result['precision_test'].append(rf_prec)
+                    result['accuracy_test'].append(rf_acc)
+                    result['sensitivity_train'].append(rf_sen_t)
+                    result['specificity_train'].append(rf_spe_t)
+                    result['precision_train'].append(rf_prec_t)
+                    result['accuracy_train'].append(rf_acc_t)
+                    result['f1_test'].append(f1)
+                    result['f1_train'].append(f1_t)
+                    result['confusion matrix'].append(rf_conf)
+                    result['Sampling'].append(j)
+                    result['Feature selection'].append(k1)
+                    result['Classifiers'].append(model_name)
+                    result['Mapping'].append(name_p)
+                    result["var_change"].append(var_moin)
+                    result["var_ini"].append(var_ini)
+                    result["time_model"].append(time_model)
                 
-                rf_sen,rf_spe,rf_prec,rf_acc,mean_auc_,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t ,var_moin,var_ini= function_models(i, sampling,k1,kfolds,lw,K,type_reg,X,y)
-             
-              
-               
-                result['sensitivity_test'].append(rf_sen)
-                result['specificity_test'].append(rf_spe)
-                result['precision_test'].append(rf_prec)
-                result['accuracy_test'].append(rf_acc)
-                result['sensitivity_train'].append(rf_sen_t)
-                result['specificity_train'].append(rf_spe_t)
-                result['precision_train'].append(rf_prec_t)
-                result['accuracy_train'].append(rf_acc_t)
-                result['f1_test'].append(f1)
-                result['f1_train'].append(f1_t)
-                result['confusion matrix'].append(rf_conf)
-                result['Sampling'].append(j)
-                result['Feature selection'].append(k1)
-                result['Classifiers'].append(model_name)
-                result['Mapping'].append(name_p)
-                result["var_change"].append(var_moin)
-                result["var_ini"].append(var_ini)
-               
-                
+                    for metric, values in result.items():
+                        if "confusion matrix" in metric:
+                            # Log confusion matrix as a table
+                            wandb.log({metric: wandb.Table(data=pd.DataFrame(values[-1]))},commit = False)
+                        else:
+                            # Log mean of the metrics for simplicity
+                            wandb.log({metric: values},commit = False)
+                            
+                    
+        # Close the WandB run
+        
+                    wandb.log({})
+    
+    # Finalizar el run de WandB para esta iteración
+                    wandb.finish() 
                     
     df_res = pd.DataFrame(result)
     return df_res              
                     
-def make_preds(ejemplo_dir,path,days,ficheros,kfolds,type_reg,prepro,archivo_input_label):
+def make_preds(ejemplo_dir,path,days,ficheros,kfolds,type_reg,prepro,archivo_input_label,nom_t,model,sampling,li_feature_selection,lw,K,models_config,config):
     fichero_y ="label_"+days+"j.csv"
     readmit_df = label_fun(days,archivo_input_label)
 
     # Se obtiene dataframe que sera el output del perfomance del entrenamiento
     df_res_aux = pd.DataFrame(columns=[ ])
+    j = 0
     # se obtiene el respectivo preprocesing de acuerdo al experimento que se realizo
     for i in tqdm(ficheros):
         #concat_var_ = create_var(ejemplo_dir,i,readmit_df)
         #eda_embedding(path,i,concat_var_,i)
         
         print(i)
-        if i in ['ICD9_CODE_procedures.csv', 'CCS CODES_proc.csv', 'cat_threshold .999 most frequent']:
+        '''if i in ['ICD9_CODE_procedures.csv', 'CCS CODES_proc.csv', 'cat_threshold .999 most frequent']:
             prepo = "max"
         elif i in ['cat_threshold .95 most frequent_proc','cat_threshold .88 most frequent']:
             prepo = "power"
         else:
             prepo = "std"
-        print(prepo)
+        print(prepo)'''
             # se obtiene la matriz de features y la variable response
+        prepo = prepro[j]
+        print(prepo)
         
         X,y ,concat_var  = lectura_variables(readmit_df,i,fichero_y,prepo,ejemplo_dir,days)
         try:
@@ -703,13 +937,13 @@ def make_preds(ejemplo_dir,path,days,ficheros,kfolds,type_reg,prepro,archivo_inp
             y = y
         
         # funcion de entrenamiento dem odelo
-        df_res = modelo_df(X,y,i,type_reg)
+        df_res = modelo_df(X,y,i,type_reg,model,sampling,li_feature_selection,kfolds,lw,K,models_config)
         
         #concatenación de dataframes 
         df_res_aux = pd.concat([df_res_aux,df_res])
-        
+        j +=1
         # se guarda dataframes    
-        df_res_aux.to_csv("./results_pred/results_prediction_"+days+"+_realv3.csv")   
+        df_res_aux.to_csv("./results_pred/results_prediction_"+days+"+non_filtered"+nom_t+".csv")   
 
 
 
@@ -758,6 +992,9 @@ def label_fun(days,archivo_input_label):
 
     #the dataframe is ranked, by admission time, 
     a = ADMISSIONS[['SUBJECT_ID', 'HADM_ID', 'ADMITTIME', 'DISCHTIME']]
+    print(a.shape)
+    a = a[a["ADMITTIME"].notnull()]
+    print(a.shape)
     a['ADMITTIME_RANK'] = a.groupby('SUBJECT_ID')['ADMITTIME'].rank(method='first')
 
     # The last admission date is obtained

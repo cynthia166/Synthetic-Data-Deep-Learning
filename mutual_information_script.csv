@@ -1,7 +1,0 @@
-
-
-
-from function_mapping import *
-import pandas as pd
-
-def main():
