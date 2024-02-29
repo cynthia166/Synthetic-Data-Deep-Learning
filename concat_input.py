@@ -31,7 +31,7 @@ df_diagnosis = df_diagnosis.drop(columns=categorical_cols)
 df_drugs = df_drugs.drop(columns=categorical_cols+numerical_cols)
 df_procedures = df_procedures.drop(columns=categorical_cols+numerical_cols)
 
-rename_dict_d = {col: col + '_diagnosis' for col in df_diagnosis.columns if col not in numerical_cols+["SUBJECT_ID"+ "HADM_ID"] }
+rename_dict_d = {col: col + '_diagnosis' if col not in ["SUBJECT_ID", "HADM_ID"] else col for col in df_diagnosis.columns if col not in numerical_cols}
 df_diagnosis.rename(columns=rename_dict_d, inplace=True)
 
 rename_dict = {col: col + '_drugs' for col in df_drugs.columns if col != "SUBJECT_ID" and col != "HADM_ID" }
@@ -52,12 +52,48 @@ result_final = pd.merge(result, df_procedures, on=["SUBJECT_ID","HADM_ID"], how=
 
 adm = pd.read_csv('./data/data_preprocess_nonfilteres.csv')
 
-res = pd.merge(adm[categorical_cols+["ADMITTIME","SUBJECT_ID","HADM_ID"]],result_final, on=["SUBJECT_ID","HADM_ID"], how='roght')
+res = pd.merge(adm[categorical_cols+["ADMITTIME","SUBJECT_ID","HADM_ID"]],result_final, on=["SUBJECT_ID","HADM_ID"], how='right')
 
 # Assuming df is your DataFrame
 
 # Find columns that contain 'unnamed' in their name
-cols_to_drop = res.filter(like='unnamed', axis=1).columns
+cols_to_drop = res.filter(like='Unnamed', axis=1).columns
 
 # Drop these columns
 res.drop(cols_to_drop, axis=1, inplace=True)
+res.to_csv("generative_input/raw_input.csv")
+
+
+#######parte del preprocesamiento###################
+
+
+##########nulos##########
+res = res.fillna(0)
+# Reemplazar 'Not specified' con 'Otra'
+
+
+########onehot encoding y agrupacion de categoria de 80##
+from sklearn.preprocessing import OneHotEncoder
+
+# Identificar y reemplazar las categorías que representan el 80% inferior
+for col in categorical_cols:
+    counts = res[col].value_counts(normalize=True)
+    lower_80 = counts[counts.cumsum() > 0.8].index
+    res[col] = res[col].replace(lower_80, 'Otra')
+
+# Aplicar One Hot Encoding
+encoder = OneHotEncoder(sparse=False, handle_unknown='ignore')
+encoded_cols = encoder.fit_transform(res[categorical_cols])
+encoded_cols_df = pd.DataFrame(encoded_cols, columns=encoder.get_feature_names(categorical_cols))
+
+# Concatenar el DataFrame original con el DataFrame codificado
+res_final = pd.concat([res[[i for i in res.columns if i not in categorical_cols]], encoded_cols_df], axis=1)
+
+
+
+for col in categorical_cols:
+    print(res[col].unique())
+    #res[col] = res[col].replace('Not specified', 'Otra')
+    
+    
+res_final.to_csv("generative_input/input_onehot_encoding.csv")    

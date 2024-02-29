@@ -92,7 +92,7 @@ def read_director(ejemplo_dir):
     return [i for i in ficheros if i!= '.DS_Store']
 
 
-def lectura_variables(readmit_df,fichero_x,fichero_y,prepo,ejemplo_dir,days):
+def lectura_variables(readmit_df,fichero_x,prepo,ejemplo_dir,days):
     '''Funtion tha reads the predictor dataset and  it eliminates the unwanteed columns and preprocess the dataset, also it concatenates de 
     response variable to obtain only the visits that are in the X datase,
     fichero_x: the file that will be reading the input from
@@ -118,6 +118,7 @@ def lectura_variables(readmit_df,fichero_x,fichero_y,prepo,ejemplo_dir,days):
         # The variables that are no considered as predictores are dropped, 
         X = concat_var.drop(["HADM_ID","SUBJECT_ID",days+'_READMIT','L_1s_last','Unnamed: 0',], axis=1)
         # the preprocessing is obtained 
+        
         X = preprocess(X, prepo)
     else:
         # the same procedures is done except that no considered preprocesing for bert embedding
@@ -925,7 +926,7 @@ def make_preds(ejemplo_dir,path,days,ficheros,kfolds,type_reg,prepro,archivo_inp
         prepo = prepro[j]
         print(prepo)
         
-        X,y ,concat_var  = lectura_variables(readmit_df,i,fichero_y,prepo,ejemplo_dir,days)
+        X,y ,concat_var  = lectura_variables(readmit_df,i,prepo,ejemplo_dir,days)
         try:
             X = X.values
             
@@ -1050,7 +1051,7 @@ def read_director(ejemplo_dir):
     
     return [i for i in ficheros if i!= '.DS_Store']
 
-def lectura_variables(readmit_df,fichero_x,fichero_y,prepo,ejemplo_dir,days):
+def lectura_variables(readmit_df,fichero_x,prepo,ejemplo_dir,days):
     '''Funtion tha reads the predictor dataset and  it eliminates the unwanteed columns and preprocess the dataset, also it concatenates de 
     response variable to obtain only the visits that are in the X datase,
     fichero_x: the file that will be reading the input from

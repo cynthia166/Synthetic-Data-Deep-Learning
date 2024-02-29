@@ -86,3 +86,8 @@ concat_input_.py
 =======
 experiment_preporesults_prepro_nonfilteres_diagnosis_final.csv
 >>>>>>> 5ced5552c9143544fe52ba5ae123383fd6d3ddf0
+
+generative_model/
+generative_input/raw_input.csv
+generative_input/input_onehot_encoding.csv
+__pycache__/function_pred.cpython-39.pyc

@@ -281,9 +281,9 @@ def main(json_config, readmit_df,fichero,i,project_name):
     
 if __name__ == "__main__":
     global days,param_grid,model
-    project_name =   "Predic_Readmission_diagnosis_XGboost_kfolds_preproC"
+    project_name =   "Predic_Readmission_drugs_XGboost_kfolds_preproC"
     # PARAMETRO NO FIJO#######
-    arconfig_path = "input_json/config_diagnosis_pred2.json"
+    arconfig_path = "input_json/config_drugs.json"
     def load_json_config(config_path):
         with open(config_path, 'r') as file:
             return json.load(file)
@@ -292,7 +292,7 @@ if __name__ == "__main__":
     json_config = load_json_config(arconfig_path)
     # Run the sweep
     # PARAMETRO NO FIJO#######
-    ejemplo_dir ="./input_model_pred_diagnosis_u/"
+    ejemplo_dir ="./input_model_pred_drugs_u/"
     model  = json_config["model"]
     if model == "Xgboost":
         model = XGBClassifier()
@@ -326,14 +326,15 @@ if __name__ == "__main__":
         'n_estimators': [1, 10, 100, 1000, 5000, 10000],
         
         # Para 'reg_alpha' (alpha region), una lista de valores desde 0.1 a 1 en pasos definidos
-        # Para 'reg_alpha' (alpha region), una lista de valores desde 0.1 a 1 en pasos definidos
         'reg_alpha': [0.1, 0.5, 1],
         
         # Para 'reg_lambda' (lambda region), una lista de valores desde 0.1 a 1.5 en pasos definidos
         'reg_lambda':[1,0.75],
         
         # Para 'scale_pos_weight', una lista de valores desde 0.1 a 1 en pasos definidos
-        'scale_pos_weight': [0.1, 0.5, 1],        # Para 'subsample', una lista de valores desde 0.1 a 1 en pasos definidos
+        'scale_pos_weight': [0.1, 0.5, 1],
+        
+        # Para 'subsample', una lista de valores desde 0.1 a 1 en pasos definidos
         'subsample': [0.1, 0.5, 1]
          }
 
