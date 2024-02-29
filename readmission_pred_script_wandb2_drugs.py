@@ -195,7 +195,7 @@ def function_models2(X,y,model,splits):
     #tscv = TimeSeriesSplit(n_splits=splits)
     tscv = KFold(n_splits=splits, shuffle=False)
     grid_search = RandomizedSearchCV(model, param_grid, cv=tscv,scoring="f1",return_train_score=True)
-    grid_search.fit(X_train, y_train,eval_set=[(X_val, y_val)], early_stopping_rounds=2)
+    grid_search.fit(X_train, y_train,eval_set=[(X_val, y_val)], early_stopping_rounds=1)
     best_params = grid_search.best_params_
 
 # Accede a los valores en el diccionario 'best_params'
@@ -355,7 +355,7 @@ if __name__ == "__main__":
     
     
     
-    for i,fichero in enumerate(ficheros):
+    for i,fichero in enumerate(ficheros[3:]):
         print(i)
         print(fichero)
     # This lambda function will be called for each set of parameters
