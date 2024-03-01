@@ -99,15 +99,7 @@ def train(json_config, readmit_df,fichero,i,project_name):
         'mean_train_scores_folds':0,
         'time_model':0,
         "prepo":0,
-        "best_learning_rate": 0,
-        "best_max_delta_step": 0,
-        "best_max_depth": 0,
-        "best_min_child_weight": 0,
-        "best_n_estimators": 0,
-        "best_reg_alpha": 0,
-        "best_reg_lambda": 0,
-        "best_scale_pos_weight": 0,
-        "best_subsample": 0,
+         
  }
      
 
@@ -117,7 +109,7 @@ def train(json_config, readmit_df,fichero,i,project_name):
     timi_ini =time.time()
     #model = LogisticRegression(penalty='l1', solver='saga')
     
-    rf_sen,rf_spe,rf_prec,rf_acc,auc_train,auc_test,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t,    mean_test_scores_folds ,mean_train_scores_folds,param_grid,best_learning_rate,best_max_delta_step,best_max_depth,best_min_child_weight,best_n_estimators,best_reg_alpha,best_reg_lambda,best_scale_pos_weight,best_subsample= function_models2(X,y,model,splits)
+    rf_sen,rf_spe,rf_prec,rf_acc,auc_train,auc_test,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t,    mean_test_scores_folds ,mean_train_scores_folds= function_models2(X,y,model,splits)
    
     
     time_model = timi_ini-time.time()  
@@ -139,19 +131,7 @@ def train(json_config, readmit_df,fichero,i,project_name):
     result["mean_train_scores_folds"]=mean_train_scores_folds
     result["time_model"]=time_model
     result["prepo"]=str(prepo)
-    result["best_max_depth"] = best_max_depth
-    result["best_reg_alpha"] = best_reg_alpha
-    result["best_reg_lambda"] = best_reg_lambda
-   
-    result["best_learning_rate"] = best_learning_rate
-    result["best_max_delta_step"] = best_max_delta_step
-    result["best_max_depth"] = best_max_depth
-    result["best_min_child_weight"] = best_min_child_weight
-    result["best_n_estimators"] = best_n_estimators
-    result["best_reg_alpha"] = best_reg_alpha
-    result["best_reg_lambda"] = best_reg_lambda
-    result["best_scale_pos_weight"] = best_scale_pos_weight
-    result["best_subsample"] = best_subsample
+
         #result["fichero"]=i
     return result
     
@@ -204,15 +184,6 @@ def function_models2(X,y,model,splits):
     best_params = grid_search.best_params_
 
 # Accede a los valores en el diccionario 'best_params'
-    best_learning_rate = best_params['learning_rate']
-    best_max_delta_step = best_params['max_delta_step']
-    best_max_depth = best_params['max_depth']
-    best_min_child_weight = best_params['min_child_weight']
-    best_n_estimators = best_params['n_estimators']
-    best_reg_alpha = best_params['reg_alpha']
-    best_reg_lambda = best_params['reg_lambda']
-    best_scale_pos_weight = best_params['scale_pos_weight']
-    best_subsample = best_params['subsample']
 
 
                                                                     
@@ -263,8 +234,7 @@ def function_models2(X,y,model,splits):
 
 
     
-    return rf_sen,rf_spe,rf_prec,rf_acc,auc_train,auc_test,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t,    mean_test_scores_folds ,mean_train_scores_folds,param_grid,best_learning_rate, best_max_delta_step,best_max_depth,best_min_child_weight,best_n_estimators,best_reg_alpha,best_reg_lambda,best_scale_pos_weight,best_subsample,
-
+    return rf_sen,rf_spe,rf_prec,rf_acc,auc_train,auc_test,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t,    mean_test_scores_folds ,mean_train_scores_folds
 
 
     
