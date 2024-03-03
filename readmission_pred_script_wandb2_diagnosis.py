@@ -73,8 +73,8 @@ def train(json_config, readmit_df,fichero,i,project_name,param_grid):
     ####ENtrenamiento del modelo#####
     # funcion de entrenamiento dem odelo
     #df_res = modelo_df_aux_grid_search(X,y,i,type_reg,model,sampling,li_feature_selection,kfolds,lw,K,models_config,config)
-    X = X
-    y = y
+    X = X[:24000:,:]
+    y = y[:24000]
     
     
     
@@ -205,7 +205,7 @@ def function_models2(X,y,model,splits,wandb):
 
    
     grid_search = RandomizedSearchCV(model, param_grid, cv=tscv,scoring="f1",return_train_score=True)
-    grid_search.fit(X_train, y_train,eval_set=[(X_val, y_val)], early_stopping_rounds=3)
+    grid_search.fit(X_train, y_train,eval_set=[(X_val, y_val)], early_stopping_rounds=4)
     best_params = grid_search.best_params_
 
 # Accede a los valores en el diccionario 'best_params'
@@ -302,9 +302,9 @@ def main(json_config, readmit_df,fichero,i,project_name,param_grid):
     
 if __name__ == "__main__":
     global days,param_grid,model
-    project_name =   "Predic_Readmission_drugs_Xgboost_kfolds_preproC_"
+    project_name =   "Predic_Readmission_diagnosis_Xgboost_kfolds_preproC"
     # PARAMETRO NO FIJO#######
-    arconfig_path = "input_json/config_drugs.json"
+    arconfig_path = "input_json/config_diagnosis_pred.json"
     def load_json_config(config_path):
         with open(config_path, 'r') as file:
             return json.load(file)
@@ -313,14 +313,14 @@ if __name__ == "__main__":
     json_config = load_json_config(arconfig_path)
     # Run the sweep
     # PARAMETRO NO FIJO#######
-    ejemplo_dir ="./input_model_pred_drugs_u/"
+    ejemplo_dir ="./input_model_pred_diagnosis_u/"
     model  = json_config["model"]
     print(model)
     if model == "Xgboost":
         model = XGBClassifier()
         param_grid = {
         # Reducir el rango de 'learning_rate' para enfocarse en valores que permitan aprendizaje más lento y estable
-        'learning_rate': [0.01, 0.05, 0.1,.5,1],
+        'learning_rate': [0.01, 0.05, 0.1],
         
         # 'max_delta_step' puede dejarse en un rango conservador para evitar pasos demasiado grandes en las actualizaciones de peso
         'max_delta_step': [0, 1, 2, 3],
@@ -336,15 +336,16 @@ if __name__ == "__main__":
         
         # Incrementar los valores de 'reg_alpha' y 'reg_lambda' para fomentar una mayor regularización L1 y L2, respectivamente
         'reg_alpha': [0.01, 0.1, 1, 10],
-        'reg_lambda': [0.01, 0.1, 1, 10,15],
+        'reg_lambda': [0.01, 0.1, 1, 10],
         
         # Ajustar 'scale_pos_weight' basándose en el balance de clases en tus datos
         # Esto es específico al problema y requiere conocimiento previo del balance de clases
         'scale_pos_weight':[1,3.8,2,5,7,10],  # Ejemplo genérico, ajustar según tu conjunto de datos
         
         # 'subsample': Elegir valores menores a 1 para usar menos datos y prevenir sobreajuste
-        'subsample': [0.3,0.5, 0.6, 0.7, 0.8],
+        'subsample': [0.5, 0.6, 0.7, 0.8],
         }
+
         '''
         param_grid = {
         # Para 'learning_rate', una lista de valores posibles en una escala logarítmica desde 10^-8 a 10^0

@@ -15,14 +15,14 @@ import wandb
 
 
 
-def train(json_config, readmit_df,fichero,i,project_name):
+def train(json_config, readmit_df,fichero,i,project_name,param_grid):
     # Inicializa WandB
       # Puedes combinar aquí la configuración cargada desde el archivo JSON si es necesario
  
     nom_t = json_config["nom_t"]
     ejemplo_dir = json_config["ejemplo_dir"]
     
-    path = json_config["path"]
+   
     days_list = json_config["days_list"]
     ficheros = read_director(ejemplo_dir)
 
@@ -73,9 +73,10 @@ def train(json_config, readmit_df,fichero,i,project_name):
     ####ENtrenamiento del modelo#####
     # funcion de entrenamiento dem odelo
     #df_res = modelo_df_aux_grid_search(X,y,i,type_reg,model,sampling,li_feature_selection,kfolds,lw,K,models_config,config)
+
     
     
-        
+    
             
     
 
@@ -99,7 +100,15 @@ def train(json_config, readmit_df,fichero,i,project_name):
         'mean_train_scores_folds':0,
         'time_model':0,
         "prepo":0,
-         
+        "best_learning_rate": 0,
+        "best_max_delta_step": 0,
+        "best_max_depth": 0,
+        "best_min_child_weight": 0,
+        "best_n_estimators": 0,
+        "best_reg_alpha": 0,
+        "best_reg_lambda": 0,
+        "best_scale_pos_weight": 0,
+        "best_subsample": 0,
  }
      
 
@@ -109,7 +118,7 @@ def train(json_config, readmit_df,fichero,i,project_name):
     timi_ini =time.time()
     #model = LogisticRegression(penalty='l1', solver='saga')
     
-    rf_sen,rf_spe,rf_prec,rf_acc,auc_train,auc_test,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t,    mean_test_scores_folds ,mean_train_scores_folds= function_models2(X,y,model,splits)
+    rf_sen,rf_spe,rf_prec,rf_acc,auc_train,auc_test,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t,    mean_test_scores_folds ,mean_train_scores_folds,param_grid,best_learning_rate,best_max_delta_step,best_max_depth,best_min_child_weight,best_n_estimators,best_reg_alpha,best_reg_lambda,best_scale_pos_weight,best_subsample= function_models2(X,y,model,splits,wandb)
    
     
     time_model = timi_ini-time.time()  
@@ -131,8 +140,26 @@ def train(json_config, readmit_df,fichero,i,project_name):
     result["mean_train_scores_folds"]=mean_train_scores_folds
     result["time_model"]=time_model
     result["prepo"]=str(prepo)
-
+    result["best_max_depth"] = best_max_depth
+    result["best_reg_alpha"] = best_reg_alpha
+    result["best_reg_lambda"] = best_reg_lambda
+   
+    result["best_learning_rate"] = best_learning_rate
+    result["best_max_delta_step"] = best_max_delta_step
+    result["best_max_depth"] = best_max_depth
+    result["best_min_child_weight"] = best_min_child_weight
+    result["best_n_estimators"] = best_n_estimators
+    result["best_reg_alpha"] = best_reg_alpha
+    result["best_reg_lambda"] = best_reg_lambda
+    result["best_scale_pos_weight"] = best_scale_pos_weight
+    result["best_subsample"] = best_subsample
         #result["fichero"]=i
+    
+    wandb.init(project=project_name,name =f"experiment_{fichero}" ,config = param_grid )
+
+    wandb.log(result)
+    wandb.finish()
+    
     return result
     
     #df_res = pd.DataFrame(result)
@@ -161,7 +188,7 @@ def load_yaml_config(yaml_path):
     with open(yaml_path, 'r') as file:
         return yaml.safe_load(file)         
 
-def function_models2(X,y,model,splits):
+def function_models2(X,y,model,splits,wandb):
     
     #train_size = int(len(X) * 0.75)  # 75% for training
     #X_train, X_test = X[:train_size], X[train_size:]
@@ -175,24 +202,44 @@ def function_models2(X,y,model,splits):
     #tscv = TimeSeriesSplit(n_splits=splits)
     tscv = KFold(n_splits=splits, shuffle=False)
 
-    '''if model != LogisticRegression():
-        grid_search = RandomizedSearchCV(model, param_grid, cv=tscv,scoring="f1",return_train_score=True)
-        grid_search.fit(X_train, y_train,eval_set=[(X_val, y_val)], early_stopping_rounds=4)
-    else:'''
+   
     grid_search = RandomizedSearchCV(model, param_grid, cv=tscv,scoring="f1",return_train_score=True)
-    grid_search.fit(X_train, y_train)
+    grid_search.fit(X_train, y_train,eval_set=[(X_val, y_val)], early_stopping_rounds=3)
     best_params = grid_search.best_params_
 
 # Accede a los valores en el diccionario 'best_params'
+    best_learning_rate = best_params['learning_rate']
+    best_max_delta_step = best_params['max_delta_step']
+    best_max_depth = best_params['max_depth']
+    best_min_child_weight = best_params['min_child_weight']
+    best_n_estimators = best_params['n_estimators']
+    best_reg_alpha = best_params['reg_alpha']
+    best_reg_lambda = best_params['reg_lambda']
+    best_scale_pos_weight = best_params['scale_pos_weight']
+    best_subsample = best_params['subsample']
 
-
-                                                                    
+                                                 
     y_pred_train = grid_search.predict(X_train)
     y_pred = grid_search.predict(X_test)
     mean_test_scores_folds = grid_search.cv_results_['mean_test_score']
 
 # Get the mean train score for each parameter combination
     mean_train_scores_folds = grid_search.cv_results_['mean_train_score']
+    results = grid_search.cv_results_
+
+# Registrar los resultados en WandB
+    for i in range(len(results['params'])):
+        wandb.init(project=project_name,config = json_config )
+        
+        wandb.log({
+            'mean_test_score': results['mean_test_score'][i],
+            'mean_train_score': results['mean_train_score'][i],
+            'params': results['params'][i]
+        })
+        
+        wandb.finish()
+
+   
     try:
         #it obtain metric considered and confussion matrix, metrics for the test set
         rf_conf = confusion_matrix(y_test, y_pred)
@@ -234,7 +281,8 @@ def function_models2(X,y,model,splits):
 
 
     
-    return rf_sen,rf_spe,rf_prec,rf_acc,auc_train,auc_test,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t,    mean_test_scores_folds ,mean_train_scores_folds
+    return rf_sen,rf_spe,rf_prec,rf_acc,auc_train,auc_test,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t,    mean_test_scores_folds ,mean_train_scores_folds,param_grid,best_learning_rate, best_max_delta_step,best_max_depth,best_min_child_weight,best_n_estimators,best_reg_alpha,best_reg_lambda,best_scale_pos_weight,best_subsample,
+
 
 
     
@@ -246,19 +294,16 @@ def function_models2(X,y,model,splits):
 
     
  
-def main(json_config, readmit_df,fichero,i,project_name):
+def main(json_config, readmit_df,fichero,i,project_name,param_grid):
 
-    wandb.init(project=project_name,name =f"experiment_{fichero}" ,config = param_grid )
-    result = train(json_config, readmit_df,fichero,i,project_name)
-    wandb.log(result)
-    wandb.finish()
+     train(json_config, readmit_df,fichero,i,project_name,param_grid)
     
     
 if __name__ == "__main__":
     global days,param_grid,model
-    project_name =   "Predic_Readmission_drugs_LR_kfolds_preproC"
+    project_name =   "Predic_Readmission_procedures_Xgboost_kfolds_preproC"
     # PARAMETRO NO FIJO#######
-    arconfig_path = "input_json/config_drugs.json"
+    arconfig_path = "input_json/config_procedures.json"
     def load_json_config(config_path):
         with open(config_path, 'r') as file:
             return json.load(file)
@@ -267,27 +312,45 @@ if __name__ == "__main__":
     json_config = load_json_config(arconfig_path)
     # Run the sweep
     # PARAMETRO NO FIJO#######
-    ejemplo_dir ="./input_model_pred_drugs_u/"
+    ejemplo_dir ="./input_model_visit_procedures/"
     model  = json_config["model"]
     print(model)
     if model == "Xgboost":
         model = XGBClassifier()
-        '''param_grid = {
-            'criterion': ['f1_t'],  # Asumiendo que tu modelo soporta criterios personalizados
-            'learning_rate': [0.1,0.8,10],  # Reducido a un solo valor
-             # Reducido a un solo valor
-            'max_depth': [10, 20,50], 
-            'reg_alpha': [0.1,0.5],  # Coeficiente de regularización L1
-            'reg_lambda': [1.0],# Reducido a dos valores
-            'n_estimators': [100, 1000, 2500, 5000],  # Número de árboles a construir
-            
-         # Número de rondas sin mejora después de las cuales se detendrá el entrenamiento
-    
-        }'''
+        param_grid = {
+        # Reducir el rango de 'learning_rate' para enfocarse en valores que permitan aprendizaje más lento y estable
+        'learning_rate': [0.01, 0.05, 0.1,.5,1],
+        
+        # 'max_delta_step' puede dejarse en un rango conservador para evitar pasos demasiado grandes en las actualizaciones de peso
+        'max_delta_step': [0, 1, 2, 3],
+        
+        # Limitar la profundidad máxima de los árboles para prevenir modelos excesivamente complejos
+        'max_depth': [3, 4, 5, 6, 7,24,],
+        
+        # Aumentar 'min_child_weight' para requerir más observaciones en cada hoja y así evitar sobreajuste
+        'min_child_weight': [3, 4, 5, 6],
+        
+        # Reducir el número de 'n_estimators' para prevenir la complejidad y fomentar modelos más simples
+        'n_estimators': [50, 100, 150,500,1000],
+        
+        # Incrementar los valores de 'reg_alpha' y 'reg_lambda' para fomentar una mayor regularización L1 y L2, respectivamente
+        'reg_alpha': [0.01, 0.1, 1, 10],
+        'reg_lambda': [0.01, 0.1, 1, 10,15],
+        
+        # Ajustar 'scale_pos_weight' basándose en el balance de clases en tus datos
+        # Esto es específico al problema y requiere conocimiento previo del balance de clases
+        'scale_pos_weight':[1,3.8,2,5,7,10],  # Ejemplo genérico, ajustar según tu conjunto de datos
+        
+        # 'subsample': Elegir valores menores a 1 para usar menos datos y prevenir sobreajuste
+        'subsample': [0.3,0.5, 0.6, 0.7, 0.8],
+        }
+
+
+        '''
         param_grid = {
         # Para 'learning_rate', una lista de valores posibles en una escala logarítmica desde 10^-8 a 10^0
-        'learning_rate': [1e-8, 1e-5,   1e-1, 1e-0],
-        
+        'learning_rate': [c   1e-1, 1e-0],
+   
         # Para 'max_delta_step', una lista de valores enteros desde 0 a 10
         'max_delta_step': list(range(0, 10)),
         
@@ -312,7 +375,7 @@ if __name__ == "__main__":
         
         # Para 'subsample', una lista de valores desde 0.1 a 1 en pasos definidos
         'subsample': [0.1, 0.5, 1]
-         }
+         }'''
 
     elif model == "LogisticRegression":
             model = LogisticRegression()
@@ -342,7 +405,7 @@ if __name__ == "__main__":
         print(i)
         print(fichero)
     # This lambda function will be called for each set of parameters
-        main(json_config, readmit_df,fichero,i,project_name)
+        main(json_config, readmit_df,fichero,i,project_name,param_grid)
           
     wandb.finish()
 
