@@ -73,8 +73,7 @@ def train(json_config, readmit_df,fichero,i,project_name,param_grid):
     ####ENtrenamiento del modelo#####
     # funcion de entrenamiento dem odelo
     #df_res = modelo_df_aux_grid_search(X,y,i,type_reg,model,sampling,li_feature_selection,kfolds,lw,K,models_config,config)
-    X = X[:24000:,:]
-    y = y[:24000]
+  
     
     
     
@@ -320,7 +319,7 @@ if __name__ == "__main__":
         model = XGBClassifier()
         param_grid = {
         # Reducir el rango de 'learning_rate' para enfocarse en valores que permitan aprendizaje más lento y estable
-        'learning_rate': [0.01, 0.05, 0.1],
+        'learning_rate': [0.01, 0.05, 0.1,.5,1],
         
         # 'max_delta_step' puede dejarse en un rango conservador para evitar pasos demasiado grandes en las actualizaciones de peso
         'max_delta_step': [0, 1, 2, 3],
@@ -336,14 +335,14 @@ if __name__ == "__main__":
         
         # Incrementar los valores de 'reg_alpha' y 'reg_lambda' para fomentar una mayor regularización L1 y L2, respectivamente
         'reg_alpha': [0.01, 0.1, 1, 10],
-        'reg_lambda': [0.01, 0.1, 1, 10],
+        'reg_lambda': [0.01, 0.1, 1, 10,15],
         
         # Ajustar 'scale_pos_weight' basándose en el balance de clases en tus datos
         # Esto es específico al problema y requiere conocimiento previo del balance de clases
         'scale_pos_weight':[1,3.8,2,5,7,10],  # Ejemplo genérico, ajustar según tu conjunto de datos
         
         # 'subsample': Elegir valores menores a 1 para usar menos datos y prevenir sobreajuste
-        'subsample': [0.5, 0.6, 0.7, 0.8],
+        'subsample': [0.3,0.5, 0.6, 0.7, 0.8],
         }
 
         '''

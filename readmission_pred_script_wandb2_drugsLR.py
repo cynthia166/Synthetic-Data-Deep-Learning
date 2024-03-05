@@ -73,8 +73,7 @@ def train(json_config, readmit_df,fichero,i,project_name):
     ####ENtrenamiento del modelo#####
     # funcion de entrenamiento dem odelo
     #df_res = modelo_df_aux_grid_search(X,y,i,type_reg,model,sampling,li_feature_selection,kfolds,lw,K,models_config,config)
-    X = X[:2000:,:]
-    y = y[:2000]
+ 
     
         
             
@@ -367,12 +366,18 @@ if __name__ == "__main__":
             'max_iter': [100, 1000, 2500, 5000]  # Maximum number of iterations for the solvers to converge
             } '''   
             param_grid = {
-            'penalty': ['l1', 'l2', 'elasticnet'],  # Agregar 'l1' a la lista de penalidades
-            'C': np.concatenate((np.logspace(-2, 4, 7), [90])),  # Expande el rango de 'C' e incluye 90
-            'solver': ['newton-cg', 'saga'],  # 'saga' es compatible con todas las penalidades
-            'max_iter': [100, 1000, 2000],  # Especifica los valores para 'max_iter'
-            'l1_ratio': np.linspace(0, 1, 10)  # Hace el rango de 'l1_ratio' más detallado
-        }
+            'penalty': ['l2', 'elasticnet'],
+            'C': np.logspace(-2, 2, 5),
+            'solver': ['newton-cg', 'saga'],
+            'max_iter': [100, 1000],
+            'l1_ratio': np.linspace(0, 1, 5)
+            }
+            #'penalty': ['l1', 'l2', 'elasticnet'],  # Agregar 'l1' a la lista de penalidades
+            #'C': np.concatenate((np.logspace(-2, 4, 7), [90])),  # Expande el rango de 'C' e incluye 90
+            #'solver': ['newton-cg', 'saga'],  # 'saga' es compatible con todas las penalidades
+            #'max_iter': [100, 1000, 2000],  # Especifica los valores para 'max_iter'
+            #'l1_ratio': np.linspace(0, 1, 10)  # Hace el rango de 'l1_ratio' más detallado
+            
     # PARAMETRO NO FIJO#######     
     ficheros = read_director(ejemplo_dir)
     # PARAMETRO FIJO#######
