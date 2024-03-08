@@ -60,8 +60,9 @@ def concat_input(df_drugs, df_diagnosis, df_procedures,numerical_cols,categorica
     
 
 
-    adm = pd.read_csv('./data/data_preprocess_nonfilteres.csv')
-
+    #adm = pd.read_csv('./data/data_preprocess_nonfilteres.csv')
+    ad_f = "ADMISSIONS.csv.gz"
+    adm = pd.read_csv(ad_f)
     res = pd.merge(adm[categorical_cols+["ADMITTIME","SUBJECT_ID","HADM_ID"]],result_final, on=["SUBJECT_ID","HADM_ID"], how='right')
 
     # Assuming df is your DataFrame
@@ -119,8 +120,11 @@ def obtener_added_cols_targer_visitrank_(arhivo,name):
 
     # Ahora deberías poder restar las fechas sin problemas
     '''Funcion que regredsa si es tipo entire datafram donde se agregan ceros para que todos tengas mas visitas dataframe, o lista de listas que es el input de time gan'''
-    adm = pd.read_csv('./data/data_preprocess_nonfilteres.csv')
-    res = pd.merge(adm[["HOSPITAL_EXPIRE_FLAG","SUBJECT_ID","HADM_ID","DOB"]],df, on=["SUBJECT_ID","HADM_ID"], how='right')
+    #adm = pd.read_csv('./data/data_preprocess_nonfilteres.csv')
+    ad_f = "ADMISSIONS.csv.gz"
+    adm = pd.read_csv(ad_f)
+ 
+    res = pd.merge(adm[["HOSPITAL_EXPIRE_FLAG","SUBJECT_ID","HADM_ID"]],df, on=["SUBJECT_ID","HADM_ID"], how='right')
 
     res['ADMITTIME'] = pd.to_datetime(res['ADMITTIME'])
     #res['DOB'] = pd.to_datetime(res['DOB'], format='%Y-%m-%d %H:%M:%S')
@@ -168,28 +172,37 @@ def obtener_added_cols_targer_visitrank_(arhivo,name):
 #res['horizons'] =[int(i) for i in res['horizons'].dt.total_seconds()]
 def obtener_entire(res,type_df):
     max_visits = res['visit_rank'].max()
+    res['visit_rank'] = res['visit_rank'].astype(int)
+
     temporal_surv = [res[res['visit_rank'] == i] for i in range(1, max_visits + 1)]
+    import pandas as pd
+    temporal_surv = res.copy()
+# Supongamos que 'temporal_surv' es tu DataFrame original y tiene una columna 'SUBJECT_ID' y 'visitas'.
+# Crear un nuevo DataFrame con todas las combinaciones posibles de 'SUBJECT_ID' y 'visitas'.
+    unique_subjects = temporal_surv['SUBJECT_ID'].unique()
+    all_visits = range(1, 43)  # Crear una lista de visitas de 1 a 42.
 
-    # Inicializar una lista vacía para almacenar los DataFrames modificados
-    new_df_list = []
-    unique_subjects = pd.DataFrame(temporal_surv[0]['SUBJECT_ID'].unique(), columns=['SUBJECT_ID'])
+    # Utiliza el producto cartesiano para obtener todas las combinaciones posibles de 'SUBJECT_ID' y 'visitas'.
+    combinations = pd.MultiIndex.from_product([unique_subjects, all_visits], names=['SUBJECT_ID', 'visit_rank']).to_frame(index=False)
 
-    # Para cada DataFrame en df_list, hacer un 'merge' con 'unique_subjects' para asegurar que todos los 'SUBJECT_ID' de df_list[0] estén presentes
-    for df in temporal_surv:
-        new_df = pd.merge(unique_subjects, df, on='SUBJECT_ID', how='outer')
-        #new_df = new_df.fillna({col: pd.Timedelta(0) for col in new_df.select_dtypes(include=['timedelta'])})
-        new_df.fillna(0, inplace=True)  # Llenar los valores faltantes con 0
-        new_df_list.append(new_df)
-        
-        
+    # Ahora mergea esto con el DataFrame original. 
+    # Esto asegurará que todas las combinaciones de 'SUBJECT_ID' y 'visitas' estén presentes.
+    new_temporal_surv = pd.merge(combinations, temporal_surv, on=['SUBJECT_ID', 'visit_rank'], how='left')
+
+    # Rellena los NaNs con ceros para todas las columnas excepto 'visitas' y 'SUBJECT_ID'.
+    columns_to_fill = new_temporal_surv.columns.difference(['SUBJECT_ID', 'visit_rank'])
+    new_temporal_surv[columns_to_fill] = new_temporal_surv[columns_to_fill].fillna(0)
+
+
+            
 
 
         
     if type_df == "entire":
-        df = pd.concat(new_df_list)
+        df =new_temporal_surv.copy()
         dfs = df.sort_values('SUBJECT_ID')   
     else :
-        new_df_list = df = pd.concat(new_df_list)
+        new_df_list =new_temporal_surv.copy()
         dfs = df.sort_values('SUBJECT_ID')      
         dfs = [group for _, group in df.groupby('SUBJECT_ID')]   
         
