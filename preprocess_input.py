@@ -1,11 +1,68 @@
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
+import pandas as pd
+
+
+#funcion para concatenar archivo en el folde s_data con poalrs
+procedures = ".s_data\ADMISSIONS.csv.gz"
+admi = 's_data\ADMISSIONS.csv.gz'
+
+ruta_archivos = 's_data\*.csv.gz'  # Puedes cambiar '*.csv' por la extensión que desees
+save = False #dfale
+
+# Lee todos los archivos con la extensión especificada
+def concat_archivo_primeto(procedures,admi,df,ruta_archivos,save):
+    df = pl.read_csv(admi)
+    df_filtered = df
+ 
+    df_filtered = df_filtered.with_columns(pl.col("SUBJECT_ID").cast(pl.Utf8))
+    df_filtered = df_filtered.with_columns(pl.col("HADM_ID").cast(pl.Utf8))
+    archivos = glob.glob(ruta_archivos)
+    archivos
+    df_filtered.shape
+    unique_subid = []
+
+    for i in archivos:
+        aux =  pl.read_csv(i,infer_schema_length=0
+                        )
+    
+        try:
+            aux = aux.with_columns(pl.col("SUBJECT_ID").cast(pl.Utf8))
+            aux = aux.with_columns(pl.col("HADM_ID").cast(pl.Utf8))
+            aux = aux.groupby(['SUBJECT_ID','HADM_ID'], maintain_order=True).all()
+            #NOTA  SE ELIMIA ICUSTARY_ID del archivo 'dataset/ICUSTAYS.csv.gz' ya que esta duplicado"ICUSTAY_ID"
+            aux = aux.select(pl.exclude("ROW_ID"))
+            if i == 'dataset/ICUSTAYS.csv.gz':
+                aux = aux.select(pl.exclude("ICUSTAY_ID"))
+                
+            elif i ==procedures:    
+                aux = aux.select(pl.exclude("SEQ_NUM"))
+            df_filtered=df_filtered.join(aux, on=['SUBJECT_ID','HADM_ID'], how="left")
+
+            #df_filtered = pd.merge(df_filtered, aux, on=['SUBJECT_ID','HADM_ID'], how='left')
+            print("concat, "+i)
+        except:
+            
+                
+            aux = aux.with_columns(pl.col("SUBJECT_ID").cast(pl.Utf8))
+            aux = aux.filter(pl.col('SUBJECT_ID').is_in( ids["0"]))
+            #aux = aux.groupby(['SUBJECT_ID'], maintain_order=True).all()
+            
+            aux = aux.select(pl.exclude("ROW_ID"))
+            df_filtered=df_filtered.join(aux, on=['SUBJECT_ID'], how="left")
+            unique_subid.append(i)
+            print(i)
+            if save == True:
+                df_filtered.write_csv('df_non_filtered.parquet')
+        print(df_filtered)     
 
 # Assuming df1, df2, df3 are your dataframes
 #df_drugs =pd.read_csv('./input_model_pred_drugs_u/ATC3_outs_visit_non_filtered.csv')
 #df_diagnosis = pd.read_csv('./input_model_pred_diagnosis_u/CCS_CODES_diagnosis_outs_visit_non_filtered.csv')
 #df_procedures = pd.read_csv('./input_model_visit_procedures/CCS CODES_proc_outs_visit_non_filtered.csv')
 # Drop the columns categotical
+concat_archivo_primeto(procedures,admi,df,ruta_archivos,save)
+#funcion para poder concatenar los 3 inputs, manteniendo las columasn del mayot
 numerical_cols =  ['Age_max', 'LOSRD_sum',
        'L_1s_last', 'LOSRD_avg','L_1s_last_p1']
 
