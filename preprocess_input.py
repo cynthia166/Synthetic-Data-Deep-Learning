@@ -1,17 +1,87 @@
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
 import pandas as pd
+import polars as pl
+import glob
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import os
+import glob
+#import psycopg2
+import datetime
+import sys
+from operator import itemgetter, attrgetter, methodcaller
+import numpy as np
+import itertools
+import os.path
+import matplotlib.pyplot as plt
+import math
+from multiprocessing import Pool, cpu_count
+import polars as pl
+
+import pandas as pd
+from icdmappings import Mapper
+import pandas as pd
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import glob
+import pandas as pd
+from icdmappings import Mapper
+import pandas as pd
+
+import plotly.express as px
+
+import glob
 
 
+
+#import psycopg2
+import datetime
+import sys
+from operator import itemgetter, attrgetter, methodcaller
+import numpy as np
+import itertools
+import os.path
+import matplotlib.pyplot as plt
+import math
+from multiprocessing import Pool, cpu_count
+
+#from utils import getConnection
+import polars as pl
+
+
+
+
+#################################################################################################################################################################################################333
 #funcion para concatenar archivo en el folde s_data con poalrs
-procedures = ".s_data\ADMISSIONS.csv.gz"
-admi = 's_data\ADMISSIONS.csv.gz'
+def encoding(res,categorical_cols):
+    # Identificar y reemplazar las categorías que representan el 80% inferior
+    for col in categorical_cols:
+        counts = res[col].value_counts(normalize=True)
+        lower_80 = counts[counts.cumsum() > 0.8].index
+        res[col] = res[col].replace(lower_80, 'Otra')
 
-ruta_archivos = 's_data\*.csv.gz'  # Puedes cambiar '*.csv' por la extensión que desees
-save = False #dfale
+    # Aplicar One Hot Encoding
+    encoder = OneHotEncoder(sparse=False, handle_unknown='ignore')
+    encoded_cols = encoder.fit_transform(res[categorical_cols])
+    encoded_cols_df = pd.DataFrame(encoded_cols, columns=encoder.get_feature_names(categorical_cols))
+
+    # Concatenar el DataFrame original con el DataFrame codificado
+    res_final = pd.concat([res[[i for i in res.columns if i not in categorical_cols]], encoded_cols_df], axis=1)
+
+
+
+    for col in categorical_cols:
+        print(res[col].unique())
+        #res[col] = res[col].replace('Not specified', 'Otra')
+
+    res_final.to_csv("generative_input/"+name_encodeing)      
+    return res_final
 
 # Lee todos los archivos con la extensión especificada
-def concat_archivo_primeto(procedures,admi,df,ruta_archivos,save):
+def concat_archivo_primeto(procedures,admi,ruta_archivos,save,nom_archivo):
     df = pl.read_csv(admi)
     df_filtered = df
  
@@ -52,8 +122,11 @@ def concat_archivo_primeto(procedures,admi,df,ruta_archivos,save):
             df_filtered=df_filtered.join(aux, on=['SUBJECT_ID'], how="left")
             unique_subid.append(i)
             print(i)
-            if save == True:
-                df_filtered.write_csv('df_non_filtered.parquet')
+    if save == True:
+
+
+# Ahora intenta escribir el archivo
+        df_filtered.write_parquet(nom_archivo)
         print(df_filtered)     
 
 # Assuming df1, df2, df3 are your dataframes
@@ -61,77 +134,14 @@ def concat_archivo_primeto(procedures,admi,df,ruta_archivos,save):
 #df_diagnosis = pd.read_csv('./input_model_pred_diagnosis_u/CCS_CODES_diagnosis_outs_visit_non_filtered.csv')
 #df_procedures = pd.read_csv('./input_model_visit_procedures/CCS CODES_proc_outs_visit_non_filtered.csv')
 # Drop the columns categotical
-concat_archivo_primeto(procedures,admi,df,ruta_archivos,save)
+
 #funcion para poder concatenar los 3 inputs, manteniendo las columasn del mayot
-numerical_cols =  ['Age_max', 'LOSRD_sum',
-       'L_1s_last', 'LOSRD_avg','L_1s_last_p1']
-
-categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
-                'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
-                'MARITAL_STATUS', 'ETHNICITY','GENDER']
-
-name_df = "raw_input.csv"
-########onehot encoding y agrupacion de categoria de 80##
-name_encodeing = "input_onehot_encoding.csv"
-'''La primeras do gunciones se corren si debo volver a correl el input 
-obtener_added_cols_targer_visitrank_ este es el input del general
-obtener_entire rste es el input para time series'''
-def concat_input(df_drugs, df_diagnosis, df_procedures,numerical_cols,categorical_cols,name_df):
-    # Drop the columns categotical funcio que concatena los 3 inputs, manteniendo las columasn del mayot
- 
-    size1 = df_drugs.size
-    size2 = df_diagnosis.size
-    size3 = df_procedures.size
-
-
-    # Find out which DataFrame is the largest
-    if size1 >= size2 and size1 >= size3:
-        print("df1 is the largest")
-    elif size2 >= size1 and size2 >= size3:
-        print("df2 is the largest")
-    else:
-        print("df3 is the largest")
 
 
 
-    df_diagnosis = df_diagnosis.drop(columns=categorical_cols)
-    df_drugs = df_drugs.drop(columns=categorical_cols+numerical_cols)
-    df_procedures = df_procedures.drop(columns=categorical_cols+numerical_cols)
-
-    rename_dict_d = {col: col + '_diagnosis' if col not in ["SUBJECT_ID", "HADM_ID"] else col for col in df_diagnosis.columns if col not in numerical_cols}
-    df_diagnosis.rename(columns=rename_dict_d, inplace=True)
-
-    rename_dict = {col: col + '_drugs' for col in df_drugs.columns if col != "SUBJECT_ID" and col != "HADM_ID" }
-
-    df_drugs.rename(columns=rename_dict, inplace=True)
-
-    rename_dict = {col: col + '_procedures' for col in df_procedures.columns if col != "SUBJECT_ID" and col != "HADM_ID" }
-    df_procedures.rename(columns=rename_dict, inplace=True)
+#n = nuevo_df["icd9_category"].unique()
 
 
-
-    result = pd.merge(df_diagnosis, df_drugs, on=["SUBJECT_ID","HADM_ID"], how='outer')
-    result_final = pd.merge(result, df_procedures, on=["SUBJECT_ID","HADM_ID"], how='outer')
-
-    # Assuming df is your DataFrame
-    
-
-
-    #adm = pd.read_csv('./data/data_preprocess_nonfilteres.csv')
-    ad_f = "ADMISSIONS.csv.gz"
-    adm = pd.read_csv(ad_f)
-    res = pd.merge(adm[categorical_cols+["ADMITTIME","SUBJECT_ID","HADM_ID"]],result_final, on=["SUBJECT_ID","HADM_ID"], how='right')
-
-    # Assuming df is your DataFrame
-
-    # Find columns that contain 'unnamed' in their name
-    cols_to_drop = res.filter(like='Unnamed', axis=1).columns
-
-    # Drop these columns
-    res.drop(cols_to_drop, axis=1, inplace=True)
-    res = res.fillna(0)
-    res.to_csv("generative_input/"+ name_df)
-    return res
 
 #######parte del preprocesamiento###################
 
@@ -142,126 +152,224 @@ def concat_input(df_drugs, df_diagnosis, df_procedures,numerical_cols,categorica
 
 
 
-def encoding(res):
-    # Identificar y reemplazar las categorías que representan el 80% inferior
-    for col in categorical_cols:
-        counts = res[col].value_counts(normalize=True)
-        lower_80 = counts[counts.cumsum() > 0.8].index
-        res[col] = res[col].replace(lower_80, 'Otra')
-
-    # Aplicar One Hot Encoding
-    encoder = OneHotEncoder(sparse=False, handle_unknown='ignore')
-    encoded_cols = encoder.fit_transform(res[categorical_cols])
-    encoded_cols_df = pd.DataFrame(encoded_cols, columns=encoder.get_feature_names(categorical_cols))
-
-    # Concatenar el DataFrame original con el DataFrame codificado
-    res_final = pd.concat([res[[i for i in res.columns if i not in categorical_cols]], encoded_cols_df], axis=1)
+#from utils import getConnection
 
 
 
-    for col in categorical_cols:
-        print(res[col].unique())
-        #res[col] = res[col].replace('Not specified', 'Otra')
+# Supongamos que ya tienes un DataFrame 'df' con las columnas 'subject_id', 'ham_id' y 'lista_codigos'
+def descocatenar_codes(txt,name):
+    # Lista para almacenar los datos del nuevo DataFrame
+    nuevos_datos = []
 
-    res_final.to_csv("generative_input/"+name_encodeing)      
-    return res_final
-    
+    # Recorremos el DataFrame original 'df'
+    for index, row in txt.iterrows():
+        subject_id = row['SUBJECT_ID']
+        ham_id = row['HADM_ID']
+        lista_codigos = row['ICD9_CODE']
 
+        # Verificamos si lista_codigos no es None
+        if lista_codigos is not None:
+            # Creamos un diccionario con los datos para una fila del nuevo DataFrame
+            for codigo in lista_codigos:
+                nuevo_registro = {
+                    'SUBJECT_ID': subject_id,
+                    'HADM_ID': ham_id,
+                    'ICD9_CODE': codigo
+                }
 
+                # Agregamos el registro a la lista de nuevos datos
+                nuevos_datos.append(nuevo_registro)
 
+    # Creamos un nuevo DataFrame con los datos recopilados
+    nuevo_df = pd.DataFrame(nuevos_datos)
 
-def obtener_added_cols_targer_visitrank_(arhivo,name):
-    df =  pd.read_csv(arhivo)
+    # Muestra el nuevo DataFrame resultante
+    print(nuevo_df)
+    nuevo_df = txt.dropna()
+    return nuevo_df
 
-    # Limitar las fechas a un rango permitido
+def convert_to_int(value):
+    try:
+        return int(value)
+    except ValueError:
+        if 'V' in value:
+            return 18
+        elif 'E' in value:
+            return 19
+        else:
+            return None  # Replace "none" with "None"
 
-    # Ahora deberías poder restar las fechas sin problemas
-    '''Funcion que regredsa si es tipo entire datafram donde se agregan ceros para que todos tengas mas visitas dataframe, o lista de listas que es el input de time gan'''
-    #adm = pd.read_csv('./data/data_preprocess_nonfilteres.csv')
-    ad_f = "ADMISSIONS.csv.gz"
-    adm = pd.read_csv(ad_f)
- 
-    res = pd.merge(adm[["HOSPITAL_EXPIRE_FLAG","SUBJECT_ID","HADM_ID"]],df, on=["SUBJECT_ID","HADM_ID"], how='right')
-
-    res['ADMITTIME'] = pd.to_datetime(res['ADMITTIME'])
-    #res['DOB'] = pd.to_datetime(res['DOB'], format='%Y-%m-%d %H:%M:%S')
-    #res['DOB'] = pd.to_datetime(res['DOB'])
+def diagnosis(d1,n,name):
    
+    df_ = pl.read_csv(d1)
+    df_filtered = df_.with_columns(pl.col("SUBJECT_ID").cast(pl.Utf8))
+    df_filtered = df_filtered.with_columns(pl.col("HADM_ID").cast(pl.Utf8))
+    txt =df_filtered[["HADM_ID","SUBJECT_ID","ICD9_CODE"]].to_pandas()
+
+    nuevos_datos = descocatenar_codes(txt)
+    nuevo_df = codes_diag(nuevos_datos)
+
+    nuevo_df = funcion_acum(nuevo_df,n,name)
+    return nuevo_df
+
+def procedures(d2,n,name):
+
+    df_ = pl.read_csv(d2)
+    df_filtered = df_.with_columns(pl.col("SUBJECT_ID").cast(pl.Utf8))
+    df_filtered = df_filtered.with_columns(pl.col("HADM_ID").cast(pl.Utf8))
+    nuevos_datos =df_filtered[["HADM_ID","SUBJECT_ID","ICD9_CODE"]].to_pandas()
+    nuevo_df = nuevos_datos.dropna()
+    nuevo_df = codes_diag(nuevos_datos)
+
+    nuevo_df = funcion_acum(nuevo_df,n,name)
+    return nuevo_df
+
+def descocatenar_codes(txt,name):
+    nuevos_datos = []
+    for index, row in txt.iterrows():
+        subject_id = row['SUBJECT_ID']
+        ham_id = row['HADM_ID']
+        lista_codigos = row[name]
+        if lista_codigos is not None:
+            for codigo in lista_codigos:
+                nuevo_registro = {
+                    'SUBJECT_ID': subject_id,
+                    'HADM_ID': ham_id,
+                   name: codigo
+                }
+                nuevos_datos.append(nuevo_registro)
+    nuevo_df = pd.DataFrame(nuevos_datos)
+    print(nuevo_df)
+    nuevo_df = txt.dropna()
+    return nuevo_df
+
+def convert_to_int(value):
+    try:
+        return str(value)
+    except ValueError:
+        if 'V' in value:
+            return 18
+        elif 'E' in value:
+            return 19
+        else:
+            return None
+
+def codes_diag(nuevo_df):
+    nuevo_df["ICD9_CODE"] = nuevo_df["ICD9_CODE"].apply(convert_to_int)
+    nuevo_df["ICD9_CODE"] = nuevo_df["ICD9_CODE"].astype(str) 
+    icd9codes = list(nuevo_df["ICD9_CODE"])
+    mapper = Mapper()
+    nuevo_df["CCS CODES"]  =  mapper.map(icd9codes, mapper='icd9toccs')
+    nuevo_df["LEVE3 CODES"]  =  mapper.map(icd9codes, mapper='icd9tolevel3')
+    return nuevo_df
+
+
+
+#n = nuevo_df["icd9_category"].unique()
+
+
+def cumulative_plot(icd9_codes, num_bins,threshold_value,cat):
+    # Create a DataFrame with ICD-9 codes and their frequencies
+    icd9_df = pd.DataFrame(icd9_codes, columns=['ICD-9 Code'])
+    icd9_df['Frequency'] = icd9_df['ICD-9 Code'].map(icd9_df['ICD-9 Code'].value_counts())
+    icd9_df= icd9_df.sort_values(by='Frequency', ascending=False)
+
+    # Drop duplicate rows to get unique ICD-9 codes and their frequencies
+    unique_icd9_df = icd9_df.drop_duplicates().sort_values(by='Frequency', ascending=False)
+
+    # Calculate cumulative frequency percentage
+    unique_icd9_df['Cumulative Frequency'] = unique_icd9_df['Frequency'].cumsum()
+    total_frequency = unique_icd9_df['Cumulative Frequency'].iloc[-1]
+    unique_icd9_df['Cumulative F percentage'] = unique_icd9_df['Cumulative Frequency'] / total_frequency
+
+    # Create the plot using Matplotlib
+    fig, ax1 = plt.subplots(figsize=(10, 6))  # Adjust the figsize as needed
+
+    # Histogram with fewer bins
+      # Adjust the number of bins
+    n, bins, patches = ax1.hist(icd9_df['ICD-9 Code'], bins=num_bins, color='blue', alpha=0.7)
+    ax1.set_xlabel('ICD-9 Codes')
+    ax1.set_ylabel('Frequency', color='blue')
+
+    # Add a vertical dashed line at the threshold value
+
+    threshold_x_value = unique_icd9_df[unique_icd9_df["Cumulative F percentage"] >= threshold_value].sort_values(by="Cumulative F percentage", ascending=False).iloc[-1]['ICD-9 Code']
     
-
-    res = res.fillna(0)
-
-
-
-    print(res.shape, adm.shape, df.shape)
-    # Assuming df is your DataFrame
-
-    # Find columns that contain 'unnamed' in their name
-    cols_to_drop = res.filter(like='Unnamed', axis=1).columns
-    res.drop(cols_to_drop, axis=1, inplace=True)
-    print(res.shape, adm.shape, df.shape)
-
-    print(res.isnull().sum().sum())
-    res = res.fillna(0)
-    print(res.isnull().sum().sum())
-    res.to_csv("generative_input/"+name)    
-
-
-    res = res.sort_values(by=['SUBJECT_ID', 'ADMITTIME'])
-
-# Agregar una nueva columna 'VISIT_NUMBER' que indica el número de visita para cada 'SUBJECT_ID'
-    res['visit_rank'] = res.groupby('SUBJECT_ID').cumcount() + 1
-# Crear una nueva columna 'visit_rank' que represente el número de la visita para cada paciente
-
-
-# Ahora, vamos a separar las visitas en DataFrames individuales y guardarlos en una lista
-    
-    # Asegúrate de que 'ADMITTIME' es una fecha
-
-    # Ordena los datos por 'SUBJECT_ID' y 'ADMITTIME'
-    res = res.sort_values(['SUBJECT_ID', 'ADMITTIME'])
-    return res
-
-
-  
-
-#res['horizons'] = res.groupby('SUBJECT_ID')['ADMITTIME'].diff().fillna(pd.Timedelta(seconds=0))
-#res['horizons'] =[int(i) for i in res['horizons'].dt.total_seconds()]
-def obtener_entire(res,type_df):
-    max_visits = res['visit_rank'].max()
-    res['visit_rank'] = res['visit_rank'].astype(int)
-
-    temporal_surv = [res[res['visit_rank'] == i] for i in range(1, max_visits + 1)]
-    import pandas as pd
-    temporal_surv = res.copy()
-# Supongamos que 'temporal_surv' es tu DataFrame original y tiene una columna 'SUBJECT_ID' y 'visitas'.
-# Crear un nuevo DataFrame con todas las combinaciones posibles de 'SUBJECT_ID' y 'visitas'.
-    unique_subjects = temporal_surv['SUBJECT_ID'].unique()
-    all_visits = range(1, 43)  # Crear una lista de visitas de 1 a 42.
-
-    # Utiliza el producto cartesiano para obtener todas las combinaciones posibles de 'SUBJECT_ID' y 'visitas'.
-    combinations = pd.MultiIndex.from_product([unique_subjects, all_visits], names=['SUBJECT_ID', 'visit_rank']).to_frame(index=False)
-
-    # Ahora mergea esto con el DataFrame original. 
-    # Esto asegurará que todas las combinaciones de 'SUBJECT_ID' y 'visitas' estén presentes.
-    new_temporal_surv = pd.merge(combinations, temporal_surv, on=['SUBJECT_ID', 'visit_rank'], how='left')
-
-    # Rellena los NaNs con ceros para todas las columnas excepto 'visitas' y 'SUBJECT_ID'.
-    columns_to_fill = new_temporal_surv.columns.difference(['SUBJECT_ID', 'visit_rank'])
-    new_temporal_surv[columns_to_fill] = new_temporal_surv[columns_to_fill].fillna(0)
-
-
-            
-
+    bins_before_threshold = unique_icd9_df[unique_icd9_df["Cumulative F percentage"] < threshold_value].sort_values(by="Cumulative F percentage", ascending=False)['ICD-9 Code'].nunique()
+    bins_before_threshold_i = unique_icd9_df[unique_icd9_df["Cumulative F percentage"] < threshold_value].sort_values(by="Cumulative F percentage", ascending=False)['ICD-9 Code'].unique()
 
         
-    if type_df == "entire":
-        df =new_temporal_surv.copy()
-        dfs = df.sort_values('SUBJECT_ID')   
-    else :
-        new_df_list =new_temporal_surv.copy()
-        dfs = df.sort_values('SUBJECT_ID')      
-        dfs = [group for _, group in df.groupby('SUBJECT_ID')]   
+    ax1.axvline(x=threshold_x_value, color='red', linestyle='--', linewidth=2, label='Threshold: ' + str(threshold_value) )
+    ax1.annotate(f'{bins_before_threshold} Bins Before Threshold', xy=(threshold_x_value, 0), xytext=(10, 20), textcoords='offset points', fontsize=10, color='red')
+
         
-    return dfs     
     
+    #percentage = count / total_frequency * 100
+    #ax1.annotate(f'\n{i}', xy=(bins[i] + (bins[i+1] - bins[i])/2, count), ha='center', va='bottom', fontsize=10)
+        #ax1.annotate(f'{int(count)}', xy=(bins[i] + (bins[i+1] - bins[i])/2, count), ha='center', va='bottom', fontsize=10, )
+
+    # Customize the plot
+    ax1.set_title('Histogram of:' +str(cat))
+    ax1.legend(loc='upper right')
+
+
+
+    # Create a secondary y-axis for cumulative frequency
+    ax2 = ax1.twinx()
+    ax2.plot(unique_icd9_df['ICD-9 Code'], unique_icd9_df['Cumulative F percentage'], color='green', label='Cumulative Frequency')
+    ax2.set_ylabel('Cumulative Frequency', color='green')
+    ax2.legend(loc='upper right')
+
+    legend_position = (1, .2)  # Adjust the position as needed
+    ax1.legend(loc='upper right', bbox_to_anchor=legend_position)
+    ax2.legend(loc='lower right', bbox_to_anchor=legend_position)
+
+    # Hide x-axis tick labels
+    ax1.set_xticks([])
+
+    # Show the plot
+    plt.tight_layout()  # Adjust layout for labels
+    plt.show()
+    return bins_before_threshold,bins_before_threshold_i
+
+
+def asignar_valor(series, lista_especifica):
+    # Usamos una comprensión de lista para asignar "Otro" a los valores que no están en la lista
+    nueva_serie = series.apply(lambda x: x if x in lista_especifica else -1)
+    return nueva_serie
+
+def funcion_acum(nuevo_df,n,name):
+    
+    bins_before_threshold = []
+    bins_before_threshold_index = []
+    for i in n:
+        aux_thresh = nuevo_df.copy()
+        #aux_thresh = nuevo_df[nuevo_df["icd9_category"]==i]
+        num_bins = len(aux_thresh[name].unique())
+        icd9_codes = list(aux_thresh[name])
+        a,b = cumulative_plot(icd9_codes, num_bins,i,i)
+        bins_before_threshold.append(a)
+        bins_before_threshold_index.extend(list(b))
+        serie_original = nuevo_df[name]  
+        lista_especifica = bins_before_threshold_index
+        #lista_especifica = b
+
+        # Llama a la función para asignar valores
+        serie_modificada = asignar_valor(serie_original, lista_especifica)
+        nuevo_df["threshold_"+str(i)] = serie_modificada
+    return nuevo_df
+
+
+d1 = '..\s_data\PRESCRIPTIONS.csv.gz'
+name1 = "DRUG"
+def drugs(d1,name1):
+    df_ = pl.read_csv(d1, infer_schema_length=10000, ignore_errors=True, )
+    df_filtered = df_.with_columns(pl.col("SUBJECT_ID").cast(pl.Utf8))
+    df_filtered = df_filtered.with_columns(pl.col("HADM_ID").cast(pl.Utf8))
+    nuevo_df =df_filtered[["HADM_ID","SUBJECT_ID", "DRUG"]].to_pandas()
+
+    print(nuevo_df.shape)
+    nuevo_df.drop_duplicates( inplace=True)
+    nuevo_df = funcion_acum(nuevo_df,n,name1)
+    return nuevo_df
+

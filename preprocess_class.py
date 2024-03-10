@@ -1,33 +1,15 @@
+
+from preprocess_input import *
 class PreprocessInput:
-    def __init__(self, data):
-        self.data = data
-
-    def preprocess(self):
-        # Aquí puedes agregar la lógica para preprocesar los datos
-        # Puedes acceder a los datos utilizando self.data
-
-        # Ejemplo de preprocesamiento: convertir los datos a minúsculas
-        preprocessed_data = self.data.lower()
-
-        return preprocessed_data
-
-    def additional_method(self):
-        # Aquí puedes agregar la lógica para el nuevo método
-        # Puedes acceder a los datos utilizando self.data o cualquier otro atributo de la clase
-        pass
-
-
-    
-class MiClase:
     def __init__(self):
         # Inicialización de atributos que siempre son necesarios
         self.atributo_general = None
 
-    def metodo_especifico_1(self, input_1):
-        # Operación específica 1
-        print(f"Operación específica 1 con {input_1}")
+    def concat_archivo_primeto(self,procedures,admi,ruta_archivos,save):
+        # concatenacion de la source
+        return concat_archivo_primeto(procedures,admi,ruta_archivos,save)
 
-    def metodo_especifico_2(self, input_2):
+    def diagosis(self, input_2):
         # Operación específica 2
         print(f"Operación específica 2 con {input_2}")
 
@@ -47,5 +29,42 @@ class MiClase:
             self.metodo_especifico_2(input_2)
 
 # Ejemplo de uso
-mi_objeto = MiClase()
-mi_objeto.ejecutar_flujo(usar_metodo_1=True, input_1='Dato para método 1', usar_metodo_2=True, input_2='Dato para método 2')
+#concat
+procedures = ".s_data\ADMISSIONS.csv.gz"
+admi = 's_data\ADMISSIONS.csv.gz'
+nom_archivo = 'data\df_non_filtered.parquet'
+
+numerical_cols =  ['Age_max', 'LOSRD_sum',
+       'L_1s_last', 'LOSRD_avg','L_1s_last_p1']
+
+categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
+                'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
+                'MARITAL_STATUS', 'ETHNICITY','GENDER']
+
+
+ruta_archivos = 's_data\*.csv.gz'  # Puedes cambiar '*.csv' por la extensión que desees
+save = True #dfale
+
+mi_objeto = PreprocessInput()
+df_diagnosis = concat_archivo_primeto(procedures,admi,ruta_archivos,save,nom_archivo)
+
+
+d2 = '.\s_data\PROCEDURES_ICD.csv.gz' 
+n = [.88,.95,.98,.999]
+
+d1 = '.\s_data\DIAGNOSES_ICD.csv.gz'
+name="ICD9_CODE"
+didf_diagnosisa = diagnosis(d1,n,name)
+prod = procedures(d2,n,name)
+
+
+d1 = '..\s_data\PRESCRIPTIONS.csv.gz'
+name1 = "DRUG"
+df_drugs = drugs(d1,name1)
+
+name_df = "raw_input.csv"
+name_encodeing = "input_onehot_encoding.csv"
+
+
+#df_final = concat_input(df_drugs, df_diagnosis, df_procedures,numerical_cols,categorical_cols,name_df)
+#df_final_encoded = encoding(df_final,categorical_cols)
