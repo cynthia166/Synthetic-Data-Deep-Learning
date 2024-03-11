@@ -49,14 +49,16 @@ mi_objeto = PreprocessInput()
 df_diagnosis = concat_archivo_primeto(procedures,admi,ruta_archivos,save,nom_archivo)
 
 
-d2 = '.\s_data\PROCEDURES_ICD.csv.gz' 
 n = [.88,.95,.98,.999]
 
 d1 = '.\s_data\DIAGNOSES_ICD.csv.gz'
 name="ICD9_CODE"
 didf_diagnosisa = diagnosis(d1,n,name)
-prod = procedures(d2,n,name)
 
+#desconcatenación, y se obtiene threshold y mapping
+d2 = '.\s_data\PROCEDURES_ICD.csv.gz' 
+prod = procedures(d2,n,name)
+prod = limipiar_Codigos(prod)
 
 d1 = '..\s_data\PRESCRIPTIONS.csv.gz'
 name1 = "DRUG"
