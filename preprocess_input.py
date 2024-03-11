@@ -56,7 +56,7 @@ import polars as pl
 
 #################################################################################################################################################################################################333
 #funcion para concatenar archivo en el folde s_data con poalrs
-def encoding(res,categorical_cols):
+def encoding2(res,categorical_cols):
     # Identificar y reemplazar las categorías que representan el 80% inferior
     for col in categorical_cols:
         counts = res[col].value_counts(normalize=True)
@@ -157,36 +157,7 @@ def concat_archivo_primeto(procedures,admi,ruta_archivos,save,nom_archivo):
 
 
 # Supongamos que ya tienes un DataFrame 'df' con las columnas 'subject_id', 'ham_id' y 'lista_codigos'
-def descocatenar_codes(txt,name):
-    # Lista para almacenar los datos del nuevo DataFrame
-    nuevos_datos = []
 
-    # Recorremos el DataFrame original 'df'
-    for index, row in txt.iterrows():
-        subject_id = row['SUBJECT_ID']
-        ham_id = row['HADM_ID']
-        lista_codigos = row['ICD9_CODE']
-
-        # Verificamos si lista_codigos no es None
-        if lista_codigos is not None:
-            # Creamos un diccionario con los datos para una fila del nuevo DataFrame
-            for codigo in lista_codigos:
-                nuevo_registro = {
-                    'SUBJECT_ID': subject_id,
-                    'HADM_ID': ham_id,
-                    'ICD9_CODE': codigo
-                }
-
-                # Agregamos el registro a la lista de nuevos datos
-                nuevos_datos.append(nuevo_registro)
-
-    # Creamos un nuevo DataFrame con los datos recopilados
-    nuevo_df = pd.DataFrame(nuevos_datos)
-
-    # Muestra el nuevo DataFrame resultante
-    print(nuevo_df)
-    nuevo_df = txt.dropna()
-    return nuevo_df
 
 def convert_to_int(value):
     try:
@@ -329,7 +300,7 @@ def cumulative_plot(icd9_codes, num_bins,threshold_value,cat):
 
     # Show the plot
     plt.tight_layout()  # Adjust layout for labels
-    plt.show()
+    #plt.show()
     return bins_before_threshold,bins_before_threshold_i
 
 
@@ -373,3 +344,358 @@ def drugs(d1,name1):
     nuevo_df = funcion_acum(nuevo_df,n,name1)
     return nuevo_df
 
+import pandas as pd
+import numpy as np
+from scipy.stats import mode
+
+
+def limipiar_Codigos(df):
+    nuevo_df = df.fillna(-1)
+    return nuevo_df
+def max_patient_add(x):
+    return x.max() - x.min()
+
+def max_visit_add(x):
+    return x - x.min()
+
+'''def last_firs(ADMISSIONS):
+    
+    try: 
+        ADMISSIONS[['ADMITTIME','DISCHTIME']] = ADMISSIONS[['ADMITTIME','DISCHTIME']].apply(lambda x: pd.to_datetime(x, format='%Y-%m-%d %H:%M:%S'))
+    except:
+        ADMISSIONS[['ADMITTIME','DISCHTIME']] = ADMISSIONS[['ADMITTIME','DISCHTIME']].apply(lambda x: pd.to_datetime(x, infer_datetime_format=True))    
+        
+    ADMISSIONS["L_1s_last_p1"] = ADMISSIONS.groupby('SUBJECT_ID')['ADMITTIME'].transform(lambda x: x - x.min())
+    return ADMISSIONS[["SUBJECT_ID","HADM_ID","L_1s_last_p1"]] 
+'''
+
+import pandas as pd
+
+def last_firs(ADMISSIONS,level):
+    try: 
+            ADMISSIONS[['ADMITTIME','DISCHTIME']] = ADMISSIONS[['ADMITTIME','DISCHTIME']].apply(lambda x: pd.to_datetime(x, format='%Y-%m-%d %H:%M:%S'))
+    except:
+            ADMISSIONS[['ADMITTIME','DISCHTIME']] = ADMISSIONS[['ADMITTIME','DISCHTIME']].apply(lambda x: pd.to_datetime(x, infer_datetime_format=True))    
+
+    if level== "Patient":
+                   
+        ADMISSIONS["L_1s_last_p1"] = ADMISSIONS.groupby('SUBJECT_ID')['ADMITTIME'].transform(lambda x: x - x.min())
+        ADMISSIONS["L_1s_last_p1"] =[int(i.days) for i in ADMISSIONS["L_1s_last_p1"]]
+
+        
+    else:    
+    # Asegurar que ADMITTIME es tipo datetime
+           
+        # Ordenar por SUBJECT_ID y ADMITTIME para asegurar el orden cronológico de las visitas
+        ADMISSIONS.sort_values(by=['SUBJECT_ID', 'ADMITTIME'], inplace=True)
+        
+        # Calcular la diferencia en tiempo hasta la visita anterior
+        ADMISSIONS['L_1s_last_p1'] = ADMISSIONS.groupby('SUBJECT_ID')['ADMITTIME'].diff().dt.days
+        
+        # Llenar los valores NaN con cero
+        ADMISSIONS['L_1s_last_p1'] = ADMISSIONS['L_1s_last_p1'].fillna(0)
+        
+    return ADMISSIONS[['SUBJECT_ID', 'HADM_ID', 'L_1s_last_p1']]
+
+# Aplicar la función al DataFrame ADMISSIONS
+
+
+def calculate_pivot_df(duplicados, real, level):
+    """Calculate the pivot table.
+    
+    Args:
+        duplicados (DataFrame): Pre-cleaned DataFrame used for the pivot table.
+        real (str): Name of the columns.
+        level (str): Indicates whether it's at patient level or visit level.
+        
+    Returns:
+        pivot_df (DataFrame): The pivoted DataFrame.
+    """
+    duplicados[real] = duplicados[real].astype(int)
+    duplicados["SUBJECT_ID"] = duplicados["SUBJECT_ID"].astype(str)
+    duplicados["HADM_ID"] = duplicados["HADM_ID"].astype(str)
+
+    if level == "Patient":
+        pivot_df = duplicados[[real, "SUBJECT_ID"]].pivot_table(
+            index='SUBJECT_ID',
+            columns=real,
+            aggfunc='size',
+            fill_value=0
+        )
+
+    else:
+        pivot_df = duplicados[[real, "SUBJECT_ID", "HADM_ID"]].pivot_table(
+            index=['SUBJECT_ID', "HADM_ID"],
+            columns=real ,
+            aggfunc='size',
+            fill_value=0
+        )
+
+    pivot_df.reset_index(inplace=True)
+    return pivot_df
+
+def calculate_agregacion_cl(adm,pa, categorical_cols, level,cat_considered,prod_ipvot):
+    """Calculate the aggregated demographics DataFrame.
+    
+    Args:
+        duplicados (DataFrame): Pre-cleaned DataFrame used for the pivot table.
+        categorical_cols (list): List of categorical columns to include in aggregation.
+        archivo: File containing additional data.
+        level (str): Indicates whether it's at patient level or visit level.
+        
+    Returns:
+        agregacion_cl (DataFrame): DataFrame with aggregated demographics.
+    """
+    adm = pd.read_csv(adm)
+    aux_ad = last_firs(adm,level)
+    
+    pa = pd.read_csv(pa)
+    adm["SUBJECT_ID"] = adm["SUBJECT_ID"].astype(str)
+    adm["HADM_ID"] = adm["HADM_ID"].astype(str)
+    aux_ad["SUBJECT_ID"] = aux_ad["SUBJECT_ID"].astype(str)
+    aux_ad["HADM_ID"] = aux_ad["HADM_ID"].astype(str)
+
+    pa["SUBJECT_ID"] = pa["SUBJECT_ID"].astype(str)
+
+
+
+
+    duplicados = prod_ipvot.merge(adm[cat_considered], on=['SUBJECT_ID', 'HADM_ID'], how='left')
+    duplicados=duplicados.merge(pa[['SUBJECT_ID', 'GENDER', 'DOB']], on=['SUBJECT_ID'], how='left')
+    duplicados=duplicados.merge(aux_ad, on=['SUBJECT_ID','HADM_ID'], how='left')
+    print(duplicados.shape)
+    duplicados["DISCHTIME"] = pd.to_datetime(duplicados["DISCHTIME"])
+    
+    
+    
+
+    #duplicados['DOB'] = pd.to_datetime(duplicados['DOB'], format='%Y-%m-%d %H:%M:%S')
+    duplicados['DEATHTIME'] = pd.to_datetime(duplicados['DEATHTIME'])
+    duplicados['DEATHTIME'] = pd.to_datetime(duplicados['DEATHTIME'])
+    duplicados['DOB'] = pd.to_datetime(duplicados['DOB'], format='%Y-%m-%d %H:%M:%S')
+    duplicados['DOB'] = pd.to_datetime(duplicados['DOB'])
+    duplicados['ADMITTIME'] = pd.to_datetime(duplicados['ADMITTIME'])
+    duplicados["LOSRD"] = duplicados["DISCHTIME"] - duplicados["ADMITTIME"]
+    duplicados['DOB'] = [timestamp.to_pydatetime() for timestamp in duplicados['DOB']]
+    duplicados['ADMITTIME'] = [timestamp.date() for timestamp in duplicados['ADMITTIME']]
+    duplicados['DOB'] = [timestamp.date() for timestamp in duplicados['DOB']]
+    duplicados["age"] = (duplicados['ADMITTIME'].to_numpy() - duplicados['DOB'].to_numpy())
+    duplicados["year_age"] = [i.days/365 for i in duplicados["age"]]
+
+    
+    duplicados.loc[duplicados['year_age'] > 100, 'year_age'] = 89  
+        
+    
+    
+    
+    duplicados['LOSRD']  = [i.days for i in duplicados['LOSRD']]
+    duplicados = duplicados[duplicados["LOSRD"]>0]   
+    
+    if level == "Patient":
+        agregacion_cl = duplicados.groupby(['SUBJECT_ID']).agg(
+            Age_max=("year_age", 'max'),
+            GENDER=("GENDER", lambda x: mode(x)[0][0]),
+            ADMISSION_LOCATION=("ADMISSION_LOCATION", lambda x: mode(x)[0][0]),
+            ETHNICITY=('ETHNICITY', lambda x: mode(x)[0][0]),
+            MARITAL_STATUS=("MARITAL_STATUS", lambda x: mode(x)[0][0]),
+            RELIGION=("RELIGION", lambda x: mode(x)[0][0]),
+            ADMISSION_TYPE=("ADMISSION_TYPE", lambda x: mode(x)[0][0]),
+            INSURANCE=("INSURANCE", lambda x: mode(x)[0][0]),
+            DISCHARGE_LOCATION=("DISCHARGE_LOCATION", lambda x: mode(x)[0][0]),
+            LOSRD_sum=("LOSRD", 'sum'),
+            LOSRD_avg=("LOSRD", np.mean),
+            L_1s_last_p1=("L_1s_last_p1",  'max'),
+            ADMITTIME_max=("ADMITTIME", 'max'),
+            ADMITTIME_min=("ADMITTIME", 'min')
+        )
+    else:
+        agregacion_cl = duplicados.groupby(['SUBJECT_ID', "HADM_ID"]).agg(
+            Age_max=("year_age", 'max'),
+            GENDER=("GENDER", lambda x: mode(x)[0][0]),
+            ADMISSION_LOCATION=("ADMISSION_LOCATION", lambda x: mode(x)[0][0]),
+            ETHNICITY=('ETHNICITY', lambda x: mode(x)[0][0]),
+            MARITAL_STATUS=("MARITAL_STATUS", lambda x: mode(x)[0][0]),
+            RELIGION=("RELIGION", lambda x: mode(x)[0][0]),
+            ADMISSION_TYPE=("ADMISSION_TYPE", lambda x: mode(x)[0][0]),
+            INSURANCE=("INSURANCE", lambda x: mode(x)[0][0]),
+            DISCHARGE_LOCATION=("DISCHARGE_LOCATION", lambda x: mode(x)[0][0]),
+            LOSRD_sum=("LOSRD", 'sum'),
+            LOSRD_avg=("LOSRD", np.mean),
+            L_1s_last_p1=("L_1s_last_p1",  'max'),
+            ADMITTIME_max=("ADMITTIME", 'max'),
+            ADMITTIME_min=("ADMITTIME", 'min')
+        ).reset_index()
+        
+    #agregacion_cl["L_1s_last_p1"] = (agregacion_cl["ADMITTIME_max"] - agregacion_cl["ADMITTIME_min"]).apply(lambda x: x.days)
+    #agregacion_cl["L_1s_last_p1"] =[int(i.days) for i in agregacion_cl["L_1s_last_p1"]]
+
+    agregacion_cl = agregacion_cl[["Age_max", "LOSRD_sum", "L_1s_last_p1", "LOSRD_avg"] +categorical_cols+['SUBJECT_ID', 'HADM_ID']] 
+    
+    for i in ["Age_max", "LOSRD_sum", "L_1s_last_p1", "LOSRD_avg"]:
+        agregacion_cl[i]= agregacion_cl[i].replace(np.nan,0)
+
+    for col in categorical_cols:
+        agregacion_cl[col]= agregacion_cl[col].replace(np.nan, "Unknown")
+        agregacion_cl[col] = agregacion_cl[col].replace(0, 'Unknown')
+        agregacion_cl[col] = agregacion_cl[col].replace('** INFO NOT AVAILABLE **', 'Unknown')
+        agregacion_cl[col] = agregacion_cl[col].replace('UNKNOWN (DEFAULT)', 'Unknown')
+        agregacion_cl[col] = agregacion_cl[col].replace('UNOBTAINABLE', 'Unknown')
+        agregacion_cl[col] = agregacion_cl[col].replace('OTHER', 'Unknown')
+        agregacion_cl[col] = agregacion_cl[col].replace('NOT SPECIFIED', 'Unknown')
+        agregacion_cl = agregacion_cl.replace('UNKNOWN/NOT SPECIFIED', 'Unknown')
+
+    return agregacion_cl
+
+def merge_df(agregacion_cl, prod_ipvot):
+    return agregacion_cl.merge(prod_ipvot, on=["HADM_ID",'SUBJECT_ID'], how='left')
+    
+import pandas as pd
+import numpy as np
+
+def normalize_count_matrix(pivot_df, level):
+    """
+    Processes the count matrix by normalizing and then concatenates demographic data.
+    
+    :param pivot_df: DataFrame with count matrix of icd9-codes
+    :param stri: 'visit', 'Patient', or 'outs_visit'
+    :param agregacion_cl: DataFrame with demographic data
+    :param categorical_cols: List of categorical columns to include
+    :return: Concatenated DataFrame with normalized counts and demographics
+    """
+    # Normalize the count matrix
+    if level == "Patient":
+        matrix = pivot_df.drop('SUBJECT_ID', axis=1).values
+        
+    else:
+        matrix = pivot_df.drop(['HADM_ID','SUBJECT_ID'], axis=1).values
+        
+    num_non_zeros = np.count_nonzero(matrix)
+    normalized_matrix = matrix / num_non_zeros  # Dividing the matrix by the number of non-zero elements
+    
+    # Create the result DataFrame
+    result_df = pd.DataFrame(normalized_matrix, columns=pivot_df.columns.difference(['SUBJECT_ID', 'HADM_ID'], sort=False))
+    if 'SUBJECT_ID' in pivot_df.columns:
+        result_df['SUBJECT_ID'] = pivot_df['SUBJECT_ID']
+    if 'HADM_ID' in pivot_df.columns:
+        result_df['HADM_ID'] = pivot_df['HADM_ID']
+    
+    # Concatenate with demographic data
+       
+    return result_df
+
+from sklearn.preprocessing import FunctionTransformer
+
+
+from sklearn.preprocessing import OneHotEncoder
+
+from sklearn.preprocessing import OneHotEncoder, LabelEncoder
+import pandas as pd
+
+def encoding(res, categorical_cols, encoding_type='onehot', ):
+    """
+    Aplica codificación a las columnas categóricas de un DataFrame.
+
+    Parámetros:
+    - res: DataFrame original.
+    - categorical_cols: Lista de columnas categóricas para codificar.
+    - encoding_type: Tipo de codificación ('onehot' o 'label').
+    - output_file_name: Nombre del archivo CSV para guardar el resultado.
+
+    Retorna:
+    - res_final: DataFrame con columnas categóricas codificadas.
+    """
+
+        
+    for col in ['ADMISSION_TYPE',
+    'ADMISSION_LOCATION',
+    'DISCHARGE_LOCATION',
+    'INSURANCE',
+    'RELIGION',
+    'ETHNICITY',
+    ]:
+            counts = res[col].value_counts(normalize=True)
+            lower_80 = counts[counts.cumsum() > 0.8].index
+            res[col] = res[col].replace(lower_80, 'Otra')
+        
+        # Aplicar codificación basada en el tipo especificado
+    if encoding_type == 'onehot':
+        encoder = OneHotEncoder()
+        encoded_cols = encoder.fit_transform(res[categorical_cols])
+        #encoded_cols_df = pd.DataFrame(encoded_cols, columns=encoder.get_feature_names(categorical_cols))
+        encoded_cols_df = pd.DataFrame(encoded_cols.toarray(), columns=encoder.get_feature_names_out(categorical_cols))
+
+        # Concatenar el DataFrame original con el DataFrame codificado
+    elif encoding_type == 'label':
+        encoded_cols_df = res[categorical_cols].apply(LabelEncoder().fit_transform)
+
+    # Concatenar el DataFrame original con el DataFrame codificado
+    
+    res_final = pd.concat([res[[i for i in res.columns if i not in categorical_cols]], encoded_cols_df], axis=1)
+
+    
+    return res_final
+
+
+
+from sklearn.preprocessing import FunctionTransformer
+
+def apply_log_transformation(merged_df, column_name):
+    """
+    Applies log transformation to a column in the DataFrame.
+
+    :param merged_df: DataFrame resulting from process_and_concat function
+    :param column_name: The name of the column to which log transformation will be applied
+    :return: DataFrame with the log-transformed column
+    """
+    transformer = FunctionTransformer(np.log1p, validate=False)  # np.log1p handles log(0) by returning 0
+    merged_df[f"{column_name}"] = transformer.transform(merged_df[[column_name]].values)
+    
+    # Replace -inf with 0 if there are any -inf values resulting from log(0)
+    merged_df[f"{column_name}"] = merged_df[f"{column_name}"].replace(-np.inf, 0)
+    
+    return merged_df
+
+
+categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
+                'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
+                'MARITAL_STATUS', 'ETHNICITY','GENDER']
+
+
+from sklearn.preprocessing import StandardScaler, MaxAbsScaler, PowerTransformer
+import numpy as np
+import pandas as pd
+
+def preprocess(X, prep, columns_to_normalize):
+    '''
+    Normalizes specified numerical features in a DataFrame.
+    
+    Parameters:
+    - X: DataFrame to preprocess.
+    - prep: String indicating the preprocessing method: 'std', 'max', 'power'.
+    - columns_to_normalize: List of column names to normalize.
+    
+    Returns:
+    - X: DataFrame with preprocessed numerical features.
+    '''
+    
+    if prep == "std":
+        scaler = StandardScaler()
+        X[columns_to_normalize] = scaler.fit_transform(X[columns_to_normalize])
+        
+    elif prep == "max":
+        transformer = MaxAbsScaler()
+        X[columns_to_normalize] = transformer.fit_transform(X[columns_to_normalize])
+        
+    elif prep == "power":
+        pt = PowerTransformer()
+        X[columns_to_normalize] = pt.fit_transform(X[columns_to_normalize])
+        
+    # No else case needed, if 'prep' is not one of the above, X is returned unchanged
+    
+    return X
+
+# Ejemplo de uso
+# X es tu DataFrame
+# 'prep' es el método de preprocesamiento: 'std', 'max', 'power'
+# 'columns_to_normalize' es una lista de las columnas numéricas que deseas normalizar
+# X_preprocessed = preprocess(X, 'std', ['col1', 'col2', 'col3', 'col4'])

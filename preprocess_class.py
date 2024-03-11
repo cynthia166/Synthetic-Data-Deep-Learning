@@ -1,71 +1,264 @@
 
 from preprocess_input import *
-class PreprocessInput:
-    def __init__(self):
-        # Inicialización de atributos que siempre son necesarios
-        self.atributo_general = None
+'''class DataPreprocessor:
+    def __init__(self, type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False):
+        self.doc_path = doc_path
+        self.admissions_path = admissions_path
+        self.patients_path = patients_path
+        self.categorical_cols = categorical_cols
+        self.real = real
+        self.level = level
+        self.numerical_cols = numerical_cols
+        self.prepomax = prepomax
+        self.normalize_matrix = normalize_matrix
+        self.log_transformation = log_transformation
+        self.encode_categorical = encode_categorical
+        self.final_preprocessing = final_preprocessing
+        self.n = n
+        self.name = name
+        self.type_p = type_p
+        self.cols_to = cols_to
+    def run(self):
+        # Desconcatenación, obtención de threshold y mapping
+        if self.type_p == "procedures":
+           prod = procedures(self.doc_path, self.n, self.name)
+        elif self.type_p == "diagnosis":
+           prod = diagnosis(self.doc_path, self.n, self.name)
+        else:
+           prod = drugs(self.doc_path, self.n, self.name)
+                                                   
+        prod = limipiar_Codigos(prod)
 
-    def concat_archivo_primeto(self,procedures,admi,ruta_archivos,save):
-        # concatenacion de la source
-        return concat_archivo_primeto(procedures,admi,ruta_archivos,save)
+        # Cálculo de matriz de conteo
+        prod_pivot = calculate_pivot_df(prod, self.real, self.level)
 
-    def diagosis(self, input_2):
-        # Operación específica 2
-        print(f"Operación específica 2 con {input_2}")
+        if self.normalize_matrix:
+            prod_pivot = normalize_count_matrix(prod_pivot, self.level)
 
-    def ejecutar_flujo(self, usar_metodo_1, input_1=None, usar_metodo_2=False, input_2=None):
-        """
-        Método gestor que controla la ejecución de otros métodos según las necesidades.
+        # Cálculo de variable demográfica
+        cat_considered = ['ADMITTIME', 'ADMISSION_TYPE', 'ADMISSION_LOCATION',
+                          'DISCHARGE_LOCATION', 'INSURANCE', 'RELIGION',
+                          'MARITAL_STATUS', 'ETHNICITY', 'DEATHTIME'] + ['DISCHTIME', 'SUBJECT_ID', 'HADM_ID']
+        demos_pivot = calculate_agregacion_cl(self.admissions_path, self.patients_path, self.categorical_cols, self.level, cat_considered, prod_pivot)
+
+        if self.log_transformation:
+            demos_pivot = apply_log_transformation(demos_pivot, 'L_1s_last_p1')
+
+        # Merge demographic dataframe with count matrix
+        df_merge = merge_df(demos_pivot, prod_pivot)
+
+        if self.encode_categorical:
+            df_merge_e = encoding(df_merge, self.categorical_cols, 'onehot')
+        else:
+            df_merge_e = df_merge
+
+        if self.final_preprocessing:
+            df_merge_e.columns = df_merge_e.columns.astype(str)
+            if  self.cols_to == None:
+               cols_to_normalize = [col for col in df_merge_e.columns if col not in ['SUBJECT_ID', 'HADM_ID'] + self.numerical_cols]
+            else:
+                cols_to_normalize = self.cols_to
+            df_final_prepo = preprocess(df_merge_e, self.prepomax, cols_to_normalize)
+        else:
+            df_final_prepo = df_merge_e
+
+        return df_final_prepo'''
+    
+class DataPreprocessor:
+    def __init__(self, type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False):
+        self.type_p = type_p  # Correctly initializing type_p here
+        self.doc_path = doc_path
+        self.admissions_path = admissions_path
+        self.patients_path = patients_path
+        self.categorical_cols = categorical_cols
+        self.real = real
+        self.level = level
+        self.numerical_cols = numerical_cols
+        self.prepomax = prepomax
+        self.name = name
+        self.n = n
+        self.cols_to = cols_to
+        self.normalize_matrix = normalize_matrix
+        self.log_transformation = log_transformation
+        self.encode_categorical = encode_categorical
+        self.final_preprocessing = final_preprocessing
         
-        :param usar_metodo_1: Booleano que indica si se debe llamar a metodo_especifico_1.
-        :param input_1: Entrada para metodo_especifico_1 si se utiliza.
-        :param usar_metodo_2: Booleano que indica si se debe llamar a metodo_especifico_2.
-        :param input_2: Entrada para metodo_especifico_2 si se utiliza.
-        """
-        if usar_metodo_1 and input_1 is not None:
-            self.metodo_especifico_1(input_1)
-        
-        if usar_metodo_2 and input_2 is not None:
-            self.metodo_especifico_2(input_2)
+    def load_data(self, type_p):
+        if type_p == "procedures":
+            data = procedures(self.doc_path, self.n, self.name)
+        elif type_p == "diagnosis":
+            data = diagnosis(self.doc_path, self.n, self.name)
+        else:
+            data = drugs(self.doc_path, self.n, self.name)
+        return data
 
+    def clean_data(self, data):
+        return limipiar_Codigos(data)
+
+    def calculate_count_matrix(self, data):
+        return calculate_pivot_df(data, self.real, self.level)
+
+    def normalize_count_matrix(self, data):
+        if self.normalize_matrix:
+            return normalize_count_matrix(data, self.level)
+        return data
+
+    def calculate_demographics(self, data):
+        cat_considered = ['ADMITTIME', 'ADMISSION_TYPE', 'ADMISSION_LOCATION', 'DISCHARGE_LOCATION', 'INSURANCE', 'RELIGION', 'MARITAL_STATUS', 'ETHNICITY', 'DEATHTIME'] + ['DISCHTIME', 'SUBJECT_ID', 'HADM_ID']
+        return calculate_agregacion_cl(self.admissions_path, self.patients_path, self.categorical_cols, self.level, cat_considered, data)
+
+    def apply_log_transformation(self, data):
+        if self.log_transformation:
+            return apply_log_transformation(data, 'L_1s_last_p1')
+        return data
+
+    def merge_data(self, demographic_data, count_data):
+        return merge_df(demographic_data, count_data)
+
+    def encode_categorical_data(self, data):
+        if self.encode_categorical:
+            return encoding(data, self.categorical_cols, 'onehot')
+        return data
+
+    def final_preprocessing_fun(self, data):
+        data.columns = data.columns.astype(str)
+        if self.cols_to is None:
+            cols_to_normalize = [col for col in data.columns if col not in ['SUBJECT_ID', 'HADM_ID'] ]
+        else:
+            cols_to_normalize = self.cols_to
+        return preprocess(data, self.prepomax, cols_to_normalize)
+
+    def run(self,type_p):
+        data = self.load_data(type_p)
+        data = self.clean_data(data)
+        count_matrix = self.calculate_count_matrix(data)
+        count_matrix = self.normalize_count_matrix(count_matrix)
+        demographics = self.calculate_demographics(count_matrix)
+        demographics = self.apply_log_transformation(demographics)
+        merged_data = self.merge_data(demographics, count_matrix)
+        encoded_data = self.encode_categorical_data(merged_data)
+        if self.final_preprocessing:
+            final_data = self.final_preprocessing_fun(encoded_data)
+        else:
+            final_data = encoded_data
+        return final_data
+    
+
+
+type_p = "procedures"
+
+name="ICD9_CODE"
+n = [.88,.95,.98,.999]
+numerical_cols =  ['Age_max', 'LOSRD_sum',
+        'LOSRD_avg','L_1s_last_p1']
+
+prepomax = 'std'
 # Ejemplo de uso
 #concat
-procedures = ".s_data\ADMISSIONS.csv.gz"
-admi = 's_data\ADMISSIONS.csv.gz'
 nom_archivo = 'data\df_non_filtered.parquet'
-
-numerical_cols =  ['Age_max', 'LOSRD_sum',
-       'L_1s_last', 'LOSRD_avg','L_1s_last_p1']
 
 categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
                 'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
                 'MARITAL_STATUS', 'ETHNICITY','GENDER']
 
+real = "CCS_CODES"
+level = "Otro"
 
-ruta_archivos = 's_data\*.csv.gz'  # Puedes cambiar '*.csv' por la extensión que desees
-save = True #dfale
+doc_path = '/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/PROCEDURES_ICD.csv.gz'
+admissions_path = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/ADMISSIONS.csv.gz"
+patients_path = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/PATIENTS.csv.gz"
+# type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False
+preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=False, log_transformation=False, encode_categorical=True, final_preprocessing=None)
+df = preprocessor.load_data(type_p)
+# Crear una lista de las columnas a normalizar (todas las columnas excepto 'CCS CODES', 'HADM_ID' y 'SUBJECT_ID')
+cols_to_itereate = [col for col in df.columns if col not in ['LEVE3 CODES', 'HADM_ID', 'SUBJECT_ID']]
+for i in cols_to_itereate:
+    real = i
+    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=False, log_transformation=False, encode_categorical=True, final_preprocessing=None)
+    df_final = preprocessor.run(type_p)
+    df_final.to_csv("input_pred_p/"+ real +type_p+".csv")
 
-mi_objeto = PreprocessInput()
-df_diagnosis = concat_archivo_primeto(procedures,admi,ruta_archivos,save,nom_archivo)
+
+##### Para las que no tiene columnas##################################
+aux = pd.read_csv("input_pred_p/"+ real +type_p+".csv")
+int_index_columns = []
+for col in aux.columns:
+    try:
+        int(col)  # Intenta convertir el índice de la columna a un entero
+          # Si la conversión es exitosa, agrega la columna a la lista
+    except ValueError:
+        int_index_columns.append(col)
+          # Si la conversión falla, ignora la columna
+
+print(int_index_columns)
+aux = aux[int_index_columns]
+cols_to_drop = aux.filter(like='Unnamed', axis=1).columns
+aux.drop(cols_to_drop, axis=1, inplace=True)
+aux.to_csv("input_pred_p/sin_codigo.csv")
+
+####################################Conatenacion primera
+#ruta_archivos = 's_data\*.csv.gz'  # Puedes cambiar '*.csv' por la extensión que desees
+#save = True #dfale
+
+#mi_objeto = PreprocessInput()
+#df_concat_primero = concat_archivo_primeto(procedures,admi,ruta_archivos,save,nom_archivo)
 
 
-n = [.88,.95,.98,.999]
 
 d1 = '.\s_data\DIAGNOSES_ICD.csv.gz'
-name="ICD9_CODE"
-didf_diagnosisa = diagnosis(d1,n,name)
+
+
+#didf_diagnosisa = diagnosis(d1,n,name)
 
 #desconcatenación, y se obtiene threshold y mapping
-d2 = '.\s_data\PROCEDURES_ICD.csv.gz' 
-prod = procedures(d2,n,name)
-prod = limipiar_Codigos(prod)
+#d2 = '.\s_data\PROCEDURES_ICD.csv.gz' 
+#prod = procedures(d2,n,name)
+#prod = limipiar_Codigos(prod)
+#caluco de matrix de conteo
 
-d1 = '..\s_data\PRESCRIPTIONS.csv.gz'
-name1 = "DRUG"
-df_drugs = drugs(d1,name1)
+#prod_ipvot  = calculate_pivot_df(prod, real, level) #if normalize matrix == True
+#prod_ipvot = normalize_count_matrix(prod_ipvot, level, )
+#prod_ipvot
 
-name_df = "raw_input.csv"
-name_encodeing = "input_onehot_encoding.csv"
+#prod_ipvot
+#calcul de variable demos
+#adm = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/ADMISSIONS.csv.gz"
+#pa = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/PATIENTS.csv.gz"
+
+
+#cat_considered = ['ADMITTIME','ADMISSION_TYPE', 'ADMISSION_LOCATION',
+#                'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
+#                'MARITAL_STATUS', 'ETHNICITY','DEATHTIME'] + ['DISCHTIME','SUBJECT_ID', 'HADM_ID']
+#demos_pivot = calculate_agregacion_cl(adm,pa, categorical_cols, level,cat_considered,prod_ipvot)
+
+
+#print(demos_pivot.isnull().sum()) #if variable logtransforamtio == true
+#demos_pivot = apply_log_transformation(demos_pivot, 'L_1s_last_p1')
+#merge demographic df with count matrix
+#df_merge  = merge_df(demos_pivot, prod_ipvot)
+#df_merge.shape
+#if encoding categorical variables=true
+#df_merge_e = encoding(df_merge, categorical_cols, 'onehot')
+#df_merge_e
+
+
+# if preprocesamiento final == True
+#numerical_cols =  ['Age_max', 'LOSRD_sum',
+#    'LOSRD_avg','L_1s_last_p1']
+#df_merge_e.columns = df_merge_e.columns.astype(str)
+#cols_to_normalize = [col for col in df_merge_e.columns if col not in ['SUBJECT_ID', 'HADM_ID']]
+
+
+
+#df_final_prepo = preprocess(df_merge_e, "max", cols_to_normalize)
+       
+       
+#d1 = '..\s_data\PRESCRIPTIONS.csv.gz'
+#name1 = "DRUG"
+#df_drugs = drugs(d1,name1)
+
+#name_df = "raw_input.csv"
+#name_encodeing = "input_onehot_encoding.csv"
 
 
 #df_final = concat_input(df_drugs, df_diagnosis, df_procedures,numerical_cols,categorical_cols,name_df)

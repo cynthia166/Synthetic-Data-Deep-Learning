@@ -91,7 +91,39 @@ def read_director(ejemplo_dir):
     
     return [i for i in ficheros if i!= '.DS_Store']
 
+def lectura_variables_aux(readmit_df,fichero_x,ejemplo_dir,days):
+    '''Funtion tha reads the predictor dataset and  it eliminates the unwanteed columns and preprocess the dataset, also it concatenates de 
+    response variable to obtain only the visits that are in the X datase,
+    fichero_x: the file that will be reading the input from
+    fichero_y: the y labl
+    ejemplo_dir: directorio donde se encuentra el input para la prediccion
+    days: cuantos dias se esta considerando prediccion
+    prepo: type of prepro that is required
+    outputs:
+    X: the preprossed variables
+    y: the label'''
+  
+    #read the pandas file
+    X_aux = pd.read_csv(ejemplo_dir+fichero_x)
+    
+# if its no ber embeddinf we do the preprocessinfg
 
+    # read the lable file
+    #readmit_df = pd.read_csv(ejemplo_dir2+fichero_y)
+    #The X dataset and the y is merged only considering the visits that are in X, so the dimension of y match
+    concat_var = pd.merge(X_aux, readmit_df[["HADM_ID","SUBJECT_ID",days+'_READMIT']], on=["HADM_ID","SUBJECT_ID"], how='left')
+    y = concat_var[[days+'_READMIT']]
+    print(concat_var.shape )
+    # The variables that are no considered as predictores are dropped, 
+    X = concat_var.drop(["HADM_ID","SUBJECT_ID",days+'_READMIT'], axis=1)
+    cols_to_drop = X.filter(like='Unnamed', axis=1).columns
+    X.drop(cols_to_drop, axis=1, inplace=True)
+    # the preprocessing is obtained 
+        
+       
+
+        
+    return X,y ,concat_var
 def lectura_variables(readmit_df,fichero_x,prepo,ejemplo_dir,days):
     '''Funtion tha reads the predictor dataset and  it eliminates the unwanteed columns and preprocess the dataset, also it concatenates de 
     response variable to obtain only the visits that are in the X datase,

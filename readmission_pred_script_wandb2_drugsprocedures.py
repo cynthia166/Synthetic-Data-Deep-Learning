@@ -26,7 +26,7 @@ def train(json_config, readmit_df,fichero,i,project_name,param_grid):
     days_list = json_config["days_list"]
     ficheros = read_director(ejemplo_dir)
 
-    type_reg = json_config["type_reg"]
+   
     
     # Instantiate the model based on the string in the JSON
     #models_config = config["model"]
@@ -34,7 +34,7 @@ def train(json_config, readmit_df,fichero,i,project_name,param_grid):
  
   
       #list_cat = config["list_cat"]
-    prepro = json_config["prepro"]
+    #prepro = json_config["prepro"]
     #LogisticRegression,"Xgboost"   
     #model = json_config["model"]
     splits = json_config["splits"]
@@ -54,13 +54,11 @@ def train(json_config, readmit_df,fichero,i,project_name,param_grid):
         #concat_var_ = create_var(ejemplo_dir,i,readmit_df)
     #eda_embedding(path,i,concat_var_,i)
     
-    print(i)
 
-    prepo = prepro[i]
     
-    print(prepo)
+ 
     
-    X,y ,concat_var  = lectura_variables(readmit_df,fichero,prepo,ejemplo_dir,days)
+    X,y ,concat_var  = lectura_variables_aux(readmit_df,fichero,ejemplo_dir,days)
     try:
         X = X.values
         
@@ -76,7 +74,13 @@ def train(json_config, readmit_df,fichero,i,project_name,param_grid):
 
     
     
-    
+    X = X[:2000,:]
+    y = y[:2000]
+    import pandas as pd
+
+# Supongamos que df es tu DataFrame
+
+
             
     
 
@@ -301,7 +305,7 @@ def main(json_config, readmit_df,fichero,i,project_name,param_grid):
     
 if __name__ == "__main__":
     global days,param_grid,model
-    project_name =   "Predic_Readmission_procedures_Xgboost_kfolds_preproC"
+    project_name =   "Predic_Readmission_procedures_Xgboost_kfolds_preproC_new"
     # PARAMETRO NO FIJO#######
     arconfig_path = "input_json/config_procedures.json"
     def load_json_config(config_path):
@@ -312,7 +316,7 @@ if __name__ == "__main__":
     json_config = load_json_config(arconfig_path)
     # Run the sweep
     # PARAMETRO NO FIJO#######
-    ejemplo_dir ="./input_model_visit_procedures/"
+    ejemplo_dir ="./input_pred_p/"
     model  = json_config["model"]
     print(model)
     if model == "Xgboost":
@@ -413,6 +417,12 @@ if __name__ == "__main__":
     
         
             
+    
+
+
+
+
+
     
 
 
