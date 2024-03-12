@@ -1,69 +1,6 @@
 
 from preprocess_input import *
-'''class DataPreprocessor:
-    def __init__(self, type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False):
-        self.doc_path = doc_path
-        self.admissions_path = admissions_path
-        self.patients_path = patients_path
-        self.categorical_cols = categorical_cols
-        self.real = real
-        self.level = level
-        self.numerical_cols = numerical_cols
-        self.prepomax = prepomax
-        self.normalize_matrix = normalize_matrix
-        self.log_transformation = log_transformation
-        self.encode_categorical = encode_categorical
-        self.final_preprocessing = final_preprocessing
-        self.n = n
-        self.name = name
-        self.type_p = type_p
-        self.cols_to = cols_to
-    def run(self):
-        # Desconcatenación, obtención de threshold y mapping
-        if self.type_p == "procedures":
-           prod = procedures(self.doc_path, self.n, self.name)
-        elif self.type_p == "diagnosis":
-           prod = diagnosis(self.doc_path, self.n, self.name)
-        else:
-           prod = drugs(self.doc_path, self.n, self.name)
-                                                   
-        prod = limipiar_Codigos(prod)
 
-        # Cálculo de matriz de conteo
-        prod_pivot = calculate_pivot_df(prod, self.real, self.level)
-
-        if self.normalize_matrix:
-            prod_pivot = normalize_count_matrix(prod_pivot, self.level)
-
-        # Cálculo de variable demográfica
-        cat_considered = ['ADMITTIME', 'ADMISSION_TYPE', 'ADMISSION_LOCATION',
-                          'DISCHARGE_LOCATION', 'INSURANCE', 'RELIGION',
-                          'MARITAL_STATUS', 'ETHNICITY', 'DEATHTIME'] + ['DISCHTIME', 'SUBJECT_ID', 'HADM_ID']
-        demos_pivot = calculate_agregacion_cl(self.admissions_path, self.patients_path, self.categorical_cols, self.level, cat_considered, prod_pivot)
-
-        if self.log_transformation:
-            demos_pivot = apply_log_transformation(demos_pivot, 'L_1s_last_p1')
-
-        # Merge demographic dataframe with count matrix
-        df_merge = merge_df(demos_pivot, prod_pivot)
-
-        if self.encode_categorical:
-            df_merge_e = encoding(df_merge, self.categorical_cols, 'onehot')
-        else:
-            df_merge_e = df_merge
-
-        if self.final_preprocessing:
-            df_merge_e.columns = df_merge_e.columns.astype(str)
-            if  self.cols_to == None:
-               cols_to_normalize = [col for col in df_merge_e.columns if col not in ['SUBJECT_ID', 'HADM_ID'] + self.numerical_cols]
-            else:
-                cols_to_normalize = self.cols_to
-            df_final_prepo = preprocess(df_merge_e, self.prepomax, cols_to_normalize)
-        else:
-            df_final_prepo = df_merge_e
-
-        return df_final_prepo'''
-    
 class DataPreprocessor:
     def __init__(self, type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False):
         self.type_p = type_p  # Correctly initializing type_p here
@@ -88,15 +25,19 @@ class DataPreprocessor:
             data = procedures(self.doc_path, self.n, self.name)
         elif type_p == "diagnosis":
             data = diagnosis(self.doc_path, self.n, self.name)
-        else:
-            data = drugs(self.doc_path, self.n, self.name)
+        elif "drug2":
+            data = drug2(self.doc_path)
+            # ATC
+        elif "drug1":
+            # thresholds
+              data = drugs1(self.doc_path, self.n, self.name)  
         return data
 
     def clean_data(self, data):
-        return limipiar_Codigos(data)
+        return limipiar_Codigos(data,self.type_p)
 
     def calculate_count_matrix(self, data):
-        return calculate_pivot_df(data, self.real, self.level)
+        return calculate_pivot_df(data, self.real, self.level,self.type_p)
 
     def normalize_count_matrix(self, data):
         if self.normalize_matrix:
@@ -143,43 +84,64 @@ class DataPreprocessor:
             final_data = encoded_data
         return final_data
     
+########################### ########################### ########################### ########################### ########################### ###########################    
+########################### ########################### Procedures########################### ########################### ########################### ########################### 
+########################### ########################### ########################### ########################### ########################### ########################### 
+type_p= "drug2"
+
+if type_p == "procedures":
+    name="ICD9_CODE"
+    n = [.88,.95,.98,.999]
+    numerical_cols =  ['Age_max', 'LOSRD_sum',
+            'LOSRD_avg','L_1s_last_p1']
+
+    prepomax = 'std'
+    # Ejemplo de uso
+    #concat
+    nom_archivo = 'data\df_non_filtered.parquet'
+
+    categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
+                    'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
+                    'MARITAL_STATUS',  'ETHNICITY','GENDER']
+    type_p = "procedures"
+
+    name="ICD9_CODE"
+    n = [.88,.95,.98,.999]
+    numerical_cols =  ['Age_max', 'LOSRD_sum',
+            'LOSRD_avg','L_1s_last_p1']
+
+    prepomax = 'std'
+    # Ejemplo de uso
+    #concat
+    nom_archivo = 'data\df_non_filtered.parquet'
+
+    categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
+                    'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
+                    'MARITAL_STATUS', 'ETHNICITY','GENDER']
+
+    real = "CCS CODES"
+    level = "Otro"
+
+    doc_path = '/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/PROCEDURES_ICD.csv.gz'
+    admissions_path = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/ADMISSIONS.csv.gz"
+    patients_path = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/PATIENTS.csv.gz"
+    # type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False
+    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=True, log_transformation=True, encode_categorical=True, final_preprocessing=True)
+    #df = preprocessor.load_data(type_p)
+    df_final = preprocessor.run(type_p)
 
 
-type_p = "procedures"
 
-name="ICD9_CODE"
-n = [.88,.95,.98,.999]
-numerical_cols =  ['Age_max', 'LOSRD_sum',
-        'LOSRD_avg','L_1s_last_p1']
-
-prepomax = 'std'
-# Ejemplo de uso
-#concat
-nom_archivo = 'data\df_non_filtered.parquet'
-
-categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
-                'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
-                'MARITAL_STATUS', 'ETHNICITY','GENDER']
-
-real = "CCS_CODES"
-level = "Otro"
-
-doc_path = '/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/PROCEDURES_ICD.csv.gz'
-admissions_path = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/ADMISSIONS.csv.gz"
-patients_path = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/PATIENTS.csv.gz"
-# type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False
-preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=False, log_transformation=False, encode_categorical=True, final_preprocessing=None)
-df = preprocessor.load_data(type_p)
-# Crear una lista de las columnas a normalizar (todas las columnas excepto 'CCS CODES', 'HADM_ID' y 'SUBJECT_ID')
-cols_to_itereate = [col for col in df.columns if col not in ['LEVE3 CODES', 'HADM_ID', 'SUBJECT_ID']]
-for i in cols_to_itereate:
+    df_final.to_csv("aux/"+ real +type_p+".csv")
+    # Crear una lista de las columnas a normalizar (todas las columnas excepto 'CCS CODES', 'HADM_ID' y 'SUBJECT_ID')
+    cols_to_itereate = [col for col in df.columns if col not in ['LEVE3 CODES', 'HADM_ID', 'SUBJECT_ID']]
+'''for i in cols_to_itereate:
     real = i
     preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=False, log_transformation=False, encode_categorical=True, final_preprocessing=None)
     df_final = preprocessor.run(type_p)
     df_final.to_csv("input_pred_p/"+ real +type_p+".csv")
 
-
-##### Para las que no tiene columnas##################################
+    
 aux = pd.read_csv("input_pred_p/"+ real +type_p+".csv")
 int_index_columns = []
 for col in aux.columns:
@@ -194,7 +156,100 @@ print(int_index_columns)
 aux = aux[int_index_columns]
 cols_to_drop = aux.filter(like='Unnamed', axis=1).columns
 aux.drop(cols_to_drop, axis=1, inplace=True)
-aux.to_csv("input_pred_p/sin_codigo.csv")
+aux.to_csv("input_pred_p/sin_codigo.csv")'''  
+########################### ########################### ########################### ########################### ########################### ###########################    
+########################### ########################### DRUGS########################### ########################### ########################### ########################### 
+########################### ########################### ########################### ########################### ########################### ########################### 
+##### Para las que no tiene columnas##################################
+
+
+if type_p == "drug2":
+    name="ATC3"
+    n = [.88,.95,.98,.999]
+    numerical_cols =  ['Age_max', 'LOSRD_sum',
+            'LOSRD_avg','L_1s_last_p1']
+
+    prepomax = 'std'
+    # Ejemplo de uso
+    #concat
+    nom_archivo = 'data\df_non_filtered.parquet'
+
+    categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
+                    'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
+                    'MARITAL_STATUS', 'ETHNICITY','GENDER']
+    name = "DRUG"
+
+    type_p = "drug2"
+    n = [.88,.95,.98,.999]
+
+
+
+    name="O"
+
+    numerical_cols =  ['Age_max', 'LOSRD_sum',
+            'LOSRD_avg','L_1s_last_p1']
+
+    prepomax = 'std'
+    # Ejemplo de uso
+    #concat
+    nom_archivo = 'data\df_non_filtered.parquet'
+
+    categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
+                    'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
+                    'MARITAL_STATUS', 'ETHNICITY','GENDER']
+
+    real = "ATC3"
+    level = "Otro"
+
+    doc_path = '/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/PRESCRIPTIONS.csv.gz'
+    admissions_path = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/ADMISSIONS.csv.gz"
+    patients_path = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/PATIENTS.csv.gz"
+    # type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False
+    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=True, log_transformation=True, encode_categorical=True, final_preprocessing=True)
+    df_final = preprocessor.run(type_p)
+    df_final.to_csv("aux/"+ real +type_p+".csv")
+    
+    
+
+
+
+########################### ########################### ########################### ########################### ########################### ###########################    
+########################### ########################### DIAGNOSIS########################### ########################### ########################### ########################### 
+########################### ########################### ########################### ########################### ########################### ########################### 
+##### Para las que no tiene columnas##################################
+if type_p == "diagnosis":
+    type_p = "diagnosis"
+
+    name="ICD9_CODE"
+    n = [.88,.95,.98,.999]
+    numerical_cols =  ['Age_max', 'LOSRD_sum',
+            'LOSRD_avg','L_1s_last_p1']
+
+    prepomax = 'std'
+    # Ejemplo de uso
+    #concat
+    nom_archivo = 'data\df_non_filtered.parquet'
+
+    categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
+                    'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
+                    'MARITAL_STATUS', 'ETHNICITY','GENDER']
+
+    #real = "LEVE3 CODES"
+    real = "CCS CODES"
+    level = "Otro"
+
+    doc_path = '/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/DIAGNOSES_ICD.csv.gz'
+    admissions_path = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/ADMISSIONS.csv.gz"
+    patients_path = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/PATIENTS.csv.gz"
+    # type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False
+    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=True, log_transformation=True, encode_categorical=True, final_preprocessing=True)
+    #df = preprocessor.load_data(type_p)
+    df_final = preprocessor.run(type_p)
+
+
+
+    df_final.to_csv("aux/"+ real +type_p+".csv")
+
 
 ####################################Conatenacion primera
 #ruta_archivos = 's_data\*.csv.gz'  # Puedes cambiar '*.csv' por la extensión que desees
@@ -205,7 +260,7 @@ aux.to_csv("input_pred_p/sin_codigo.csv")
 
 
 
-d1 = '.\s_data\DIAGNOSES_ICD.csv.gz'
+#d1 = '.\s_data\DIAGNOSES_ICD.csv.gz'
 
 
 #didf_diagnosisa = diagnosis(d1,n,name)

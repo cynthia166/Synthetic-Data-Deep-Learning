@@ -51,7 +51,109 @@ from multiprocessing import Pool, cpu_count
 #from utils import getConnection
 import polars as pl
 
+from xml.dom.pulldom import ErrorHandler
+import pandas as pd
+import dill
+import numpy as np
+from collections import defaultdict
+from rdkit import Chem
+from rdkit.Chem import BRICS
 
+def med_process(med_file):
+    med_pd = pd.read_csv(med_file, dtype={"NDC": "category"})
+
+    # med_pd.drop(columns=['ROW_ID','DRUG_TYPE','DRUG_NAME_POE','DRUG_NAME_GENERIC',
+    #                     'FORMULARY_DRUG_CD','PROD_STRENGTH','DOSE_VAL_RX',
+    #                     'DOSE_UNIT_RX','FORM_VAL_DISP','FORM_UNIT_DISP', 'GSN', 'FORM_UNIT_DISP',
+    #                     'ROUTE','ENDDATE','DRUG'], axis=1, inplace=True)
+    med_pd.drop(
+        columns=[
+            "ROW_ID",
+            "DRUG_TYPE",
+            "DRUG_NAME_POE",
+            "DRUG_NAME_GENERIC",
+            "FORMULARY_DRUG_CD",
+            "PROD_STRENGTH",
+            "DOSE_VAL_RX",
+            "DOSE_UNIT_RX",
+            "FORM_VAL_DISP",
+            "FORM_UNIT_DISP",
+            "GSN",
+            "FORM_UNIT_DISP",
+            "ROUTE",
+            "ENDDATE",
+        ],
+        axis=1,
+        inplace=True,
+    )
+    #med_pd.drop(index=med_pd[med_pd["NDC"] == "0"].index, axis=0, inplace=True)
+    med_pd.fillna(method="pad", inplace=True)
+    med_pd.dropna(inplace=True)
+    med_pd.drop_duplicates(inplace=True)
+    med_pd["ICUSTAY_ID"] = med_pd["ICUSTAY_ID"].astype("int64")
+    med_pd["STARTDATE"] = pd.to_datetime(
+        med_pd["STARTDATE"], format="%Y-%m-%d %H:%M:%S"
+    )
+    med_pd.sort_values(
+        by=["SUBJECT_ID", "HADM_ID", "ICUSTAY_ID", "STARTDATE"], inplace=True
+    )
+    med_pd = med_pd.reset_index(drop=True)
+
+    med_pd = med_pd.drop(columns=["ICUSTAY_ID"])
+    med_pd = med_pd.drop_duplicates()
+    med_pd = med_pd.reset_index(drop=True)
+
+    return med_pd
+
+def codeMapping2atc4(med_pd):
+    RXCUI2atc4_file = "./data/RXCUI2atc4.csv"
+    ndc2RXCUI_file="./data/ndc2RXCUI.txt"
+    with open(ndc2RXCUI_file, "r") as f:
+        ndc2RXCUI = eval(f.read())
+    #med_pd["RXCUI"] = med_pd["NDC"].map(ndc2RXCUI)
+    med_pd["RXCUI"] = med_pd["NDC"].apply(lambda x: ndc2RXCUI.get(x, np.nan))
+    med_pd.dropna(inplace=True)
+
+    RXCUI2atc4 = pd.read_csv(RXCUI2atc4_file)
+    RXCUI2atc4 = RXCUI2atc4.drop(columns=["YEAR", "MONTH", "NDC"])
+    RXCUI2atc4.drop_duplicates(subset=["RXCUI"], inplace=True)
+    med_pd.drop(index=med_pd[med_pd["RXCUI"].isin([""])].index, axis=0, inplace=True)
+
+    med_pd["RXCUI"] = med_pd["RXCUI"].astype("int64")
+    med_pd = med_pd.reset_index(drop=True)
+    med_pd = med_pd.merge(RXCUI2atc4, on=["RXCUI"])
+    #med_pd.drop(columns=["NDC", "RXCUI"], inplace=True)
+    med_pd["ATC3"] = med_pd["ATC4"].map(lambda x: x[:4])
+    #med_pd = med_pd.rename(columns={"ATC4": "ATC3"})
+    #med_pd["ATC4"] = med_pd["ATC4"].map(lambda x: x)
+   
+    med_pd = med_pd.drop_duplicates()
+    med_pd = med_pd.reset_index(drop=True)
+    return med_pd
+
+
+def drug2(d1):
+    med_pd = med_process(d1)
+    RXCUI2atc4_file = "./data/RXCUI2atc4.csv"
+    ndc2RXCUI_file="./data/ndc2RXCUI.txt"
+    med_pd = codeMapping2atc4(med_pd)
+    med_pd.drop_duplicates(subset=['SUBJECT_ID', 'HADM_ID', 'ATC3','ATC4','NDC'],inplace=True)
+    # Supongamos que df es tu DataFrame
+    med_pd["SUBJECT_ID"] = med_pd["SUBJECT_ID"].astype(str)
+    med_pd["HADM_ID"] = med_pd["HADM_ID"].astype(str)
+    return med_pd[['SUBJECT_ID', 'HADM_ID', 'ATC3','ATC4','NDC']]
+
+
+def drugs1(d1,n,name):
+    df_ = pl.read_csv(d1, infer_schema_length=10000, ignore_errors=True, )
+    df_filtered = df_.with_columns(pl.col("SUBJECT_ID").cast(pl.Utf8))
+    df_filtered = df_filtered.with_columns(pl.col("HADM_ID").cast(pl.Utf8))
+    nuevo_df =df_filtered[["HADM_ID","SUBJECT_ID", "DRUG"]].to_pandas()
+   
+    print(nuevo_df.shape)
+    nuevo_df.drop_duplicates( inplace=True)
+    nuevo_df = funcion_acum(nuevo_df,n,name)
+    return nuevo_df
 
 
 #################################################################################################################################################################################################333
@@ -177,7 +279,7 @@ def diagnosis(d1,n,name):
     df_filtered = df_filtered.with_columns(pl.col("HADM_ID").cast(pl.Utf8))
     txt =df_filtered[["HADM_ID","SUBJECT_ID","ICD9_CODE"]].to_pandas()
 
-    nuevos_datos = descocatenar_codes(txt)
+    nuevos_datos = descocatenar_codes(txt,name)
     nuevo_df = codes_diag(nuevos_datos)
 
     nuevo_df = funcion_acum(nuevo_df,n,name)
@@ -349,9 +451,10 @@ import numpy as np
 from scipy.stats import mode
 
 
-def limipiar_Codigos(df):
-    nuevo_df = df.fillna(-1)
-    return nuevo_df
+def limipiar_Codigos(df,dt):   
+    df = df.fillna(-1)
+    
+    return df
 def max_patient_add(x):
     return x.max() - x.min()
 
@@ -400,7 +503,7 @@ def last_firs(ADMISSIONS,level):
 # Aplicar la función al DataFrame ADMISSIONS
 
 
-def calculate_pivot_df(duplicados, real, level):
+def calculate_pivot_df(duplicados, real, level,type_g):
     """Calculate the pivot table.
     
     Args:
@@ -411,7 +514,16 @@ def calculate_pivot_df(duplicados, real, level):
     Returns:
         pivot_df (DataFrame): The pivoted DataFrame.
     """
-    duplicados[real] = duplicados[real].astype(int)
+    if type_g == "drug2":
+         duplicados["SUBJECT_ID"] = duplicados["SUBJECT_ID"].astype(str)
+    if type_g == "diagnosis":
+       
+# Assuming `duplicados` is your DataFrame and `real` is the column you're trying to convert
+       duplicados[real] = pd.to_numeric(duplicados[real], errors='coerce')
+       duplicados[real] = duplicados[real].fillna(-18).astype(int)
+    if type_g != "drug2":   
+       duplicados[real] = duplicados[real].astype(int)
+       
     duplicados["SUBJECT_ID"] = duplicados["SUBJECT_ID"].astype(str)
     duplicados["HADM_ID"] = duplicados["HADM_ID"].astype(str)
 

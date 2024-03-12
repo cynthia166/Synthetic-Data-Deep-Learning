@@ -143,7 +143,7 @@ def train(json_config, readmit_df,fichero,i,project_name,param_grid):
     result["mean_test_scores_folds"]=mean_test_scores_folds
     result["mean_train_scores_folds"]=mean_train_scores_folds
     result["time_model"]=time_model
-    result["prepo"]=str(prepo)
+    #result["prepo"]=str(prepo)
     result["best_max_depth"] = best_max_depth
     result["best_reg_alpha"] = best_reg_alpha
     result["best_reg_lambda"] = best_reg_lambda
