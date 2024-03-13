@@ -25,6 +25,51 @@ from multiprocessing import Pool, cpu_count
 name_df = "raw_input.csv"
 archivo = ["aux/CCS CODESprocedures.csv","aux/ATC3drug2.csv","aux/CCS CODESdiagnosis.csv"]
 
+def get_input_time( type_df,arhivo,name,cols_to_drop1,res,keywords,s):
+# Obtener una lista de pacientes únicos
+    unique_patients = res['SUBJECT_ID'].unique()
+
+    # Calcular el 20% del total de pacientes únicos
+    sample_size = int(s* len(unique_patients))
+    # Obtener una muestra aleatoria del 20% de los pacientes únicos
+    sample_patients = np.random.choice(unique_patients, size=sample_size, replace=False)
+    # Filtrar el DataFrame para incluir solo los registros de los pacientes en la muestra
+    sample_df = res[res['SUBJECT_ID'].isin(sample_patients)]
+
+    dfs = obtener_entire(sample_df,type_df)
+
+    # Lista de nombres de columnas a buscar
+    # Supongamos que type_df es tu DataFrame
+      # Filtrar las columnas de type_df que contienen las palabras clave
+    static_data_cols = [col for col in dfs.columns if any(keyword in col for keyword in keywords)]
+    # Crear un nuevo DataFrame que solo incluye las columnas filtradas
+    not_considet_temporal = [
+    i for i in static_data_cols if i != 'SUBJECT_ID'
+    ]
+
+    static_data = dfs[static_data_cols].groupby('SUBJECT_ID').max().reset_index(drop=True)
+    outcomes = dfs[['HOSPITAL_EXPIRE_FLAG','SUBJECT_ID']].groupby('SUBJECT_ID').max().reset_index(drop=True)
+    temporal_data = dfs.drop(columns=not_considet_temporal+['HOSPITAL_EXPIRE_FLAG'])
+    cols_to_drop = list(temporal_data.filter(like='Unnamed', axis=1).columns) + ['ADMITTIME','HADM_ID']
+    temporal_data.drop(cols_to_drop, axis=1, inplace=True)
+    
+   
+
+
+
+    # Establecer 'SUBJECT_ID' y 'visit_rank' como índices
+    temporal_data.set_index(['SUBJECT_ID', 'visit_rank'], inplace=True)
+    # Ordenar temporal_data por el índice 'visit_rank' en orden ascendente
+    temporal_data.sort_index(level='visit_rank', inplace=True)
+    # Ahora se agrupa por 'SUBJECT_ID' y se recoge la información necesaria.
+    grouped = temporal_data.groupby(level='SUBJECT_ID')
+
+    # Se obtiene 'observations' como los índices de segundo nivel para cada grupo.
+    observation_data = [group.index.get_level_values('visit_rank').tolist() for _, group in grouped]
+
+    # Se obtiene los dataframes temporales por grupo, reseteando el índice 'SUBJECT_ID'.
+    temporal_dataframes = [group.reset_index(level=0, drop=True) for _, group in grouped]
+    return static_data, temporal_dataframes, observation_data,outcomes
 
 
 def cols_not_consideres(aux):
