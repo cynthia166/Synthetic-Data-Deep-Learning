@@ -61,3 +61,30 @@ model.train_dataframe(
         )
 
 synthetic_attributes, synthetic_features = model.generate(1000)
+'''
+synth_data = model_dop_gan.sample(n_samples=600)
+synth_df = pd.concat(synth_data, axis=0)
+
+# Create a plot for each measurement column
+plt.figure(figsize=(10, 6))
+
+plt.subplot(2, 1, 1)
+plt.plot(mba_data['traffic_byte_counter'].reset_index(drop=True), label='Real Traffic')
+plt.plot(synth_df['traffic_byte_counter'].reset_index(drop=True), label='Synthetic Traffic', alpha=0.7)
+plt.xlabel('Index')
+plt.ylabel('Value')
+plt.title('Traffic Comparison')
+plt.legend()
+plt.grid(True)
+
+plt.subplot(2, 1, 2)
+plt.plot(mba_data['ping_loss_rate'].reset_index(drop=True), label='Real Ping')
+plt.plot(synth_df['ping_loss_rate'].reset_index(drop=True), label='Synthetic Ping', alpha=0.7)
+plt.xlabel('Index')
+plt.ylabel('Value')
+plt.title('Ping Comparison')
+plt.legend()
+plt.grid(True)
+
+plt.tight_layout()
+plt.show()'''

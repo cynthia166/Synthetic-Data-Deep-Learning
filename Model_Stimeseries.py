@@ -7,6 +7,7 @@ import sys
 import warnings
 
 # synthcity absolute
+
 import synthcity.logger as log
 from synthcity.plugins import Plugins
 from synthcity.plugins.core.dataloader import TimeSeriesDataLoader
@@ -19,18 +20,18 @@ type_df = "entire"
 arhivo = 'aux/raw_input.csv'
 name  = "input_generative_g.csv"
 
-res = obtener_added_cols_targer_visitrank_(arhivo,name)
+#res = obtener_added_cols_targer_visitrank_(arhivo,name)
 cols_to_drop1 = ['ADMITTIME','HADM_ID']
 
 #res.drop(cols_to_drop1, axis=1, inplace=True)
 
-res.to_csv("aux/full_input.csv")
-#res = pd.read_csv("aux/full_input.csv")
+#res.to_csv("aux/full_input.csv")
+res = pd.read_csv("aux/full_input.csv")
 # Obtener una lista de pacientes únicos
 unique_patients = res['SUBJECT_ID'].unique()
 
 # Calcular el 20% del total de pacientes únicos
-sample_size = int(0.20 * len(unique_patients))
+sample_size = int(0.03 * len(unique_patients))
 # Obtener una muestra aleatoria del 20% de los pacientes únicos
 sample_patients = np.random.choice(unique_patients, size=sample_size, replace=False)
 # Filtrar el DataFrame para incluir solo los registros de los pacientes en la muestra
@@ -62,7 +63,7 @@ static_data = [
     'ETHNICITY_Otra',
     'ETHNICITY_WHITE',
     'GENDER_M',
-    'GENDER_Otra',
+    'GENDER_Otra',]
 
 
 
@@ -80,11 +81,11 @@ temporal_data.drop(cols_to_drop, axis=1, inplace=True)
 
 
 
-
 # Establecer 'SUBJECT_ID' y 'visit_rank' como índices
 temporal_data.set_index(['SUBJECT_ID', 'visit_rank'], inplace=True)
 # Ordenar temporal_data por el índice 'visit_rank' en orden ascendente
-temporal_data.sort_index(level='visit_rank', inplace=True)
+temporal_data.sort_index(level='visit_rank', 
+inplace=True)
 # Ahora se agrupa por 'SUBJECT_ID' y se recoge la información necesaria.
 grouped = temporal_data.groupby(level='SUBJECT_ID')
 
@@ -102,3 +103,40 @@ loader = TimeSeriesDataLoader(
     static_data=static_data,
     outcome=outcomes,
 )
+
+#syn_model = Plugins().get("timegan")
+
+#syn_model.fit(loader)
+
+#syn_model.generate(count=10).dataframe()
+
+from synthcity.benchmark import Benchmarks
+
+score = Benchmarks.evaluate(
+    [
+        (f"test_{model}", model, {})
+        for model in ["timevae"]
+    ],
+    loader,
+    synthetic_size=len(temporal_dataframes),
+    repeats=2,
+    task_type="time_series",  # time_series_survival or time_series
+)
+
+Benchmarks.print(score)
+
+import matplotlib.pyplot as plt
+
+syn_model.plot(plt, loader)
+plt.savefig('aux/timegan_output.png')
+plt.show()
+
+means = []
+for plugin in score:
+    data = score[plugin]["mean"]
+    directions = score[plugin]["direction"].to_dict()
+    means.append(data)
+
+out = pd.concat(means, axis=1)
+out.set_axis(score.keys(), axis=1, inplace=True)
+out.to_csv("aux/timegan_output.csv")
