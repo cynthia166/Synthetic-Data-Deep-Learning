@@ -77,6 +77,7 @@ class DataPreprocessor:
         demographics = self.apply_log_transformation(demographics)
         encoded_data_demographics = self.encode_categorical_data(demographics)
         merged_data = self.merge_data(encoded_data_demographics, count_matrix)
+
         
         if self.final_preprocessing:
             final_data = self.final_preprocessing_fun(merged_data)
@@ -163,8 +164,8 @@ aux.to_csv("input_pred_p/sin_codigo.csv")'''
 ##### Para las que no tiene columnas##################################
 
 
-if type_p == "drug2":
-    name="ATC3"
+if type_p == "drug2" or type_p == "drug1":
+   
     n = [.88,.95,.98,.999]
     numerical_cols =  ['Age_max', 'LOSRD_sum',
             'LOSRD_avg','L_1s_last_p1']
@@ -179,12 +180,12 @@ if type_p == "drug2":
                     'MARITAL_STATUS', 'ETHNICITY','GENDER']
     name = "DRUG"
 
-    type_p = "drug2"
+    
     n = [.88,.95,.98,.999]
 
 
 
-    name="O"
+   
 
     numerical_cols =  ['Age_max', 'LOSRD_sum',
             'LOSRD_avg','L_1s_last_p1']
@@ -206,6 +207,7 @@ if type_p == "drug2":
     patients_path = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/PATIENTS.csv.gz"
     # type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False
     preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=True, log_transformation=True, encode_categorical=True, final_preprocessing=True)
+    aux = preprocessor.load_data_clean_data(type_p)
     df_final = preprocessor.run(type_p)
     df_final.to_csv("aux/"+ real +type_p+".csv")
     
@@ -242,6 +244,7 @@ if type_p == "diagnosis":
     admissions_path = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/ADMISSIONS.csv.gz"
     patients_path = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/PATIENTS.csv.gz"
     # type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False
+   
     preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=True, log_transformation=True, encode_categorical=True, final_preprocessing=True)
     #df = preprocessor.load_data(type_p)
     df_final = preprocessor.run(type_p)

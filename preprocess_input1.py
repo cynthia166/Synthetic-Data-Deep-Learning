@@ -134,11 +134,15 @@ def codeMapping2atc4(med_pd):
 
 def drug2(d1):
     med_pd = med_process(d1)
+    
     print("med_pd initial shape : ",med_pd.shape)
     RXCUI2atc4_file = "./data/RXCUI2atc4.csv"
     ndc2RXCUI_file="./data/ndc2RXCUI.txt"
     med_pd = codeMapping2atc4(med_pd)
     med_pd.drop_duplicates(subset=['SUBJECT_ID', 'HADM_ID', 'ATC3','ATC4','NDC'],inplace=True)
+    for i in med_pd.columns:    
+        print("unique"+str(i),med_pd[i].nunique() )
+
     print("med_pd after atc3 shape : ",med_pd.shape)
     # Supongamos que df es tu DataFrame
     med_pd["SUBJECT_ID"] = med_pd["SUBJECT_ID"].astype(str)
@@ -169,12 +173,17 @@ def drugs1(d1,n,name):
     df_filtered = df_.with_columns(pl.col("SUBJECT_ID").cast(pl.Utf8))
     df_filtered = df_filtered.with_columns(pl.col("HADM_ID").cast(pl.Utf8))
     nuevo_df =df_filtered[["HADM_ID","SUBJECT_ID", "DRUG"]].to_pandas()
-   
+    for i in nuevo_df.columns:    
+        print("unique"+str(i),nuevo_df[i].nunique() )
     print(nuevo_df.shape)
     nuevo_df.drop_duplicates( inplace=True)
     nuevo_df = funcion_acum(nuevo_df,n,name)
-    
+    for i in nuevo_df.columns:    
+        print("unique after drop duplicates"+str(i),nuevo_df[i].nunique() )
+    print("null shape:", nuevo_df.isnull().sum())
     nuevo_df = nuevo_df.fillna(-1)
+    conteo_negativos = nuevo_df.apply(lambda x: (x == -1).sum())
+    print("number of other categry:", conteo_negativos)
     return nuevo_df
 
 
@@ -301,6 +310,8 @@ def diagnosis(d1,n,name):
     df_filtered = df_.with_columns(pl.col("SUBJECT_ID").cast(pl.Utf8))
     df_filtered = df_filtered.with_columns(pl.col("HADM_ID").cast(pl.Utf8))
     txt =df_filtered[["HADM_ID","SUBJECT_ID","ICD9_CODE"]].to_pandas()
+    for i in txt.columns:    
+        print("unique"+str(i),txt[i].nunique() )
 
     nuevos_datos = descocatenar_codes(txt,name)
     print("Initial df shape  desconcatenate: ", nuevos_datos.shape)
@@ -313,7 +324,7 @@ def diagnosis(d1,n,name):
         
     print("Númber of null values after obtaining threshhold", nuevo_df.isnull().sum())
     print("df shape : ", nuevo_df.shape)
-
+   
     nuevo_df = nuevo_df.fillna(-1)
         
     for i in nuevo_df.columns:    
@@ -347,8 +358,12 @@ def procedures(d2,n,name):
     df_filtered = df_.with_columns(pl.col("SUBJECT_ID").cast(pl.Utf8))
     df_filtered = df_filtered.with_columns(pl.col("HADM_ID").cast(pl.Utf8))
     nuevos_datos =df_filtered[["HADM_ID","SUBJECT_ID","ICD9_CODE"]].to_pandas()
+    for i in nuevos_datos.columns:    
+        print("unique"+str(i),nuevos_datos[i].nunique() )
     print("Númber of null values after obtaining individual values of ICD9-CODES : ", nuevos_datos.isnull().sum())
     nuevo_df = nuevos_datos.dropna()
+    for i in nuevo_df.columns:    
+        print("unique"+str(i),nuevo_df[i].nunique() )
     print("Númber of null values dropna : ", nuevos_datos.isnull().sum())
     
     print("Shape df : ", nuevos_datos.shape)
@@ -364,7 +379,7 @@ def procedures(d2,n,name):
     print("Númber of null values after obtaining threshhold", nuevo_df.isnull().sum())
     print("df shape : ", nuevo_df.shape)
     # -1 for does ccs codes and level codes that had no direct mapping
-    nuevo_df = nuevo_df.fillna(-1)
+    #nuevo_df = nuevo_df.fillna(-1)
     print("Númber of null values after eliminating null:", nuevo_df.isnull().sum())
    
     
@@ -402,7 +417,15 @@ def descocatenar_codes(txt,name):
                 nuevos_datos.append(nuevo_registro)
     nuevo_df = pd.DataFrame(nuevos_datos)
     print(nuevo_df)
+    for i in nuevo_df.columns:    
+        print("unique before eliminating na"+str(i),nuevo_df[i].nunique() )
+
     nuevo_df = txt.dropna()
+    for i in nuevo_df.columns:    
+        print("unique after eliminating na"+str(i),nuevo_df[i].nunique() )
+
+    
+    
     return nuevo_df
 
 def convert_to_int(value):
@@ -529,12 +552,16 @@ def drugs(d1,name1):
     df_filtered = df_.with_columns(pl.col("SUBJECT_ID").cast(pl.Utf8))
     df_filtered = df_filtered.with_columns(pl.col("HADM_ID").cast(pl.Utf8))
     nuevo_df =df_filtered[["HADM_ID","SUBJECT_ID", "DRUG"]].to_pandas()
-
+    for i in nuevo_df.columns:    
+        print("unique"+str(i),nuevo_df[i].nunique() )
     print(nuevo_df.shape)
     nuevo_df.drop_duplicates( inplace=True)
     nuevo_df = funcion_acum(nuevo_df,n,name1)
-    
+    for i in nuevo_df.columns:    
+        print("unique after droping duplicates"+str(i),nuevo_df[i].nunique() )
     nuevo_df = nuevo_df.fillna(-1)
+    for i in nuevo_df.columns:    
+        print("unique -1"+str(i),nuevo_df[i].nunique() )
     return nuevo_df
 
 import pandas as pd
@@ -660,7 +687,8 @@ def calculate_agregacion_cl(adm,pa, categorical_cols, level,cat_considered,prod_
 
     pa["SUBJECT_ID"] = pa["SUBJECT_ID"].astype(str)
 
-
+    for i in ["SUBJECT_ID","HADM_ID"]:    
+            print("unique"+str(i),adm[i].nunique() )
 
 
     duplicados = prod_ipvot.merge(adm[cat_considered], on=['SUBJECT_ID', 'HADM_ID'], how='left')
@@ -694,6 +722,9 @@ def calculate_agregacion_cl(adm,pa, categorical_cols, level,cat_considered,prod_
     duplicados['LOSRD']  = [i.days for i in duplicados['LOSRD']]
     print("Before eliminate LOSRD<0: ",duplicados.shape)
     duplicados = duplicados[duplicados["LOSRD"]>0]   
+    for i in["SUBJECT_ID","HADM_ID"]:    
+            print("unique"+str(i),duplicados[i].nunique() )
+
     print("After eliminate LOSRD<0: ",duplicados.shape)
     if level == "Patient":
         agregacion_cl = duplicados.groupby(['SUBJECT_ID']).agg(
@@ -737,9 +768,9 @@ def calculate_agregacion_cl(adm,pa, categorical_cols, level,cat_considered,prod_
 
     agregacion_cl = agregacion_cl[["Age_max", "LOSRD_sum", "L_1s_last_p1", "LOSRD_avg"] +categorical_cols+['SUBJECT_ID', 'HADM_ID']] 
     print("Before replacing 0: ",agregacion_cl.isnull().sum())
-    for i in ["Age_max", "LOSRD_sum", "L_1s_last_p1", "LOSRD_avg"]:
-        agregacion_cl[i]= agregacion_cl[i].replace(np.nan,0)
-    print("After replacing 0: ",agregacion_cl.isnull().sum())
+    #for i in ["Age_max", "LOSRD_sum", "L_1s_last_p1", "LOSRD_avg"]:
+    #    agregacion_cl[i]= agregacion_cl[i].replace(np.nan,0)
+    #print("After replacing 0: ",agregacion_cl.isnull().sum())
     for col in categorical_cols:
         agregacion_cl[col]= agregacion_cl[col].replace(np.nan, "Unknown")
         agregacion_cl[col] = agregacion_cl[col].replace(0, 'Unknown')
@@ -756,7 +787,10 @@ def merge_df(agregacion_cl, prod_ipvot,level):
     if level == "Patient":
         return agregacion_cl.merge(prod_ipvot, on=['SUBJECT_ID'], how='left')
     else:
-       return agregacion_cl.merge(prod_ipvot, on=["HADM_ID",'SUBJECT_ID'], how='left')
+        for i in["SUBJECT_ID","HADM_ID"]:    
+            print("unique demographic"+str(i),agregacion_cl[i].nunique() ) 
+            print("unique code_matrix_1"+str(i),prod_ipvot[i].nunique() ) 
+        return agregacion_cl.merge(prod_ipvot, on=["HADM_ID",'SUBJECT_ID'], how='left')
     
 import pandas as pd
 import numpy as np
