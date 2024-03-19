@@ -8,7 +8,7 @@
         
         {
             "name": "Python: archivo actual",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",

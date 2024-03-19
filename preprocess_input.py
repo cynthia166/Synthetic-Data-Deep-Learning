@@ -664,7 +664,40 @@ def merge_df(agregacion_cl, prod_ipvot):
 import pandas as pd
 import numpy as np
 
+import numpy as np
+import pandas as pd
+
 def normalize_count_matrix(pivot_df, level):
+    """
+    Processes the count matrix by normalizing based on zero entries and then concatenates demographic data.
+    
+    :param pivot_df: DataFrame with count matrix of icd9-codes
+    :param level: 'Patient', 'visit', or 'outs_visit'
+    :return: DataFrame with normalized counts
+    """
+    # Drop identifiers based on the level
+    if level == "Patient":
+        matrix_df = pivot_df.drop('SUBJECT_ID', axis=1)
+    else:
+        matrix_df = pivot_df.drop(['HADM_ID', 'SUBJECT_ID'], axis=1)
+    
+    # Calculate the number of zero entries for each column
+    num_zeros = (matrix_df == 0).sum()
+
+    # Avoid division by zero by adding a small constant, if needed
+    # This step depends on your specific requirements and data characteristics
+    num_zeros += (num_zeros == 0)  # This will add 1 to columns with no zeros to avoid division by zero
+
+    # Normalize each column by the number of zero entries
+    normalized_matrix_df = matrix_df.div(num_zeros, axis=1)
+    
+    # Prepare the result DataFrame
+    result_df = pd.concat([pivot_df[['SUBJECT_ID', 'HADM_ID']], normalized_matrix_df], axis=1)
+
+    return result_df
+
+
+def normalize_count_matrix__aux(pivot_df, level):
     """
     Processes the count matrix by normalizing and then concatenates demographic data.
     
