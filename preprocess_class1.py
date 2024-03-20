@@ -2,7 +2,7 @@
 from preprocess_input1 import *
 
 class DataPreprocessor:
-    def __init__(self, type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False,proportion = True,prop = 0.4):
+    def __init__(self, type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False,proportion = False,prop = 0.4):
         self.type_p = type_p  # Correctly initializing type_p here
         self.doc_path = doc_path
         self.admissions_path = admissions_path
@@ -88,7 +88,7 @@ class DataPreprocessor:
 ########################### ########################### ########################### ########################### ########################### ###########################    
 ########################### ########################### Procedures########################### ########################### ########################### ########################### 
 ########################### ########################### ########################### ########################### ########################### ########################### 
-type_p= "drug1"
+type_p= "diagnosis"
 
 if type_p == "procedures":
     name="ICD9_CODE"
@@ -127,7 +127,7 @@ if type_p == "procedures":
     admissions_path = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/ADMISSIONS.csv.gz"
     patients_path = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/PATIENTS.csv.gz"
     # type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False
-    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=True, log_transformation=True, encode_categorical=True, final_preprocessing=True)
+    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=True, log_transformation=True, encode_categorical=True, final_preprocessing=True,proportion = True)
     #df = preprocessor.load_data(type_p)
     df_final = preprocessor.run(type_p)
 
@@ -206,7 +206,7 @@ if type_p == "drug2" or type_p == "drug1":
     admissions_path = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/ADMISSIONS.csv.gz"
     patients_path = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/PATIENTS.csv.gz"
     # type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False
-    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=True, log_transformation=True, encode_categorical=True, final_preprocessing=True)
+    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=True, log_transformation=True, encode_categorical=True, final_preprocessing=True,proportion=True)
     aux = preprocessor.load_data_clean_data(type_p)
     df_final = preprocessor.run(type_p)
     df_final.to_csv("aux/"+ real +type_p+".csv")
@@ -245,7 +245,7 @@ if type_p == "diagnosis":
     patients_path = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/PATIENTS.csv.gz"
     # type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False
    
-    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=True, log_transformation=True, encode_categorical=True, final_preprocessing=True)
+    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=True, log_transformation=True, encode_categorical=True, final_preprocessing=True,proportion=True)
     #df = preprocessor.load_data(type_p)
     df_final = preprocessor.run(type_p)
 

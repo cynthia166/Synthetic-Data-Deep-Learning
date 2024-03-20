@@ -172,3 +172,5 @@ Preprocessing for prediction analysis and clustering
 preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols) _to = None,normalize_matrix=True, log_transformation=True, encode_categorical=True, final_preprocessing=True)
 df = preprocessor.run(type_p)
 ```
+
+![Diagrama](img/prep.jpg)

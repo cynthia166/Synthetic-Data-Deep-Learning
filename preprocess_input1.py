@@ -633,6 +633,8 @@ def calculate_pivot_df(duplicados, real, level,type_g):
     Returns:
         pivot_df (DataFrame): The pivoted DataFrame.
     """
+    print("na before fillin -1", duplicados.isnull().sum())
+
     if type_g == "drug2":
          duplicados["SUBJECT_ID"] = duplicados["SUBJECT_ID"].astype(str)
     if type_g == "diagnosis":
@@ -640,7 +642,9 @@ def calculate_pivot_df(duplicados, real, level,type_g):
 # Assuming `duplicados` is your DataFrame and `real` is the column you're trying to convert
        duplicados[real] = pd.to_numeric(duplicados[real], errors='coerce')
        duplicados[real] = duplicados[real].fillna(-1).astype(int)
-    if type_g != "drug2" & type_g != "drug1":   
+       conteo_negativos = duplicados.apply(lambda x: (x == -1).sum())
+       print("Count-1:",conteo_negativos)
+    if type_g != "drug2" and type_g != "drug1":   
 
             
         duplicados[real ] = duplicados[real ].astype(int)
@@ -717,7 +721,7 @@ def calculate_agregacion_cl(adm,pa, categorical_cols, level,cat_considered,prod_
     duplicados["age"] = (duplicados['ADMITTIME'].to_numpy() - duplicados['DOB'].to_numpy())
     duplicados["year_age"] = [i.days/365 for i in duplicados["age"]]
 
-    
+    print("People with more than 100 years: ",duplicados.loc[duplicados['year_age'] > 100].shape)
     duplicados.loc[duplicados['year_age'] > 100, 'year_age'] = 89  
         
     
@@ -871,7 +875,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 import pandas as pd
 
-def encoding(res, categorical_cols, encoding_type='onehot',proportion =False,prop=0.4 ):
+def encoding(res, categorical_cols, encoding_type='onehot',proportion =False,prop=0.2 ):
     """
     Aplica codificación a las columnas categóricas de un DataFrame.
 
@@ -894,11 +898,20 @@ def encoding(res, categorical_cols, encoding_type='onehot',proportion =False,pro
     'ETHNICITY',
     ]:
             if proportion:
+                num_categorias = len(res[col].value_counts())
+                print("Número de categorías únicas en la columna {}: {}".format(col, num_categorias))
                 proporcion = res[col].value_counts(normalize=True)
-                res[col] = res[col].where(proporcion[res[col]] >prop, 'Otra')
+                res[col] = res[col].where(proporcion[res[col]] <prop, 'Otra')
+                num_categorias = len(res[col].value_counts())
+                print("Número de categorías únicas después de la agregacion {}: {}".format(col, num_categorias))
+                                
             else:
                 counts = res[col].value_counts(normalize=True)
+                num_categorias = len(res[col].value_counts())
+                print("Número de categorías únicas en la columna {}: {}".format(col, num_categorias))
                 lower_80 = counts[counts.cumsum() > 0.8].index
+                print("Number of cat agregated"+col,len(lower_80))
+                print("Number of cat agregated"+col,len(lower_80))
                 res[col] = res[col].replace(lower_80, 'Otra')
             
         
@@ -908,11 +921,12 @@ def encoding(res, categorical_cols, encoding_type='onehot',proportion =False,pro
         encoded_cols = encoder.fit_transform(res[categorical_cols])
         #encoded_cols_df = pd.DataFrame(encoded_cols, columns=encoder.get_feature_names(categorical_cols))
         encoded_cols_df = pd.DataFrame(encoded_cols.toarray(), columns=encoder.get_feature_names_out(categorical_cols))
-
+        num_filas = encoded_cols_df.shape
+        print("Shape of encoded cosl:: {}".format(num_filas))
         # Concatenar el DataFrame original con el DataFrame codificado
     elif encoding_type == 'label':
         encoded_cols_df = res[categorical_cols].apply(LabelEncoder().fit_transform)
-
+        
     # Concatenar el DataFrame original con el DataFrame codificado
     
     res_final = pd.concat([res[[i for i in res.columns if i not in categorical_cols]], encoded_cols_df], axis=1)
