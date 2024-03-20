@@ -172,6 +172,10 @@ def drugs1(d1,n,name):
     df_ = pl.read_csv(d1, infer_schema_length=10000, ignore_errors=True, )
     df_filtered = df_.with_columns(pl.col("SUBJECT_ID").cast(pl.Utf8))
     df_filtered = df_filtered.with_columns(pl.col("HADM_ID").cast(pl.Utf8))
+    aux_nuevo_df =df_filtered[["HADM_ID","SUBJECT_ID", "DRUG","DRUG_NAME_GENERIC", "FORMULARY_DRUG_CD","NDC"]].to_pandas()
+    for i in aux_nuevo_df.columns:    
+        print("unique"+str(i),aux_nuevo_df[i].nunique() )
+        
     nuevo_df =df_filtered[["HADM_ID","SUBJECT_ID", "DRUG"]].to_pandas()
     for i in nuevo_df.columns:    
         print("unique"+str(i),nuevo_df[i].nunique() )
@@ -615,7 +619,7 @@ def last_firs(ADMISSIONS,level):
         
     return ADMISSIONS[['SUBJECT_ID', 'HADM_ID', 'L_1s_last_p1']]
 
-# Aplicar la función al DataFrame ADMISSIONS
+
 
 
 def calculate_pivot_df(duplicados, real, level,type_g):
@@ -635,8 +639,8 @@ def calculate_pivot_df(duplicados, real, level,type_g):
        
 # Assuming `duplicados` is your DataFrame and `real` is the column you're trying to convert
        duplicados[real] = pd.to_numeric(duplicados[real], errors='coerce')
-       duplicados[real] = duplicados[real].fillna(-18).astype(int)
-    if type_g != "drug2":   
+       duplicados[real] = duplicados[real].fillna(-1).astype(int)
+    if type_g != "drug2" & type_g != "drug1":   
 
             
         duplicados[real ] = duplicados[real ].astype(int)

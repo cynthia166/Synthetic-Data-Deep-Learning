@@ -26,10 +26,10 @@ class DataPreprocessor:
             data = procedures(self.doc_path, self.n, self.name)
         elif type_p == "diagnosis":
             data = diagnosis(self.doc_path, self.n, self.name)
-        elif "drug2":
+        elif  type_p == "drug2":
             data = drug2(self.doc_path)
             # ATC
-        elif "drug1":
+        elif  type_p == "drug1":
             # thresholds
               data = drugs1(self.doc_path, self.n, self.name)  
         return data
@@ -88,7 +88,7 @@ class DataPreprocessor:
 ########################### ########################### ########################### ########################### ########################### ###########################    
 ########################### ########################### Procedures########################### ########################### ########################### ########################### 
 ########################### ########################### ########################### ########################### ########################### ########################### 
-type_p= "diagnosis"
+type_p= "drug1"
 
 if type_p == "procedures":
     name="ICD9_CODE"

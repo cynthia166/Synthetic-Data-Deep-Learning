@@ -1,5 +1,5 @@
 from random import randint, uniform
-from function_pred import *
+from Preprocessing.function_pred import *
 import pandas as pd
 import csv
 import json
@@ -22,11 +22,11 @@ def train(json_config, readmit_df,fichero,i,project_name,param_grid):
     nom_t = json_config["nom_t"]
     ejemplo_dir = json_config["ejemplo_dir"]
     
-    path = json_config["path"]
+   
     days_list = json_config["days_list"]
     ficheros = read_director(ejemplo_dir)
 
-    type_reg = json_config["type_reg"]
+   
     
     # Instantiate the model based on the string in the JSON
     #models_config = config["model"]
@@ -34,7 +34,7 @@ def train(json_config, readmit_df,fichero,i,project_name,param_grid):
  
   
       #list_cat = config["list_cat"]
-    prepro = json_config["prepro"]
+    #prepro = json_config["prepro"]
     #LogisticRegression,"Xgboost"   
     #model = json_config["model"]
     splits = json_config["splits"]
@@ -54,13 +54,11 @@ def train(json_config, readmit_df,fichero,i,project_name,param_grid):
         #concat_var_ = create_var(ejemplo_dir,i,readmit_df)
     #eda_embedding(path,i,concat_var_,i)
     
-    print(i)
 
-    prepo = prepro[i]
     
-    print(prepo)
+ 
     
-    X,y ,concat_var  = lectura_variables(readmit_df,fichero,prepo,ejemplo_dir,days)
+    X,y ,concat_var  = lectura_variables_aux(readmit_df,fichero,ejemplo_dir,days)
     try:
         X = X.values
         
@@ -73,11 +71,16 @@ def train(json_config, readmit_df,fichero,i,project_name,param_grid):
     ####ENtrenamiento del modelo#####
     # funcion de entrenamiento dem odelo
     #df_res = modelo_df_aux_grid_search(X,y,i,type_reg,model,sampling,li_feature_selection,kfolds,lw,K,models_config,config)
-    X = X
-    y = y
+
     
     
-    
+    X = X[:2000,:]
+    y = y[:2000]
+    import pandas as pd
+
+# Supongamos que df es tu DataFrame
+
+
             
     
 
@@ -140,7 +143,7 @@ def train(json_config, readmit_df,fichero,i,project_name,param_grid):
     result["mean_test_scores_folds"]=mean_test_scores_folds
     result["mean_train_scores_folds"]=mean_train_scores_folds
     result["time_model"]=time_model
-    result["prepo"]=str(prepo)
+    #result["prepo"]=str(prepo)
     result["best_max_depth"] = best_max_depth
     result["best_reg_alpha"] = best_reg_alpha
     result["best_reg_lambda"] = best_reg_lambda
@@ -302,9 +305,9 @@ def main(json_config, readmit_df,fichero,i,project_name,param_grid):
     
 if __name__ == "__main__":
     global days,param_grid,model
-    project_name =   "Predic_Readmission_drugs_Xgboost_kfolds_preproC_"
+    project_name =   "Predic_Readmission_procedures_Xgboost_kfolds_preproC_new"
     # PARAMETRO NO FIJO#######
-    arconfig_path = "input_json/config_drugs.json"
+    arconfig_path = "input_json/config_procedures.json"
     def load_json_config(config_path):
         with open(config_path, 'r') as file:
             return json.load(file)
@@ -313,7 +316,7 @@ if __name__ == "__main__":
     json_config = load_json_config(arconfig_path)
     # Run the sweep
     # PARAMETRO NO FIJO#######
-    ejemplo_dir ="./input_model_pred_drugs_u/"
+    ejemplo_dir ="./input_pred_p/"
     model  = json_config["model"]
     print(model)
     if model == "Xgboost":
@@ -345,6 +348,8 @@ if __name__ == "__main__":
         # 'subsample': Elegir valores menores a 1 para usar menos datos y prevenir sobreajuste
         'subsample': [0.3,0.5, 0.6, 0.7, 0.8],
         }
+
+
         '''
         param_grid = {
         # Para 'learning_rate', una lista de valores posibles en una escala logarítmica desde 10^-8 a 10^0
@@ -400,7 +405,7 @@ if __name__ == "__main__":
     
     
     
-    for i,fichero in enumerate(ficheros[2:]):
+    for i,fichero in enumerate(ficheros):
         print(i)
         print(fichero)
     # This lambda function will be called for each set of parameters
@@ -412,6 +417,12 @@ if __name__ == "__main__":
     
         
             
+    
+
+
+
+
+
     
 
 

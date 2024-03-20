@@ -127,9 +127,9 @@ Benchmarks.print(score)
 
 import matplotlib.pyplot as plt
 
-syn_model.plot(plt, loader)
-plt.savefig('aux/timegan_output.png')
-plt.show()
+#syn_model.plot(plt, loader)
+#plt.savefig('aux/timegan_output.png')
+#plt.show()
 
 means = []
 for plugin in score:

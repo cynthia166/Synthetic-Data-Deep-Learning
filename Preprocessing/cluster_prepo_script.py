@@ -1,6 +1,6 @@
 
 
-from function_mapping import *
+from Preprocessing.function_mapping import *
 import pandas as pd
 
 def main():

@@ -1,8 +1,8 @@
 
 import pandas as  pd
 
-from function_mapping import *
-from preprocess import *
+from Preprocessing.function_mapping import *
+from Preprocessing.preprocess import *
 from features_eng import*
 
 def clustering_ori(X,num_clusters,clustering_method,stri,save,ori,norm_str,real):

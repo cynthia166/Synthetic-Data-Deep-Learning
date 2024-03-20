@@ -1,32 +1,24 @@
+
 from sklearn.metrics import rand_score
-from function_mapping import *
+from Preprocessing.function_mapping import *
 import pandas as pd
 import csv
-import json
-import argparse
 
-def main(config):
-    #with open('input_json/config_mi_patient.json', 'r') as f:
-    #    config = json.load(f)
-
-    nom_t = config["nom_t"]
-    u = config["u"]
-    type_a =stri= config["type_a"]
-    ejemplo_dir = config["ejemplo_dir"]
+def main():
     
-    prepo_li = config["prepo_li"]
-    ejemplo_dir2 = config["ejemplo_dir2"]
-
+    u = "patient/"    
+    type_a=stri ="Patient"
+    ejemplo_dir = 'input_model_pred/'
     ficheros = read_director(ejemplo_dir)
-
-
     for i in ficheros:
         print(i)
-    fit_kmean_model(ficheros,ejemplo_dir,type_a,4,prepo_li)
+    #prepo_li = ["std", "std","power","std","power","std","std"]
+    prepo_li=["max","max","power","power","std","max","power"]
+    
+    #fit_kmean_model(ficheros,ejemplo_dir,type_a,4,prepo_li)
 
-      
     
-    
+    ejemplo_dir2= 'models_cluster/'+u
     ficheros2 = read_director(ejemplo_dir2)
 
     
@@ -63,7 +55,6 @@ def main(config):
             f6 = joblib.load('models_cluster/'+u+archivos_filtrados2[2]).labels_
             print(archivos_filtrados2[2])
             list_arc = [f1,f2,f3,f4,f5,f6]
-            list_arc = [f1,f2,f3,f4,f5,f6]
             #limpiar listas
             ccscodes_thhreshold_l=[]
             ccscodes_rand_l = []
@@ -83,10 +74,6 @@ def main(config):
             res["Name"].append(j)
             res["mutual_information"].append(mean_mmutual_information)
             res["rand index"].append(mean_ccscodes_randindex)
-            df_res = pd.DataFrame(res)
-            print(df_res   )
-            df_res.to_csv("models_cluster/"+"mutual_info_"+u[:-1]+"_"+stri+'_'+nom_t+'.csv')    
-
 
 
                 
@@ -94,21 +81,12 @@ def main(config):
                 
     df_res = pd.DataFrame(res)
     df_res   
-    df_res.to_csv("models_cluster/mutual_info_"+u[:-1]+"_"+stri+'_'+nom_t+'.csv')    
+    #df_res.to_csv("./models_cluster/mi_"+u+"patient_m.csv")    
     
 # Assuming 'df' is your dataframe
 
-    with open('models_cluster/metricas_cluster/output_mi_'+u[:-1]+'_'+stri+'_'+nom_t+'.csv', 'w', newline='') as file:
+    with open('output_mi_patient.csv', 'w', newline='') as file:
         writer = csv.writer(file)
         writer.writerows(df_res.values)
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Run clustering analysis with dynamic input configuration.')
-    parser.add_argument('config', type=str, help='Path to the JSON configuration file.')
-    args = parser.parse_args()
-
-    # Load the configuration settings from the JSON file
-    with open(args.config, 'r') as f:
-        config = json.load(f)
-
-    # Run the main function with the loaded configuration
-    main(config)
+    main()  

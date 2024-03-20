@@ -25,6 +25,7 @@ from multiprocessing import Pool, cpu_count
 name_df = "raw_input.csv"
 archivo = ["aux/CCS CODESprocedures.csv","aux/ATC3drug2.csv","aux/CCS CODESdiagnosis.csv"]
 
+
 def get_input_time( type_df,arhivo,name,cols_to_drop1,res,keywords,s):
 # Obtener una lista de pacientes únicos
     unique_patients = res['SUBJECT_ID'].unique()
@@ -69,8 +70,7 @@ def get_input_time( type_df,arhivo,name,cols_to_drop1,res,keywords,s):
 
     # Se obtiene los dataframes temporales por grupo, reseteando el índice 'SUBJECT_ID'.
     temporal_dataframes = [group.reset_index(level=0, drop=True) for _, group in grouped]
-    return static_data, temporal_dataframes, observation_data,outcomes
-
+    return static_data, temporal_dataframes, observation_data,outcomes,sample_patients
 
 def cols_not_consideres(aux):
     int_index_columns = []
