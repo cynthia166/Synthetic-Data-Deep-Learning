@@ -1,5 +1,5 @@
 # Synthetic-Data-Deep-Learning
-Synthetic Data Generation with deep learning models.
+Synthetic Data Generation with Deep Learning Models.
 
 **Exploratory Analysis** (doc_path):
 
@@ -53,7 +53,7 @@ Preprocessing/3_diagnosis_icd9codes_1.ipynb
 
 ```
 
-**Experiment Clustering Prepocessing (std, max, pwr) configuration (4,8,12)** 
+**Experiment Clustering Prepocessing (std, max, pwr) configuration (4, 8, 12)** 
 
 ```
 Preprocessing/cluster_prepo_script.py
@@ -76,7 +76,7 @@ Preprocessing/input_pred_dinamic.py
 ```
 
 
-**Experiment Prediction of 30 days Readmission** 
+**Experiment Prediction of 30-Day Readmission** 
 
 ```
 Preprocessing/readmission_pred_script.py
@@ -138,7 +138,7 @@ preprocess_class1.py
 ```
 
 
-1.run following for type_g =  "diagnosos", "prescripction", "drugs"
+1. Run the following for type_g =  "diagnosis", "prescription" and "drugs."
 
 doc_path = PROCEDURES_ICD.csv.gz
 
@@ -146,9 +146,9 @@ admission_path = ADMISSIONS.csv.gz
 
 patients_path = PATIENTS.csv.gz
 
-categorical_cols = demographic and admidsion cols considered
+categorical_cols = demographic and admission cols considered
 
-real = "name of preprocessing ej: thershold x, ATC3, CCS CODES"
+real = "name of preprocessing ej: threshold x, ATC3, CCS CODES"
 
 name = "ICD9_CODES", "DRUGS"
 
@@ -157,7 +157,7 @@ n = thresholds to be applied
 
 
 ```
-preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=True)
+preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols) _to = None,normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=True)
 
 data = preprocessor.run(type_p)
 count_matrix = preprocessor.calculate_count_matrix(data)
@@ -169,6 +169,6 @@ merged_data = preprocessor.merge_data(demographics, count_matrix)
 Preprocessing for prediction analysis and clustering
 
 ```
-preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=True, log_transformation=True, encode_categorical=True, final_preprocessing=True)
+preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols) _to = None,normalize_matrix=True, log_transformation=True, encode_categorical=True, final_preprocessing=True)
 df = preprocessor.run(type_p)
 ```
