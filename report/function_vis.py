@@ -2,6 +2,10 @@ import sys
 sys.path.append('')
 import matplotlib.pyplot as plt
 import pandas as pd
+from preprocessing.function_pred import *
+import ast
+
+# %%
 import numpy as np
 
 import seaborn as sns
@@ -13,7 +17,83 @@ directorio_actual = os.getcwd()
 print(directorio_actual)
 from preprocessing.config import *
 importlib.reload(sys.modules['preprocessing.config'])
+#run  2_input_2
 
+
+def  demos_pies():
+    import pandas as pd
+    archivo_input_label = DARTA_INTERM/ 'data_preprocess_non_filtered.csv'
+    df  = pd.read_csv(archivo_input_label)
+    df.shape
+    adm = pd.read_csv(MIMIC / 'ADMISSIONS.csv.gz')
+    adm.columns
+
+
+    # Assuming you have a DataFrame named df with a "subject" column and an "admission" column
+
+    # Group the DataFrame by "subject" and count the number of unique "admission" values for each subject
+    subject_counts = adm.groupby("SUBJECT_ID")["HADM_ID"].nunique()
+
+    # Filter the subjects that have more than one admission
+    subjects_with_multiple_admissions = subject_counts[subject_counts > 1]
+
+    # Count the number of subjects with multiple admissions
+    count = len(subjects_with_multiple_admissions)
+
+    # Print the count
+    print(count)
+
+
+    new_column_names = {'ADMISSION_TYPE': 'Admission type', 'ADMISSION_LOCATION': 'Admission location', 'DISCHARGE_LOCATION': 'Discharge location',
+                        'INSURANCE': 'Insurance', 'LANGUAGE': 'Language', 'RELIGION': 'Religion', 'MARITAL_STATUS': 'Marital status',   'ETHNICITY':'Ethnicity',     'HOSPITAL_EXPIRE_FLAG':'Death', 'HAS_CHARTEVENTS_DATA':'Has Chart Events'}
+
+    adm = adm.rename(columns=new_column_names)
+
+
+    adm["Death"] = np.where(adm["Death"]==1, 'Died', 'Survived')
+
+
+    adm['Has Chart Events'] = np.where(adm['Has Chart Events']==1, 'Yes', 'No')
+    adm["Ethnicity"].value_counts()
+    adm["Death"].value_counts()
+    adm["Ethnicity"] = np.where(adm["Ethnicity"]=='BLACK/AFRICAN AMERICAN', 'AFRICAN AMERICAN', adm["Ethnicity"])
+    # create batches
+    bins = [0, 18, 30, 40, 50, 60, 250]  # Define the age intervals for bins
+
+    # Create labels for the bins
+    labels = ['0-18', '19-30', '31-40', '41-50', '51-60', '61-100']  # Labels for each bin range
+
+    # Use cut to create bins from the 'age' column
+    df['age_group'] = pd.cut(df['year_age'], bins=bins, labels=labels, right=False) 
+
+
+
+    #para grupo lenght of stay
+    bins = [-1,0, 25, 100, 400, 500, 700, 4107]  # Define the age intervals for bins
+
+    # Create labels for the bins
+    labels = ['0','1-25', '26-100', '101-401', '402-500', '501-700', '701-4107']  # Labels for each bin range
+
+    # Use cut to create bins from the 'age' column
+    df['INTERVAL_group'] = pd.cut(df['LOSRD'], bins=bins, labels=labels, right=False)  # Assign each value to a bin
+    # Assign each value to a bin
+    #df.loc[df['INTERVAL_group'].isnull(), 'INTERVAL_group'] = 0
+    import pandas as pd
+
+    # Group the DataFrame by 'ADMISSION_TYPE' and calculate the mode of the variables
+    grouped_df = df.groupby('SUBJECT_ID')['ADMISSION_TYPE', 'INSURANCE', 'GENDER', 'EXPIRE_FLAG', ].apply(lambda x: x.mode().iloc[0])
+
+    # Print the grouped DataFrame
+
+    gender_map2 = {1.0: 'DIED', 0.0: 'SURVIVED'}
+
+    # Use the map function to create a new column 'gender_label'
+    grouped_df['EXPIRE_FLAG'] = grouped_df['EXPIRE_FLAG'].map(gender_map2)
+
+
+    df['EXPIRE_FLAG'] = df['EXPIRE_FLAG'].map(gender_map2)
+    
+    return df, grouped_df
 
 def agregar_anterior_hp_S(df_sin_duplicados_columnas_especificas_,lista):
     s = "f1_test f1_train sensitivity_test specificity_test precision_test accuracy_test sensitivity_train specificity_train precision_train accuracy_train"
@@ -169,6 +249,21 @@ def nomb_(df_sin_duplicados_columnas_especificas,reemplazos):
 
     print(df_sin_duplicados_columnas_especificas)
     return(df_sin_duplicados_columnas_especificas)
+
+
+def string_list(x):
+    '''funcion que se convierte una lista de string a una lista normal'''
+    '''Input '["\'44\'", "\'44\'", "\'50\'", "\'193\'", "\'222\'", "\'222\'", "\'222\'"]'
+    x: string as list
+    Output
+    list: list'''
+
+    try:
+        lista = ast.literal_eval(x)
+    except:
+        lista = np.nan
+    return lista
+
 
 def plot_readmission(o,df_sin_duplicados_columnas_especificas_):
     highest_sensitivity_idx =df_sin_duplicados_columnas_especificas_.groupby('Mapping')[o+'_train'].idxmax()
@@ -444,5 +539,158 @@ def crear_tabla_results(df_sin_duplicados_columnas_especificas_,df_sin_duplicado
     plt.savefig(IMAGES_PRED_DICT+name_p+'.svg')
     plt.show()
     
+def get_dft():
+    import pandas as pd
+    df2 = pd.read_csv(input_model_pred / 'ICD9_CODE_procedures_outs_visit_non_filtered.csv')
+    df2.shape
+    aux = df2[df2['LOSRD_sum']<200]
+    aux.shape
+    
+    grouped_df1 = df2.groupby('SUBJECT_ID').agg({'Age_max': 'max', 'LOSRD_sum': 'sum','GENDER':mode,'L_1s_last_p1':mode}).reset_index()
+
+
+    df2['GENDER']
+    
+
+    # Assuming you have a DataFrame named 'df' with a column named 'gender' containing 1s and 0s
+
+    # Create a dictionary to map the values
+    gender_map = {1: 'Male', 0: 'Female'}
+    gender_map2 = {1.0: 'Male', 0.0: 'Female'}
+
+    # Use the map function to create a new column 'gender_label'
+    #df2['GENDER'] = df2['GENDER'].map(gender_map)
+    grouped_df1['GENDER'] = grouped_df1['GENDER'].map(gender_map2)
+    df2['GENDER'] = df2['GENDER'].map(gender_map2)
+
+    print(grouped_df1['GENDER'].value_counts())
+    gender_map = {1.0: 'Male', 0.0: 'Female'}
+
+    # Use the map function to create a new column 'gender_label'
+    grouped_df1['Gender'] = grouped_df1['GENDER'].map(gender_map)
+    grouped_df1['GENDER'] = np.where(grouped_df1['GENDER'] ==1.0, 'Male', 'Female')
+    grouped_df1["Age_max"]=[int(i) for i in grouped_df1.Age_max]
+    return grouped_df1,df2
+    
+# %%
+def mode(x):
+    '''function to obtain the mode'''
+    return x.mode()[0]
+
+
+
+
+
+def plot_age(df):
+    # Set the background style
+    from scipy.stats import gaussian_kde
+    plt.style.use("seaborn-white")
+
+    # Define two shades of blue
+    dark_blue = "#00008B"   # A dark blue
+    light_blue = "#ADD8E6"  # A light blue
+
+    # Create a figure and axes
+    fig, ax = plt.subplots(figsize=(7, 4))
+
+    # Calculate the kernel density estimate for 'Age_max' for each gender
+    age_max_male = df[df['GENDER'] == 'Male']['Age_max']
+    age_max_female = df[df['GENDER'] == 'Female']['Age_max']
+    kde_age_max_male = gaussian_kde(age_max_male)
+    kde_age_max_female = gaussian_kde(age_max_female)
+
+    # Generate x-values for the kernel density estimate
+    x_age_max = np.linspace(age_max_male.min(), age_max_male.max(), 100)
+
+    # Plot the kernel density estimate for 'Age_max' with the dark blue for male and light blue for female
+    ax.plot(x_age_max, kde_age_max_male(x_age_max), color=dark_blue, label='Male')
+    ax.plot(x_age_max, kde_age_max_female(x_age_max), color=light_blue, label='Female')
+
+    # Set the labels and title for the 'Age_max' plot
+    ax.set_xlabel('Age')
+    ax.set_ylabel('Density')
+    ax.set_title('Kernel Density Plot - Age')
+    ax.set_ylim(bottom=0)  # Set the y-axis limit to start at zero
+    plt.savefig(IMAGES_Demo+'age_kernelplot.svg')
+    # Show the plot
+    plt.show()
+
+def plot_los(df):
+    from scipy.stats import gaussian_kde
+    # Set the background style
+    plt.style.use("seaborn-white")
+
+    # Define two shades of blue
+    dark_blue = "#00008B"   # A dark blue
+    light_blue = "#ADD8E6"  # A light blue
+
+    # Create a figure and axes
+    fig, ax = plt.subplots(figsize=(7, 4))
+
+    # Calculate the kernel density estimate for 'LOSRD_sum' for each gender
+    aux = df[df['LOSRD_sum']<200]
+    losrd_sum_male = aux[aux['GENDER'] == 'Male']['LOSRD_sum']
+    losrd_sum_female = aux[aux['GENDER'] == 'Female']['LOSRD_sum']
+    kde_losrd_sum_male = gaussian_kde(losrd_sum_male)
+    kde_losrd_sum_female = gaussian_kde(losrd_sum_female)
+
+    # Generate x-values for the kernel density estimate
+    x_losrd_sum = np.linspace(losrd_sum_male.min(), losrd_sum_male.max(), 100)
+
+    # Plot the kernel density estimate for 'LOSRD_sum' with the dark blue for male and light blue for female
+    ax.plot(x_losrd_sum, kde_losrd_sum_male(x_losrd_sum), color=dark_blue, label='Male')
+    ax.plot(x_losrd_sum, kde_losrd_sum_female(x_losrd_sum), color=light_blue, label='Female')
+
+    # Set the labels and title for the 'LOSRD_sum' plot
+    ax.set_xlabel('Length of Stay (days)')
+    ax.set_ylabel('Density')
+    ax.set_title('Kernel Density Plot - Length of Stay')
+    ax.set_ylim(bottom=0)  # Set the y-axis limit to start at zero
+    plt.savefig(IMAGES_Demo+'los_kernelplot.svg')
+    # Show the plot
+    plt.show()
+
+
+def get_dataframes():
+    
+    days = '30'
+    archivo_input_label = 'data_preprocess_non_filtered.csv'
+
+    ejemplo_dir = str(PROCEDURES_DIRECTORY)+"/input_model_visit_procedures/"
+    days_list = ["90"]
+    ficheros = read_director(ejemplo_dir)
+    len(ficheros)
+    for i in ficheros:
+        print(i)
+        
+    ficheros = [i for i in ficheros if i != 'sin_codigo_non_filtered.csv']
+    #X_aux = pd.read_csv(ejemplo_dir+'cat_threshold .88 most frequent_outs_visit_non_filtered.csv')
 
     
+    dataframes = []
+    for i in ficheros:
+            
+        if i in ['ICD9_CODE_procedures.csv', 'CCS CODES_proc.csv', 'cat_threshold .999 most frequent']:
+            prepo = "max"
+        elif i in ['cat_threshold .95 most frequent_proc','cat_threshold .88 most frequent']:
+            prepo = "power"
+        else:
+            prepo = "std"
+        print(prepo)
+        
+        # se obtiene la matriz de features y la variable response
+        X_aux = pd.read_csv(ejemplo_dir+i)
+        
+        # if it's not BERT embedding, we do the preprocessing
+        X_aux = X_aux.drop(["HADM_ID","SUBJECT_ID",'Unnamed: 0','L_1s_last','HADM_ID', 'Age_max', 'LOSRD_sum',
+        'L_1s_last', 'LOSRD_avg', 'ADMISSION_TYPE', 'ADMISSION_LOCATION',
+        'DISCHARGE_LOCATION', 'INSURANCE', 'RELIGION', 'MARITAL_STATUS',
+        'ETHNICITY', 'GENDER', 'L_1s_last_p1'], axis=1)
+
+        try:
+            X = X_aux.values
+            dataframes.append(pd.DataFrame(X))
+        except:
+            pass
+    return dataframes        
+        

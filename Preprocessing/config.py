@@ -8,8 +8,10 @@ from pathlib import Path
 # Directorio de datos
 data_dir = Path('data/')
 # Ruta al archivo de datos específico
-data_path = data_dir / 'my_file.csv'
-
+input_model_pred =  data_dir/'preprocessed/input_model_pred'
+DARTA_INTERM =  data_dir/ 'intermedi/'
+RAW =  data_dir/ 'raw/'
+MIMIC = RAW /'MIMIC/'
 # Directorio principal de resultados
 DATA_DIRECTORY_results = Path("results/experimernt_prepro")
 
@@ -50,3 +52,4 @@ RESULTS_PREPRO_NONFILTERED_DIAGNOSIS_FINAL_FILE = DIAGNOSIS_DIRECTORY / "experim
 
 IMAGES_PRED_DICT = "report/img/pred/"
 IMAGES_Cluster_DICT= "report/img/cluster/"
+IMAGES_Demo = "report/img/demo/"
