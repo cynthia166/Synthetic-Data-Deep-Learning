@@ -1,15 +1,15 @@
 import pandas as pd 
-from Preprocessing.preprocess_input_SDmodel import *
+from preprocessing.preprocess_input_SDmodel import *
 import numpy as np
-from metric_stat import *
+from evaluation.Resemblance.metric_sta import *
 from synthcity.metrics.eval_statistical import AlphaPrecision
-
+from preprocessing.config import *
 # Instanciar la clase
 alpha_precision = AlphaPrecision(**kwargs)
 # stdlib
 import sys
 import warnings
-from evaluation_SD import KolmogorovSmirnovTest
+from evaluation.Resemblance.metric_stat import KolmogorovSmirnovTest
 # synthcity absolute
 
 warnings.filterwarnings("ignore")
@@ -25,7 +25,7 @@ from gretel_client.evaluation.quality_report import QualityReport
 from gretel_client import configure_session
 from gretel_client.projects import create_or_get_unique_project
      
-from Preprocessing.preprocess_input_SDmodel import *
+from preprocessing.preprocess_input_SDmodel import *
 type_df = "entire"
 s = .2
 type_df = "entire"

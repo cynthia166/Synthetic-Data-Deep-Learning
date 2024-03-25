@@ -1,6 +1,6 @@
 
 from sklearn.metrics import rand_score
-from Preprocessing.function_mapping import *
+from preprocessing.function_mapping import *
 import pandas as pd
 import csv
 

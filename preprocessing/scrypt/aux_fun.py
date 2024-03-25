@@ -1,6 +1,6 @@
 
 import pandas as pd
-from Preprocessing.function_mapping import read_director
+from preprocessing.function_mapping import read_director
 import numpy as np
 ejemplo_dir = 'input_model_pred_drugs/'
 ejemplo_dir_u = 'input_model_pred_drugs_u/'  # Ensure this directory exists

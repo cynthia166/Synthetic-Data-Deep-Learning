@@ -1,7 +1,7 @@
 
 import pandas as  pd
-from Preprocessing.function_mapping import *
-from Preprocessing.preprocess import *
+from preprocessing.function_mapping import *
+from preprocessing.preprocess import *
 
 #mode
 def mode(x):

@@ -1,7 +1,7 @@
 import pandas as pd
 import json
 import argparse
-from Preprocessing.function_mapping import *  # Assuming this module contains all the necessary functions.
+from preprocessing.function_mapping import *  # Assuming this module contains all the necessary functions.
 
 def main(config):
     # Read the data from the specified CSV file

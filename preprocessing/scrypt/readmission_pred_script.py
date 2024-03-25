@@ -1,4 +1,4 @@
-from Preprocessing.function_pred import *
+from preprocessing.function_pred import *
 import pandas as pd
 import csv
 import json

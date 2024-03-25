@@ -1,5 +1,5 @@
 
-from Preprocessing.preprocess_input1 import *
+from preprocessing.preprocess_input1 import *
 
 class DataPreprocessor:
     def __init__(self, type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False,proportion = False,prop = 0.09 ):
