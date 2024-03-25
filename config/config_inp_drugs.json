@@ -1,0 +1,36 @@
+{
+    "nom_t": "Drugs",
+    "ori": "    ",
+    "type_a": "Patient",
+    "archivo": "data/data_preprocess_nonfilteres.csv",
+    "file_save": "input_model_patient_drugs/",
+    "categorical_cols": [
+        "ADMISSION_TYPE",
+        "ADMISSION_LOCATION",
+        "DISCHARGE_LOCATION",
+        "INSURANCE",
+        "RELIGION",
+        "MARITAL_STATUS",
+        "ETHNICITY",
+        "GENDER"
+    ],
+    "list_cat": [
+        "ATC4",
+        "ATC3",
+        "threshold_0.88",
+        "threshold_0.95",
+        "threshold_0.98",
+        "threshold_0.999",
+        "DRUG_y"
+    ],
+    "nam_p_list": [
+        "allATC4",
+        "allATC3",
+        "cat_threshold_0.88",
+        "cat_threshold_0.95",
+        "cat_threshold_0.98",
+        "cat_threshold_0.999",
+        "allDRUG_y"
+    ],
+    "filtered": false
+}

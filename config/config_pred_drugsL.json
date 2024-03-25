@@ -1,0 +1,41 @@
+{
+  "nom_t": "Drugs",
+  "ejemplo_dir": "./input_model_pred_drugs_u/",
+  "archivo_input_label": "data_preprocess_nonfilteres.csv",
+  "path": "./input_model_pred_drugs_u/images",
+  "days_list": ["30"],
+  "type_reg": "lasso",
+  "model_": ["LogisticRegression", "XGBClassifier"],
+  "model": [ "LogisticRegression"],
+  "sampling_": ["non", "over"],
+  "sampling": ["non"],
+  "li_feature_selection_": [true, false],
+  "li_feature_selection": [true],
+  "kfolds": 5,
+  "lw": 2,
+  "K": 5,
+  "list_cat": [
+    "ATC4_max",
+    "ATC3_max",
+    "threshold_0.88_max",
+    "threshold_0.95_max",
+    "threshold_0.98_power",
+    "threshold_0.999_power",
+    "DRUG_y_max_power",
+    "sincodigo_std"
+  ],
+  "prepro_": [
+    "std",
+    "power",
+    "max",  
+    "power",
+    "max",
+    "power",
+    "max",
+    "max"
+  ],
+    "prepro": [
+   
+    "power"
+  ]
+}

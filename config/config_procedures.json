@@ -1,0 +1,18 @@
+{
+  "nom_t": "Procedures",
+  "ejemplo_dir": "./input_pred_p/",
+  "archivo_input_label": "data_preprocess_non_filtered.csv",
+   "days_list": ["30"],
+  "model": "Xgboost",
+  "splits": 4,
+  "list_cat": [
+    "ICD9_CODE_procedures:std",
+    "CCS CODES_proc:max",
+    "cat_threshold .95 most frequent_proc:max",
+    "cat_threshold .88 most frequent:std",
+    "cat_threshold .98 most frequent:std",
+    "cat_threshold .999 most frequent:std"
+  ],
+  "prepro_": ["std", "std", "max", "std", "std", "max", "std"],
+  "prepro": ["std", "std", "max", "std", "std", "max", "std"]
+}

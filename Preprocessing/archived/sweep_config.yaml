@@ -1,0 +1,18 @@
+program: readmission_pred_script_wandb.py
+method: random
+metric:
+  name: sensitivity_test
+  goal: maximize
+parameters:
+  n_estimators:
+    values: [100, 200, 300]
+  learning_rate:
+    values: [0.01, 0.1, 0.2]
+  max_depth: 
+    values: [3, 6]
+  penalty:
+    values: ["l1", "l2"]
+  C:
+    values: [0.1, 1.0, 10.0]
+  model_type:
+    values: ["XGBClassifier", "LogisticRegression"]
