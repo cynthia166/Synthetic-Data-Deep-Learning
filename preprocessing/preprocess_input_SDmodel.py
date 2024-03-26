@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 # The code snippet you provided is importing various Python libraries and modules that are commonly
 # used in data analysis, visualization, and manipulation tasks. Here is a brief explanation of each
 # import statement:
@@ -21,24 +23,32 @@ import os.path
 import matplotlib.pyplot as plt
 import math
 from multiprocessing import Pool, cpu_count
+from config import *
+import os
 
-name_df = "raw_input.csv"
-archivo = ["aux/CCS CODESprocedures.csv","aux/ATC3drug2.csv","aux/CCS CODESdiagnosis.csv"]
+# Cambiar el directorio de trabajo actual a 'nueva/ruta'
+os.chdir('../')
 
-
-def get_input_time( type_df,arhivo,name,cols_to_drop1,res,keywords,s):
-# Obtener una lista de pacientes únicos
-    unique_patients = res['SUBJECT_ID'].unique()
-
+def get_input_time( type_df,arhivo,name,cols_to_drop1,res,keywords,s,status):
+     # Obtener una lista de pacientes únicos
+    
+    if s != 1:
+        unique_patients = res['SUBJECT_ID'].unique()
     # Calcular el 20% del total de pacientes únicos
-    sample_size = int(s* len(unique_patients))
-    # Obtener una muestra aleatoria del 20% de los pacientes únicos
-    sample_patients = np.random.choice(unique_patients, size=sample_size, replace=False)
-    # Filtrar el DataFrame para incluir solo los registros de los pacientes en la muestra
-    sample_df = res[res['SUBJECT_ID'].isin(sample_patients)]
-
-    dfs = obtener_entire(sample_df,type_df)
-
+        sample_size = int(s* len(unique_patients))
+        # Obtener una muestra aleatoria del 20% de los pacientes únicos
+        sample_patients = np.random.choice(unique_patients, size=sample_size, replace=False)
+        # Filtrar el DataFrame para incluir solo los registros de los pacientes en la muestra
+        sample_df = res[res['SUBJECT_ID'].isin(sample_patients)]
+    else:
+        sample_df = res 
+        sample_patients = "null"
+    
+    if status == "full_input":
+        dfs = sample_df
+    else:         
+        dfs = obtener_entire(sample_df,type_df)
+    
     # Lista de nombres de columnas a buscar
     # Supongamos que type_df es tu DataFrame
       # Filtrar las columnas de type_df que contienen las palabras clave
@@ -54,9 +64,6 @@ def get_input_time( type_df,arhivo,name,cols_to_drop1,res,keywords,s):
     cols_to_drop = list(temporal_data.filter(like='Unnamed', axis=1).columns) + ['ADMITTIME','HADM_ID']
     temporal_data.drop(cols_to_drop, axis=1, inplace=True)
     
-   
-
-
 
     # Establecer 'SUBJECT_ID' y 'visit_rank' como índices
     temporal_data.set_index(['SUBJECT_ID', 'visit_rank'], inplace=True)
@@ -84,33 +91,29 @@ def cols_not_consideres(aux):
 
     print(int_index_columns)
     return int_index_columns
-def concat_input(archivo,name_df):
-
-    catnum_cols = cols_not_consideres(aux)
-    catnum_cols = [i for i in catnum_cols if i not in ['SUBJECT_ID', 'HADM_ID']]
-    drugs_cols = ['ADMISSION_TYPE_EMERGENCY', 'ADMISSION_TYPE_Otra',
-        'ADMISSION_LOCATION_CLINIC REFERRAL/PREMATURE',
-        'ADMISSION_LOCATION_EMERGENCY ROOM ADMIT', 'ADMISSION_LOCATION_Otra',
-        'DISCHARGE_LOCATION_HOME', 'DISCHARGE_LOCATION_HOME HEALTH CARE',
-        'DISCHARGE_LOCATION_Otra', 'DISCHARGE_LOCATION_SNF',
-        'INSURANCE_Medicare', 'INSURANCE_Otra', 'RELIGION_CATHOLIC',
-        'RELIGION_Otra', 'RELIGION_Unknown', 'MARITAL_STATUS_DIVORCED',
-        'MARITAL_STATUS_LIFE PARTNER', 'MARITAL_STATUS_MARRIED',
-        'MARITAL_STATUS_SEPARATED', 'MARITAL_STATUS_SINGLE',
-        'MARITAL_STATUS_Unknown', 'MARITAL_STATUS_WIDOWED', 'ETHNICITY_Otra',
-        'ETHNICITY_WHITE', 'GENDER_F', 'GENDER_M','Unnamed: 0', 'Age_max', 'LOSRD_sum', 'L_1s_last_p1', 'LOSRD_avg']
-
-    df_procedures = pd.read_csv(archivo[0])
-    df_diagnosis =pd.read_csv(archivo[2])
-    df_drugs = pd.read_csv(archivo[1])
-
+def concat_input(df_procedures,df_diagnosis,df_drugs,name_df):
+    df_procedures = pd.read_csv(df_procedures)
+    df_diagnosis =pd.read_csv(df_diagnosis)
+    df_drugs = pd.read_csv(df_drugs)
+    categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
+                    'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
+                    'MARITAL_STATUS',  'ETHNICITY','GENDER']
+    numerical_cols =  ['Age_max', 'LOSRD_sum',
+            'LOSRD_avg','L_1s_last_p1']
+    # The code `columnas` and `
+    # The code `columnas` and `
+    columnas = categorical_cols+numerical_cols
+    drugs_cols = [col for col in df_drugs.columns if any(item in col for item in columnas)]
+    catnum_cols = [col for col in df_procedures.columns if any(item in col for item in columnas)]
+    categorical = list(set(catnum_cols+drugs_cols))
+   
     df_drugs = df_drugs.drop(columns=drugs_cols)
     df_procedures = df_procedures.drop(columns=catnum_cols)
 
     #df_diagnosis = df_diagnosis.drop(columns=categorical_cols)
 
 
-    rename_dict_d = {col: col + '_diagnosis' if col not in ["SUBJECT_ID", "HADM_ID"] else col for col in df_diagnosis.columns if col not in catnum_cols}
+    rename_dict_d = {col: col + '_diagnosis' if col not in ["SUBJECT_ID", "HADM_ID"] else col for col in df_diagnosis.columns if col not in categorical}
     df_diagnosis.rename(columns=rename_dict_d, inplace=True)
 
     rename_dict = {col: col + '_drugs' for col in df_drugs.columns if col != "SUBJECT_ID" and col != "HADM_ID" }
@@ -129,7 +132,7 @@ def concat_input(archivo,name_df):
     # Drop these columns
     result_final.drop(cols_to_drop, axis=1, inplace=True)
     res = result_final.fillna(0)
-    result_final.to_csv("aux/"+ name_df)
+    res.to_csv(DARTA_INTERM_intput+ name_df)
 
 # Assuming df is your DataFrame
 
@@ -142,20 +145,13 @@ def concat_input(archivo,name_df):
 
 
     
-numerical_cols =  ['Age_max', 'LOSRD_sum',
-       'L_1s_last', 'LOSRD_avg','L_1s_last_p1']
-
-categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
-                'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
-                'MARITAL_STATUS', 'ETHNICITY','GENDER']
 
 
-########onehot encoding y agrupacion de categoria de 80##
-name_encodeing = "input_onehot_encoding.csv"
+
 '''La primeras dor gunciones se corren si debo volver a correl el input 
 obtener_added_cols_targer_visitrank_ este es el input del general
 obtener_entire rste es el input para time series'''
-def concat_input(df_drugs, df_diagnosis, df_procedures,numerical_cols,categorical_cols,name_df):
+def concat_input_(df_drugs, df_diagnosis, df_procedures,numerical_cols,categorical_cols,name_df):
     # Drop the columns categotical funcio que concatena los 3 inputs, manteniendo las columasn del mayot
  
     size1 = df_drugs.size
@@ -208,13 +204,14 @@ def concat_input(df_drugs, df_diagnosis, df_procedures,numerical_cols,categorica
     # Drop these columns
     res.drop(cols_to_drop, axis=1, inplace=True)
     res = res.fillna(0)
-    res.to_csv("generative_input/"+ name_df)
+    res.to_csv(DARTA_INTERM_intput+ name_df)
     return res
 
 
 
 
-def obtener_added_cols_targer_visitrank_(arhivo,name):
+def obtener_added_cols_targer_visitrank_(arhivo):
+    
     df =  pd.read_csv(arhivo)
 
     # Limitar las fechas a un rango permitido
@@ -222,7 +219,7 @@ def obtener_added_cols_targer_visitrank_(arhivo,name):
     # Ahora deberías poder restar las fechas sin problemas
     '''Funcion que regredsa si es tipo entire datafram donde se agregan ceros para que todos tengas mas visitas dataframe, o lista de listas que es el input de time gan'''
     #adm = pd.read_csv('./data/data_preprocess_nonfilteres.csv')
-    ad_f = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/ADMISSIONS.csv.gz"
+    ad_f = MIMIC/"ADMISSIONS.csv.gz"
     adm = pd.read_csv(ad_f)
  
     res = pd.merge(adm[["HOSPITAL_EXPIRE_FLAG","SUBJECT_ID","HADM_ID","ADMITTIME"]],df, on=["SUBJECT_ID","HADM_ID"], how='right')
@@ -248,7 +245,7 @@ def obtener_added_cols_targer_visitrank_(arhivo,name):
     print(res.isnull().sum().sum())
     res = res.fillna(0)
     print(res.isnull().sum().sum())
-    res.to_csv("generative_input/"+name)    
+       
 
 
     res = res.sort_values(by=['SUBJECT_ID', 'ADMITTIME'])
@@ -305,6 +302,134 @@ def obtener_entire(res,type_df):
         new_df_list =new_temporal_surv.copy()
         dfs = df.sort_values('SUBJECT_ID')      
         dfs = [group for _, group in df.groupby('SUBJECT_ID')]   
-        
+       
     return dfs     
     
+
+def main(task):
+    import pickle
+    import gzip
+    name_df = "raw_input.csv"
+    
+    if task =="concat":
+        df_procedures = DARTA_INTERM_intput+"/CCS CODES_procedures.csv"
+        df_diagnosis =DARTA_INTERM_intput+"/CCS CODES_diagnosis.csv"
+        df_drugs = DARTA_INTERM_intput+"/ATC3_drug2.csv"
+        df =  concat_input(df_procedures,df_diagnosis,df_drugs,name_df)
+       
+    if task =="entire_ceros":
+        name_entire = "entire_ceros"
+        aux = obtener_added_cols_targer_visitrank_(DARTA_INTERM_intput+ name_df)
+        dfs = obtener_entire(aux,"entire")    
+        dfs.to_parquet(DARTA_INTERM_intput+ name_entire+"_.parquet")
+    if task =="temporal_state":
+        name_entire = "entire_ceros"
+        type_df = "entire"
+        
+        arhivo = DARTA_INTERM_intput+ name_df
+        s = 1
+        name  = "input_generative_g.csv"
+        status = "full_input"
+        #res = obtener_added_cols_targer_visitrank_(arhivo,name)
+        cols_to_drop1 = ['ADMITTIME','HADM_ID']
+        res = pd.read_parquet(DARTA_INTERM_intput+ name_entire+"_.parquet", engine='pyarrow')
+        keywords = ['INSURANCE', 'RELIGION', 'MARITAL_STATUS', 'ETHNICITY','GENDER','SUBJECT']
+        static_data, temporal_dataframes, observation_data,outcomes,sample_patients = get_input_time( type_df,arhivo,name,cols_to_drop1,res,keywords,s,status)
+        dataset_name = 'DATASET_NAME_prepo'
+        
+        #guardar_data
+        
+        with gzip.open(DARTA_INTERM_intput + dataset_name + '_preprocess.pkl', 'wb') as f:
+             pickle.dump(temporal_dataframes, f)
+        pd.DataFrame(observation_data).to_csv(DARTA_INTERM_intput+"observation_data_preprocess.csv")
+        static_data.to_csv(DARTA_INTERM_intput+"static_data_preprocess.csv")
+        outcomes.to_csv(DARTA_INTERM_intput+"static_data_preprocess.csv")     
+if __name__ == "__main__":
+    import argparse
+    import os
+    name_entire = "entire_ceros"
+    ruta = DARTA_INTERM_intput+ name_entire+"_.parquet"
+
+    if os.path.exists(ruta):
+        print("La ruta existe.")
+    else:
+        print("La ruta no existe.")
+    
+    
+    
+    parser = argparse.ArgumentParser(description="Scripti input special SD model")
+
+    # Este argumento es obligatorio, así que no tiene un valor por defecto.
+    parser.add_argument("task", type=str, choices=["concat","entire_ceros","temporal_state"],default="temporal_state",
+                        help="Tipo de procesamiento a realizar.")
+    args = parser.parse_args()
+    task = args.task
+    t#ask = "temporal_state"
+    main(task)
+####################################Conatenacion primera
+#ruta_archivos = 's_data\*.csv.gz'  # Puedes cambiar '*.csv' por la extensión que desees
+#save = True #dfale
+
+#mi_objeto = PreprocessInput()
+#df_concat_primero = concat_archivo_primeto(procedures,admi,ruta_archivos,save,nom_archivo)
+
+
+
+#d1 = '.\s_data\DIAGNOSES_ICD.csv.gz'
+
+
+#didf_diagnosisa = diagnosis(d1,n,name)
+
+#desconcatenación, y se obtiene threshold y mapping
+#d2 = '.\s_data\PROCEDURES_ICD.csv.gz' 
+#prod = procedures(d2,n,name)
+#prod = limipiar_Codigos(prod)
+#caluco de matrix de conteo
+
+#prod_ipvot  = calculate_pivot_df(prod, real, level) #if normalize matrix == True
+#prod_ipvot = normalize_count_matrix(prod_ipvot, level, )
+#prod_ipvot
+
+#prod_ipvot
+#calcul de variable demos
+#adm = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/ADMISSIONS.csv.gz"
+#pa = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/PATIENTS.csv.gz"
+
+
+#cat_considered = ['ADMITTIME','ADMISSION_TYPE', 'ADMISSION_LOCATION',
+#                'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
+#                'MARITAL_STATUS', 'ETHNICITY','DEATHTIME'] + ['DISCHTIME','SUBJECT_ID', 'HADM_ID']
+#demos_pivot = calculate_agregacion_cl(adm,pa, categorical_cols, level,cat_considered,prod_ipvot)
+
+
+#print(demos_pivot.isnull().sum()) #if variable logtransforamtio == true
+#demos_pivot = apply_log_transformation(demos_pivot, 'L_1s_last_p1')
+#merge demographic df with count matrix
+#df_merge  = merge_df(demos_pivot, prod_ipvot)
+#df_merge.shape
+#if encoding categorical variables=true
+#df_merge_e = encoding(df_merge, categorical_cols, 'onehot')
+#df_merge_e
+
+
+# if preprocesamiento final == True
+#numerical_cols =  ['Age_max', 'LOSRD_sum',
+#    'LOSRD_avg','L_1s_last_p1']
+#df_merge_e.columns = df_merge_e.columns.astype(str)
+#cols_to_normalize = [col for col in df_merge_e.columns if col not in ['SUBJECT_ID', 'HADM_ID']]
+
+
+
+#df_final_prepo = preprocess(df_merge_e, "max", cols_to_normalize)
+       
+       
+#d1 = '..\s_data\PRESCRIPTIONS.csv.gz'
+#name1 = "DRUG"
+#df_drugs = drugs(d1,name1)
+
+#name_df = "raw_input.csv"
+#name_encodeing = "input_onehot_encoding.csv"
+
+
+#df_final = concat_input(df_drugs, df_diagnosis, df_procedures,numerical_cols,categorical_cols,name_df)
+#df_final_encoded = encoding(df_final,categorical_cols)

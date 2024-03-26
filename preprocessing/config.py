@@ -10,6 +10,7 @@ data_dir = Path('data/')
 # Ruta al archivo de datos específico
 input_model_pred =  data_dir/'preprocessed/input_model_pred'
 DARTA_INTERM =  data_dir/ 'intermedi/'
+DARTA_INTERM_intput= "data/intermedi/SD/inpput/"
 RAW =  data_dir/ 'raw/'
 MIMIC = RAW /'MIMIC/'
 # Directorio principal de resultados
@@ -53,3 +54,5 @@ RESULTS_PREPRO_NONFILTERED_DIAGNOSIS_FINAL_FILE = DIAGNOSIS_DIRECTORY / "experim
 IMAGES_PRED_DICT = "report/img/pred/"
 IMAGES_Cluster_DICT= "report/img/cluster/"
 IMAGES_Demo = "report/img/demo/"
+SD_DATA = "../data/preprocessed/SD/"
+SD_DATA_split = "data/intermedi/SD/inpput/train_split"

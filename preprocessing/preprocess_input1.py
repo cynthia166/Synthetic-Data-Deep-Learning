@@ -58,6 +58,8 @@ import numpy as np
 from collections import defaultdict
 from rdkit import Chem
 from rdkit.Chem import BRICS
+from config import *
+
 
 def med_process(med_file):
     med_pd = pd.read_csv(med_file, dtype={"NDC": "category"})
@@ -106,8 +108,8 @@ def med_process(med_file):
     return med_pd
 
 def codeMapping2atc4(med_pd):
-    RXCUI2atc4_file = "./data/RXCUI2atc4.csv"
-    ndc2RXCUI_file="./data/ndc2RXCUI.txt"
+    RXCUI2atc4_file =RAW/"suplement/RXCUI2atc4.csv"
+    ndc2RXCUI_file=RAW/"suplement/ndc2RXCUI.txt"
     with open(ndc2RXCUI_file, "r") as f:
         ndc2RXCUI = eval(f.read())
     #med_pd["RXCUI"] = med_pd["NDC"].map(ndc2RXCUI)
@@ -407,6 +409,7 @@ def procedures(d2,n,name):
 
 def descocatenar_codes(txt,name):
     nuevos_datos = []
+    print(txt)
     for index, row in txt.iterrows():
         subject_id = row['SUBJECT_ID']
         ham_id = row['HADM_ID']
