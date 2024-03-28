@@ -691,6 +691,7 @@ def get_dataframes():
             X = X_aux.values
             dataframes.append(pd.DataFrame(X))
         except:
+            print("not_found")
             pass
     return dataframes        
         

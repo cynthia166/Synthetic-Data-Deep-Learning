@@ -1469,5 +1469,6 @@ if __name__ == "__main__":
     #ejemplo_dir2 = '/Users/cgarciay/Desktop/Laval_Master_Computer/research/y_readmission_label/'
     #fichero_y ='label_'+days+'j.csv'
     prepo = "std"
+    var_demos(demo,concat_var)
     #readmit_df = label_fun(days,archivo_input_label,)
     #X,y ,concat_var  = lectura_variables(readmit_df,fichero_x,fichero_y,prepo,ejemplo_dir,days)

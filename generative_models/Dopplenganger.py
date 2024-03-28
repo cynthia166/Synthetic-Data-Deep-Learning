@@ -1,4 +1,4 @@
-import pandas as pd 
+mport pandas as pd 
 import sys
 import os
 import os
@@ -8,11 +8,13 @@ print(os.getcwd())
 
 # Cambiar el directorio de trabajo actual a 'nueva/ruta'
 
+print(os.getcwd())
+
 sys.path.append('../')
 #sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning')
 from preprocessing.preprocess_input_SDmodel import *
 import numpy as np
-from evaluation.Resemblance.metric_stat import *
+#from evaluation.Resemblance.metric_stat import *
 #from synthcity.metrics.eval_statistical import AlphaPrecision
 from preprocessing.config import *
 # Instanciar la clase
@@ -20,7 +22,7 @@ from preprocessing.config import *
 # stdlib
 import sys
 import warnings
-from evaluation.Resemblance.metric_stat import KolmogorovSmirnovTest
+#from evaluation.Resemblance.metric_stat import KolmogorovSmirnovTest
 # synthcity absolute
 
 warnings.filterwarnings("ignore")
@@ -33,13 +35,14 @@ import pandas as pd
 #from synthcity.plugins.core.dataloader import TimeSeriesDataLoader
      
 from preprocessing.preprocess_input_SDmodel import *
-os.chdir('./')
+
 import os
+os.chdir('./')
 
 # Imprimir la ruta del directorio actual
 print(os.getcwd())
-
-ruta = SD_DATA_split  # Reemplaza esto con la ruta que quieres verificar
+SD = "generative_models/SD_results_"
+ruta = SD  # Reemplaza esto con la ruta que quieres verificar
 
 if os.path.exists(ruta):
     print('La ruta existe.')
@@ -58,50 +61,30 @@ def load_data(file_path):
     with gzip.open(file_path, 'rb') as f:
         return pickle.load(f)
 dataset_name = 'DATASET_NAME_prepo'
-temporal_dataframes = load_data(DARTA_INTERM_intput + dataset_name + '_preprocess.pkl')
-#observation_data=pd.read_csv(DARTA_INTERM_intput+"observation_data_preprocess.csv")
-static_data=pd.read_csv(DARTA_INTERM_intput+"static_data_preprocess.csv")
+features = load_data("train_sp/train_splitDATASET_NAME_preprotrain_data_features.pkl")
+attributes=load_data("train_sp/train_splitDATASET_NAME_preprotrain_data_attributes.pkl")
 #outcomes=pd.read_csv(DARTA_INTERM_intput+"outcomes_preprocess.csv")     
 #####################################################################################
 
 
 
-numpy_array_t = np.stack([df.to_numpy() for df in temporal_dataframes])
-features = numpy_array_t.reshape(numpy_array_t.shape[0],numpy_array_t.shape[2],numpy_array_t.shape[1])
-attributes = static_data.to_numpy()
+#numpy_array_t = np.stack([df.to_numpy() for df in temporal_dataframes])
+#features = numpy_array_t.reshape(numpy_array_t.shape[0],numpy_array_t.shape[2],numpy_array_t.shape[1])
+#attributes = static_data.to_numpy()
 
 
 #full_train_data = np.array(data)
 N, T, D = features.shape   
 print('data shape:', N, T, D) 
-
+print('attributes shape:', attributes.shape)
 valid_perc = 0.1
-
-# further split the training data into train and validation set - same thing done in forecasting task
-N_train = int(N * (1 - valid_perc))
-N_valid = N - N_train
-
-# Shuffle data
-#np.random.shuffle(full_train_data)
-
-train_data_features = features[:N_train]
-valid_data_features = features[N_train:]   
-
-train_data_attributes = attributes[:N_train]
-valid_data_attributes = attributes[N_train:]   
-print("train/valid shapes: ", train_data_features.shape, valid_data_features.shape)    
 dataset_name = 'DATASET_NAME_prepro'
-with gzip.open(SD_DATA_split + dataset_name + 'train_data_features.pkl', 'wb') as f:
-    pickle.dump(train_data_features, f)
-with gzip.open(SD_DATA_split+ dataset_name + 'valid_data_features.pkl', 'wb') as f:
-    pickle.dump(valid_data_features, f)
-
-with gzip.open(SD_DATA_split + dataset_name + 'train_data_attributes.pkl', 'wb') as f:
-    pickle.dump(train_data_attributes, f)
-with gzip.open(SD_DATA_split+ dataset_name + 'valid_data_attributes.pkl', 'wb') as f:
-    pickle.dump(valid_data_attributes, f)
+name_file = "Dopplenganger_epochocs_120.pth"  
+#realizar train and test split
+#split(valid_perc,dataset_name):
 
 
+   
 ######
 
 
@@ -115,24 +98,25 @@ config = DGANConfig(
     epochs=10
 )
 config2 = DGANConfig(
-    max_sequence_len=603,
-    sample_len=201,
-    batch_size=1000,
-    epochs=10
+    max_sequence_len=666,
+    sample_len=111,
+    batch_size=100,
+    epochs=120
 )
+
 model = DGAN(config2)
 
 model.train_numpy(  features=features,
-        attributes= attributes,)
+        attributes= attributes)
+
+
+model.save(SD+name_file )
+#synthetic_attributes, synthetic_features = model.generate_numpy(n =len(sample_patients))
 
 
 
-synthetic_attributes, synthetic_features = model.generate_numpy(n =len(sample_patients))
 
 
-
-
-model.save(SD_DATA+"Dopplenganger_epochocs.pth"  )
 #m = model.load("aux/model_name.pth"  )
 #synthetic_attributes, synthetic_features = m.generate_numpy(n =len(sample_patients))
 

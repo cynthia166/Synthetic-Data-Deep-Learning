@@ -25,9 +25,38 @@ import math
 from multiprocessing import Pool, cpu_count
 from config import *
 import os
-
+import gzip
 # Cambiar el directorio de trabajo actual a 'nueva/ruta'
 os.chdir('../')
+
+
+def split(valid_perc,dataset_name,features,attributes):
+
+
+    # further split the training data into train and validation set - same thing done in forecasting task
+    N_train = int(N * (1 - valid_perc))
+    N_valid = N - N_train
+
+    # Shuffle data
+    #np.random.shuffle(full_train_data)
+
+    train_data_features = features[:N_train]
+    valid_data_features = features[N_train:]   
+
+    train_data_attributes = attributes[:N_train]
+    valid_data_attributes = attributes[N_train:]   
+    print("train/valid shapes: ", train_data_features.shape, valid_data_features.shape)    
+   
+    with gzip.open(SD_DATA_split + dataset_name + 'train_data_features.pkl', 'wb') as f:
+        pickle.dump(train_data_features, f)
+    with gzip.open(SD_DATA_split+ dataset_name + 'valid_data_features.pkl', 'wb') as f:
+        pickle.dump(valid_data_features, f)
+
+    with gzip.open(SD_DATA_split + dataset_name + 'train_data_attributes.pkl', 'wb') as f:
+        pickle.dump(train_data_attributes, f)
+    with gzip.open(SD_DATA_split+ dataset_name + 'valid_data_attributes.pkl', 'wb') as f:
+        pickle.dump(valid_data_attributes, f)
+
 
 def get_input_time( type_df,arhivo,name,cols_to_drop1,res,keywords,s,status):
      # Obtener una lista de pacientes únicos

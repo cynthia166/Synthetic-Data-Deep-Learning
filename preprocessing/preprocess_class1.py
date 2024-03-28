@@ -151,15 +151,29 @@ def main(type_p,normalize_matrix, log_transformation, encode_categorical):
                     'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
                     'MARITAL_STATUS',  'ETHNICITY','GENDER']
     if type_p == "diagnosis":
-        doc_path = MIMIC/'DIAGNOSES_ICD.csv.gz'
-        diagnosis_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical)
+        try:
+            doc_path = MIMIC/'DIAGNOSES_ICD.csv.gz'
+            diagnosis_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical)
+        except:
+            
+            doc_path =Path('..')/ MIMIC/'DIAGNOSES_ICD.csv.gz'    
+            diagnosis_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical)
     
     elif type_p == "procedures":
-        doc_path = MIMIC/'PROCEDURES_ICD.csv.gz'
-        procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical)
+        try:
+            doc_path = MIMIC/'PROCEDURES_ICD.csv.gz'
+            procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical)
+        except:
+            doc_path =Path('..')/'PROCEDURES_ICD.csv.gz'
+            procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical)
+
     elif type_p in ["drug1", "drug2"]:
-        doc_path = MIMIC/'PRESCRIPTIONS.csv.gz'
-        drugs_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical)
+        try:
+            doc_path = MIMIC/'PRESCRIPTIONS.csv.gz'
+            drugs_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical)
+        except:
+            doc_path =Path('..')/'PRESCRIPTIONS.csv.gz'
+            drugs_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical)
     else:
         print("Tipo de procesamiento no reconocido.")
 
@@ -182,21 +196,21 @@ if __name__ == "__main__":
                         help="Tipo de procesamiento a realizar.")
 
     # Argumentos opcionales con valores por defecto para facilitar la depuración.
-    parser.add_argument("--normalize_matrix", action="store_false", 
+    parser.add_argument("--normalize_matrix", action="store_true", 
                         help="Normaliza la matriz durante el procesamiento. Por defecto es True para depuración.")
 
-    parser.add_argument("--log_transformation", action="store_false", 
+    parser.add_argument("--log_transformation", action="store_true", 
                         help="Aplica transformación logarítmica durante el procesamiento. Por defecto es True para depuración.")
 
-    parser.add_argument("--encode_categorical", action="store_false", 
+    parser.add_argument("--encode_categorical", action="store_true", 
                         help="Codifica variables categóricas durante el procesamiento. Por defecto es True para depuración.")
 
     args = parser.parse_args()
 
-    print(f"Tipo de procesamiento: {args.type_p}")
-    print(f"Normalizar matriz: {args.normalize_matrix}")
-    print(f"Transformación logarítmica: {args.log_transformation}")
-    print(f"Codificar variables categóricas: {args.encode_categorical}")
+    print(f"Process: {args.type_p}")
+    print(f"Standard matriz: {args.normalize_matrix}")
+    print(f"Logarithmic transformation: {args.log_transformation}")
+    print(f"Codify categorical variables: {args.encode_categorical}")
 
         
     main(args.type_p, args.normalize_matrix, args.log_transformation, args.encode_categorical)    

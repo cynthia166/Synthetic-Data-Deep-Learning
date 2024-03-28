@@ -108,8 +108,8 @@ def med_process(med_file):
     return med_pd
 
 def codeMapping2atc4(med_pd):
-    RXCUI2atc4_file =RAW/"suplement/RXCUI2atc4.csv"
-    ndc2RXCUI_file=RAW/"suplement/ndc2RXCUI.txt"
+    RXCUI2atc4_file =Path('..') /RAW/"suplement/RXCUI2atc4.csv"
+    ndc2RXCUI_file=Path('..') /RAW/"suplement/ndc2RXCUI.txt"
     with open(ndc2RXCUI_file, "r") as f:
         ndc2RXCUI = eval(f.read())
     #med_pd["RXCUI"] = med_pd["NDC"].map(ndc2RXCUI)
@@ -308,6 +308,40 @@ def convert_to_int(value):
             return 19
         else:
             return None  # Replace "none" with "None"
+def diagnosis2(d1,n,name):
+   
+    df_ = pl.read_csv(d1)
+    print("Initial df shape with out desconcatenate: ", df_.shape)
+    df_filtered = df_.with_columns(pl.col("SUBJECT_ID").cast(pl.Utf8))
+    df_filtered = df_filtered.with_columns(pl.col("HADM_ID").cast(pl.Utf8))
+    txt =df_filtered[["HADM_ID","SUBJECT_ID","ICD9_CODE"]].to_pandas()
+    for i in txt.columns:    
+        print("unique"+str(i),txt[i].nunique() )
+
+    nuevos_datos = descocatenar_codes(txt,name)
+    print("Initial df shape  desconcatenate: ", nuevos_datos.shape)
+    #map to ixd codes
+    nuevo_df = codes_diag(nuevos_datos)
+    print("Númber of null values after obtaining CCS codes and Level 3", nuevo_df.isnull().sum())
+    
+    
+    nuevo_df = funcion_acum2(nuevo_df,n,name)
+        
+    print("Númber of null values after obtaining threshhold", nuevo_df.isnull().sum())
+    print("df shape : ", nuevo_df.shape)
+   
+    nuevo_df = nuevo_df.fillna(-1)
+        
+    for i in nuevo_df.columns:    
+            print("unique"+str(i),nuevo_df[i].nunique() )
+            try:
+               print("Númber of -1 not mappes"+str(i),nuevo_df[i],(nuevo_df[i ]==-1).value_counts()[True])
+            except:  
+                print("No existen -1") 
+            print(" Unique codes that do not mapp: ", nuevo_df[nuevo_df["CCS CODES"]==-1]["ICD9_CODE"].nunique())
+            print(" Unique codes that do not mapp: ", nuevo_df[nuevo_df["CCS CODES"]==-1]["ICD9_CODE"].nunique()/nuevo_df["ICD9_CODE"].nunique())
+    
+    return nuevo_df
 
 def diagnosis(d1,n,name):
    
@@ -407,6 +441,56 @@ def procedures(d2,n,name):
     
     return nuevo_df
 
+def procedures2(d2,n,name):
+
+    df_ = pl.read_csv(d2)
+    df_filtered = df_.with_columns(pl.col("SUBJECT_ID").cast(pl.Utf8))
+    df_filtered = df_filtered.with_columns(pl.col("HADM_ID").cast(pl.Utf8))
+    nuevos_datos =df_filtered[["HADM_ID","SUBJECT_ID","ICD9_CODE"]].to_pandas()
+    for i in nuevos_datos.columns:    
+        print("unique"+str(i),nuevos_datos[i].nunique() )
+    print("Númber of null values after obtaining individual values of ICD9-CODES : ", nuevos_datos.isnull().sum())
+    nuevo_df = nuevos_datos.dropna()
+    for i in nuevo_df.columns:    
+        print("unique"+str(i),nuevo_df[i].nunique() )
+    print("Númber of null values dropna : ", nuevos_datos.isnull().sum())
+    
+    print("Shape df : ", nuevos_datos.shape)
+    #maps to icd9 codes
+    nuevo_df = codes_diag(nuevos_datos)
+    nuevo_df = ccsc_codes(nuevo_df)
+    print("Númber of null values after obtaining CCS codes and Level 3", nuevo_df.isnull().sum())
+    print("nuevo_df : ", nuevo_df.shape)
+    #threshold 
+    nuevo_df = funcion_acum2(nuevo_df,n,name)
+
+   
+    print("Númber of null values after obtaining threshhold", nuevo_df.isnull().sum())
+    print("df shape : ", nuevo_df.shape)
+    # -1 for does ccs codes and level codes that had no direct mapping
+    #nuevo_df = nuevo_df.fillna(-1)
+    print("Númber of null values after eliminating null:", nuevo_df.isnull().sum())
+   
+    
+    print("df shape : ", nuevo_df.shape)
+    
+    print(" Unique codes that do not mapp: ", nuevo_df[nuevo_df["CCS CODES"]==-1]["ICD9_CODE"].nunique())
+    print(" Unique codes that do not mapp: ", nuevo_df[nuevo_df["CCS CODES"]==-1]["ICD9_CODE"].nunique()/nuevo_df["ICD9_CODE"].nunique())
+    print("unique ICD9_CODE",nuevo_df["ICD9_CODE"].nunique() )
+    print("unique ICD9_CODE",nuevo_df["CCS CODES"].nunique() )
+    for i in nuevo_df.columns:    
+            print("unique"+str(i),nuevo_df[i].nunique() )
+  
+    real = "CCS CODES"
+    nuevo_df[real] = nuevo_df[real].astype(str)
+    nuevo_df[real]=[item.replace("'", '') for item in nuevo_df[real]]
+    nuevo_df[real ] = nuevo_df[real].apply(lambda x: pd.to_numeric(x, errors='coerce'))
+    nuevo_df[real ] = nuevo_df[real ].fillna(-1)
+    print("Númber of -1 not mappes",(nuevo_df[real ]==-1).value_counts()[True])        
+    
+    return nuevo_df
+
+
 def descocatenar_codes(txt,name):
     nuevos_datos = []
     print(txt)
@@ -458,6 +542,70 @@ def codes_diag(nuevo_df):
 
 
 #n = nuevo_df["icd9_category"].unique()
+def cumulative_plot2(icd9_codes, num_bins,threshold_value,cat):
+    # Create a DataFrame with ICD-9 codes and their frequencies
+    icd9_df = pd.DataFrame(icd9_codes, columns=['ICD-9 Code'])
+    icd9_df['Frequency'] = icd9_df['ICD-9 Code'].map(icd9_df['ICD-9 Code'].value_counts())
+    icd9_df= icd9_df.sort_values(by='Frequency', ascending=False)
+
+    # Drop duplicate rows to get unique ICD-9 codes and their frequencies
+    unique_icd9_df = icd9_df.drop_duplicates().sort_values(by='Frequency', ascending=False)
+
+    # Calculate cumulative frequency percentage
+    unique_icd9_df['Cumulative Frequency'] = unique_icd9_df['Frequency'].cumsum()
+    total_frequency = unique_icd9_df['Cumulative Frequency'].iloc[-1]
+    unique_icd9_df['Cumulative F percentage'] = unique_icd9_df['Cumulative Frequency'] / total_frequency
+
+    # Create the plot using Matplotlib
+    fig, ax1 = plt.subplots(figsize=(10, 6))  # Adjust the figsize as needed
+
+    # Histogram with fewer bins
+      # Adjust the number of bins
+    n, bins, patches = ax1.hist(icd9_df['ICD-9 Code'], bins=num_bins, color='blue', alpha=0.7)
+    ax1.set_xlabel('ICD-9 Codes')
+    ax1.set_ylabel('Frequency', color='blue')
+
+    # Add a vertical dashed line at the threshold value
+
+    threshold_x_value = unique_icd9_df[unique_icd9_df["Cumulative F percentage"] >= threshold_value].sort_values(by="Cumulative F percentage", ascending=False).iloc[-1]['ICD-9 Code']
+    
+    bins_before_threshold = unique_icd9_df[unique_icd9_df["Cumulative F percentage"] < threshold_value].sort_values(by="Cumulative F percentage", ascending=False)['ICD-9 Code'].nunique()
+    bins_before_threshold_i = unique_icd9_df[unique_icd9_df["Cumulative F percentage"] < threshold_value].sort_values(by="Cumulative F percentage", ascending=False)['ICD-9 Code'].unique()
+
+        
+    ax1.axvline(x=threshold_x_value, color='red', linestyle='--', linewidth=2, label='Threshold: ' + str(threshold_value) )
+    ax1.annotate(f'{bins_before_threshold} Bins Before Threshold', xy=(threshold_x_value, 0), xytext=(10, 20), textcoords='offset points', fontsize=10, color='red')
+
+        
+    
+    #percentage = count / total_frequency * 100
+    #ax1.annotate(f'\n{i}', xy=(bins[i] + (bins[i+1] - bins[i])/2, count), ha='center', va='bottom', fontsize=10)
+        #ax1.annotate(f'{int(count)}', xy=(bins[i] + (bins[i+1] - bins[i])/2, count), ha='center', va='bottom', fontsize=10, )
+
+    # Customize the plot
+    ax1.set_title('Histogram of:' +str(cat))
+    ax1.legend(loc='upper right')
+
+
+
+    # Create a secondary y-axis for cumulative frequency
+    ax2 = ax1.twinx()
+    ax2.plot(unique_icd9_df['ICD-9 Code'], unique_icd9_df['Cumulative F percentage'], color='green', label='Cumulative Frequency')
+    ax2.set_ylabel('Cumulative Frequency', color='green')
+    ax2.legend(loc='upper right')
+
+    legend_position = (1, .2)  # Adjust the position as needed
+    ax1.legend(loc='upper right', bbox_to_anchor=legend_position)
+    ax2.legend(loc='lower right', bbox_to_anchor=legend_position)
+
+    # Hide x-axis tick labels
+    ax1.set_xticks([])
+
+    # Show the plot
+    plt.tight_layout()  # Adjust layout for labels
+    #plt.show()
+    #plt.savefig(IMAGES_Demo+'thresholds_'+str(threshold_value)+'.svg')
+    return bins_before_threshold,bins_before_threshold_i
 
 
 def cumulative_plot(icd9_codes, num_bins,threshold_value,cat):
@@ -522,6 +670,7 @@ def cumulative_plot(icd9_codes, num_bins,threshold_value,cat):
     # Show the plot
     plt.tight_layout()  # Adjust layout for labels
     #plt.show()
+    plt.savefig(IMAGES_Demo+'thresholds_'+str(threshold_value)+'.svg')
     return bins_before_threshold,bins_before_threshold_i
 
 
@@ -551,7 +700,26 @@ def funcion_acum(nuevo_df,n,name):
         nuevo_df["threshold_"+str(i)] = serie_modificada
     return nuevo_df
 
+def funcion_acum2(nuevo_df,n,name):
+    
+    bins_before_threshold = []
+    bins_before_threshold_index = []
+    for i in n:
+        aux_thresh = nuevo_df.copy()
+        #aux_thresh = nuevo_df[nuevo_df["icd9_category"]==i]
+        num_bins = len(aux_thresh[name].unique())
+        icd9_codes = list(aux_thresh[name])
+        a,b = cumulative_plot2(icd9_codes, num_bins,i,i)
+        bins_before_threshold.append(a)
+        bins_before_threshold_index.extend(list(b))
+        serie_original = nuevo_df[name]  
+        lista_especifica = bins_before_threshold_index
+        #lista_especifica = b
 
+        # Llama a la función para asignar valores
+        serie_modificada = asignar_valor(serie_original, lista_especifica)
+        nuevo_df["threshold_"+str(i)] = serie_modificada
+    return nuevo_df
 d1 = '..\s_data\PRESCRIPTIONS.csv.gz'
 name1 = "DRUG"
 def drugs(d1,name1):
@@ -674,6 +842,126 @@ def calculate_pivot_df(duplicados, real, level,type_g):
 
     pivot_df.reset_index(inplace=True)
     return pivot_df
+def calculate_demographics(adm,pa, categorical_cols, level,cat_considered,prod_ipvot=None):
+    """Calculate the aggregated demographics DataFrame.
+    
+    Args:
+        duplicados (DataFrame): Pre-cleaned DataFrame used for the pivot table.
+        categorical_cols (list): List of categorical columns to include in aggregation.
+        archivo: File containing additional data.
+        level (str): Indicates whether it's at patient level or visit level.
+        
+    Returns:
+        agregacion_cl (DataFrame): DataFrame with aggregated demographics.
+    """
+    adm = pd.read_csv(adm)
+    aux_ad = last_firs(adm,level)
+    
+    pa = pd.read_csv(pa)
+    adm["SUBJECT_ID"] = adm["SUBJECT_ID"].astype(str)
+    adm["HADM_ID"] = adm["HADM_ID"].astype(str)
+    aux_ad["SUBJECT_ID"] = aux_ad["SUBJECT_ID"].astype(str)
+    aux_ad["HADM_ID"] = aux_ad["HADM_ID"].astype(str)
+
+    pa["SUBJECT_ID"] = pa["SUBJECT_ID"].astype(str)
+
+    for i in ["SUBJECT_ID","HADM_ID"]:    
+            print("unique"+str(i),adm[i].nunique() )
+
+    if prod_ipvot is None:
+        duplicados = adm[cat_considered + ['SUBJECT_ID', 'HADM_ID']]
+    else:    
+        duplicados = prod_ipvot.merge(adm[cat_considered], on=['SUBJECT_ID', 'HADM_ID'], how='left')
+    duplicados=duplicados.merge(pa[['SUBJECT_ID', 'GENDER', 'DOB']], on=['SUBJECT_ID'], how='left')
+    duplicados=duplicados.merge(aux_ad, on=['SUBJECT_ID','HADM_ID'], how='left')
+    print(duplicados.shape)
+    duplicados["DISCHTIME"] = pd.to_datetime(duplicados["DISCHTIME"])
+    
+    
+    
+
+    #duplicados['DOB'] = pd.to_datetime(duplicados['DOB'], format='%Y-%m-%d %H:%M:%S')
+    duplicados['DEATHTIME'] = pd.to_datetime(duplicados['DEATHTIME'])
+    duplicados['DEATHTIME'] = pd.to_datetime(duplicados['DEATHTIME'])
+    duplicados['DOB'] = pd.to_datetime(duplicados['DOB'], format='%Y-%m-%d %H:%M:%S')
+    duplicados['DOB'] = pd.to_datetime(duplicados['DOB'])
+    duplicados['ADMITTIME'] = pd.to_datetime(duplicados['ADMITTIME'])
+    duplicados["LOSRD"] = duplicados["DISCHTIME"] - duplicados["ADMITTIME"]
+    duplicados['DOB'] = [timestamp.to_pydatetime() for timestamp in duplicados['DOB']]
+    duplicados['ADMITTIME'] = [timestamp.date() for timestamp in duplicados['ADMITTIME']]
+    duplicados['DOB'] = [timestamp.date() for timestamp in duplicados['DOB']]
+    duplicados["age"] = (duplicados['ADMITTIME'].to_numpy() - duplicados['DOB'].to_numpy())
+    duplicados["year_age"] = [i.days/365 for i in duplicados["age"]]
+
+    print("People with more than 100 years: ",duplicados.loc[duplicados['year_age'] > 100].shape)
+    duplicados.loc[duplicados['year_age'] > 100, 'year_age'] = 89  
+        
+    
+    
+    
+    duplicados['LOSRD']  = [i.days for i in duplicados['LOSRD']]
+    print("Before eliminate LOSRD<0: ",duplicados.shape)
+    duplicados = duplicados[duplicados["LOSRD"]>0]   
+    for i in["SUBJECT_ID","HADM_ID"]:    
+            print("unique"+str(i),duplicados[i].nunique() )
+
+    print("After eliminate LOSRD<0: ",duplicados.shape)
+    if level == "Patient":
+        agregacion_cl = duplicados.groupby(['SUBJECT_ID']).agg(
+            Age_max=("year_age", 'max'),
+            GENDER=("GENDER", lambda x: mode(x)[0][0]),
+            ADMISSION_LOCATION=("ADMISSION_LOCATION", lambda x: mode(x)[0][0]),
+            ETHNICITY=('ETHNICITY', lambda x: mode(x)[0][0]),
+            MARITAL_STATUS=("MARITAL_STATUS", lambda x: mode(x)[0][0]),
+            RELIGION=("RELIGION", lambda x: mode(x)[0][0]),
+            ADMISSION_TYPE=("ADMISSION_TYPE", lambda x: mode(x)[0][0]),
+            INSURANCE=("INSURANCE", lambda x: mode(x)[0][0]),
+            DISCHARGE_LOCATION=("DISCHARGE_LOCATION", lambda x: mode(x)[0][0]),
+            LOSRD_sum=("LOSRD", 'sum'),
+            LOSRD_avg=("LOSRD", np.mean),
+            L_1s_last_p1=("L_1s_last_p1",  'max'),
+            ADMITTIME_max=("ADMITTIME", 'max'),
+            ADMITTIME_min=("ADMITTIME", 'min')
+        )
+    else:
+        agregacion_cl = duplicados.groupby(['SUBJECT_ID', "HADM_ID"]).agg(
+            Age_max=("year_age", 'max'),
+            GENDER=("GENDER", lambda x: mode(x)[0][0]),
+            ADMISSION_LOCATION=("ADMISSION_LOCATION", lambda x: mode(x)[0][0]),
+            ETHNICITY=('ETHNICITY', lambda x: mode(x)[0][0]),
+            MARITAL_STATUS=("MARITAL_STATUS", lambda x: mode(x)[0][0]),
+            RELIGION=("RELIGION", lambda x: mode(x)[0][0]),
+            ADMISSION_TYPE=("ADMISSION_TYPE", lambda x: mode(x)[0][0]),
+            INSURANCE=("INSURANCE", lambda x: mode(x)[0][0]),
+            DISCHARGE_LOCATION=("DISCHARGE_LOCATION", lambda x: mode(x)[0][0]),
+            LOSRD_sum=("LOSRD", 'sum'),
+            LOSRD_avg=("LOSRD", np.mean),
+            L_1s_last_p1=("L_1s_last_p1",  'max'),
+            ADMITTIME_max=("ADMITTIME", 'max'),
+            ADMITTIME_min=("ADMITTIME", 'min')
+        ).reset_index()
+        
+    #agregacion_cl["L_1s_last_p1"] = (agregacion_cl["ADMITTIME_max"] - agregacion_cl["ADMITTIME_min"]).apply(lambda x: x.days)
+    #agregacion_cl["L_1s_last_p1"] =[int(i.days) for i in agregacion_cl["L_1s_last_p1"]]
+
+
+
+    agregacion_cl = agregacion_cl[["Age_max", "LOSRD_sum", "L_1s_last_p1", "LOSRD_avg"] +categorical_cols+['SUBJECT_ID', 'HADM_ID']] 
+    print("Before replacing 0: ",agregacion_cl.isnull().sum())
+    #for i in ["Age_max", "LOSRD_sum", "L_1s_last_p1", "LOSRD_avg"]:
+    #    agregacion_cl[i]= agregacion_cl[i].replace(np.nan,0)
+    #print("After replacing 0: ",agregacion_cl.isnull().sum())
+    for col in categorical_cols:
+        agregacion_cl[col]= agregacion_cl[col].replace(np.nan, "Unknown")
+        agregacion_cl[col] = agregacion_cl[col].replace(0, 'Unknown')
+        agregacion_cl[col] = agregacion_cl[col].replace('** INFO NOT AVAILABLE **', 'Unknown')
+        agregacion_cl[col] = agregacion_cl[col].replace('UNKNOWN (DEFAULT)', 'Unknown')
+        agregacion_cl[col] = agregacion_cl[col].replace('UNOBTAINABLE', 'Unknown')
+        agregacion_cl[col] = agregacion_cl[col].replace('OTHER', 'Unknown')
+        agregacion_cl[col] = agregacion_cl[col].replace('NOT SPECIFIED', 'Unknown')
+        agregacion_cl = agregacion_cl.replace('UNKNOWN/NOT SPECIFIED', 'Unknown')
+
+    return agregacion_cl
 
 def calculate_agregacion_cl(adm,pa, categorical_cols, level,cat_considered,prod_ipvot):
     """Calculate the aggregated demographics DataFrame.
