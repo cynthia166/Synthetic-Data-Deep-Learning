@@ -1,4 +1,4 @@
-mport pandas as pd 
+import pandas as pd 
 import sys
 import os
 import os
@@ -121,44 +121,3 @@ model.save(SD+name_file )
 #synthetic_attributes, synthetic_features = m.generate_numpy(n =len(sample_patients))
 
 
- #Synthetic Data Evaluation    #lpha-precision, beta-recall, and authenticity #Alaa, Ahmed, Boris Van Breugel, Evgeny S. Saveliev, and Mihaela van der Schaar. “How faithful is your synthetic data? 
- # sample-level metrics for evaluating and auditing generative models.” In International Conference on Machine Learning, pp. 290-306. PMLR, 2022.
-#alpha_precision = AlphaPrecision()
-#result = alpha_precision.metrics(features, synthetic_features)
-    
-
-# Ejemplo de cómo llamar a la función plot_tsne
-# Supongamos que X_gt y X_syn son tus arrays de NumPy con los datos.
-# Deberás reemplazar estas líneas con tu carga de datos real.
-#synthetic_features_2d = synthetic_features.reshape(synthetic_features.shape[0], -1)
-#features_2d = features.reshape(features.shape[0], -1)
-
-   
-    
-#mmd_evaluator = MaximumMeanDiscrepancy(kernel="rbf")
-#result =   mmd_evaluator._evaluate(features_2d, synthetic_features_2d)
-#print("MaximumMeanDiscrepancy Test:", result)
-
-# Example usage:
-# X_gt and X_syn are two numpy arrays representing empirical distributions
-#features_1d = features.flatten()
-#synthetic_features_1d = synthetic_features.flatten()
-
-
-#ks_test = KolmogorovSmirnovTest()
-#result = ks_test._evaluate(features_1d, synthetic_features_1d)
-#print("Kolmog orov-Smirnov Test:", result)
-
-
-
-
-#score = JensenShannonDistance()._evaluate(features, synthetic_features)
-#print("Jensen-Shannon Distance:", score)
-
-#plot_tsne(plt, features_2d, synthetic_features_2d)
-    
- 
-#plot_marginal_comparison(plt, features_2d, synthetic_features_2d, n_histogram_bins=10, normalize=True)
-
-    
-    
