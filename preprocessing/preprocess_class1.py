@@ -97,7 +97,7 @@ class DataPreprocessor:
 
 
 
-def procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical):
+def procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing):
     name="ICD9_CODE"   
     prepomax = 'std'
     type_p = "procedures"
@@ -106,39 +106,39 @@ def procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols
     real = "CCS CODES"
     level = "Otro"
     # type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False
-    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=normalize_matrix, log_transformation=log_transformation, encode_categorical=encode_categorical, final_preprocessing=True,proportion = True)
+    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=normalize_matrix, log_transformation=log_transformation, encode_categorical=encode_categorical, final_preprocessing=final_preprocessing,proportion = True)
     #df = preprocessor.load_data(type_p)
     df_final = preprocessor.run(type_p)
-    df_final.to_csv(str(DARTA_INTERM_intput) + real +"_"+type_p+".csv")
+    df_final.to_csv(str(DARTA_INTERM_intput) + real +"_"+type_p+"_non_prep.csv")
     print(" Procedures Done")
     
     
-def drugs_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical):
+def drugs_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing):
     prepomax = 'std'
     name = "DRUG"
     real = "ATC3"
     level = "Otro"
   # type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False
-    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=normalize_matrix, log_transformation=log_transformation, encode_categorical=encode_categorical, final_preprocessing=True,proportion=True)
+    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=normalize_matrix, log_transformation=log_transformation, encode_categorical=encode_categorical, final_preprocessing=final_preprocessing,proportion=True)
     aux = preprocessor.load_data_clean_data(type_p)
     df_final = preprocessor.run(type_p)
-    df_final.to_csv(str(DARTA_INTERM_intput)+ real +"_"+type_p+".csv")
+    df_final.to_csv(str(DARTA_INTERM_intput)+ real +"_"+type_p+"_non_prepo.csv")
 
     print(" Drugs Done")
-def diagnosis_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical):
+def diagnosis_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing):
 
     type_p = "diagnosis"
     name="ICD9_CODE"
     prepomax = 'std'
     real = "CCS CODES"
     level = "Otro"
-    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=normalize_matrix, log_transformation=log_transformation, encode_categorical=encode_categorical, final_preprocessing=True,proportion=True)
+    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=normalize_matrix, log_transformation=log_transformation, encode_categorical=encode_categorical, final_preprocessing=final_preprocessing,proportion=True)
     #df = preprocessor.load_data(type_p)
     df_final = preprocessor.run(type_p)
-    df_final.to_csv(str(DARTA_INTERM_intput)+ real +"_"+type_p+".csv")
+    df_final.to_csv(str(DARTA_INTERM_intput)+ real +"_"+type_p+"_non_prepo.csv")
     print(" Diagnosis Done")
 
-def main(type_p,normalize_matrix, log_transformation, encode_categorical):
+def main(type_p,normalize_matrix, log_transformation, encode_categorical,final_preprocessing):
     
     admissions_path = MIMIC/'ADMISSIONS.csv.gz'
     patients_path = MIMIC /'PATIENTS.csv.gz'
@@ -151,29 +151,32 @@ def main(type_p,normalize_matrix, log_transformation, encode_categorical):
                     'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
                     'MARITAL_STATUS',  'ETHNICITY','GENDER']
     if type_p == "diagnosis":
-        try:
-            doc_path = MIMIC/'DIAGNOSES_ICD.csv.gz'
-            diagnosis_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical)
-        except:
+        #try:
             
-            doc_path =Path('..')/ MIMIC/'DIAGNOSES_ICD.csv.gz'    
-            diagnosis_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical)
+        doc_path = MIMIC/'DIAGNOSES_ICD.csv.gz'  
+        diagnosis_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing)
+        #except:
+                     
+        #    doc_path =Path('..')/ MIMIC/'DIAGNOSES_ICD.csv.gz' 
+        #    print("diangosis",doc_path)
+           
+            #diagnosis_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical)
     
     elif type_p == "procedures":
         try:
             doc_path = MIMIC/'PROCEDURES_ICD.csv.gz'
-            procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical)
+            procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing)
         except:
             doc_path =Path('..')/'PROCEDURES_ICD.csv.gz'
-            procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical)
+            procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing)
 
     elif type_p in ["drug1", "drug2"]:
-        try:
-            doc_path = MIMIC/'PRESCRIPTIONS.csv.gz'
-            drugs_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical)
-        except:
-            doc_path =Path('..')/'PRESCRIPTIONS.csv.gz'
-            drugs_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical)
+        #try:
+        doc_path = MIMIC/'PRESCRIPTIONS.csv.gz'
+        drugs_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing)
+        #except:
+        #    doc_path =Path('..')/'PRESCRIPTIONS.csv.gz'
+        #    drugs_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing)
     else:
         print("Tipo de procesamiento no reconocido.")
 
@@ -182,7 +185,7 @@ if __name__ == "__main__":
     import argparse
     import os
 
-    ruta = str(RAW/"suplement/RXCUI2atc4.csv")
+    ruta = Path('..')/IMAGES_Demo
 
     if os.path.exists(ruta):
         print("La ruta existe.")
@@ -204,6 +207,9 @@ if __name__ == "__main__":
 
     parser.add_argument("--encode_categorical", action="store_true", 
                         help="Codifica variables categóricas durante el procesamiento. Por defecto es True para depuración.")
+    parser.add_argument("--final_preprocessing", action="store_true", 
+                        help="Codifica variables categóricas durante el procesamiento. Por defecto es True para depuración.")
+
 
     args = parser.parse_args()
 
@@ -211,9 +217,9 @@ if __name__ == "__main__":
     print(f"Standard matriz: {args.normalize_matrix}")
     print(f"Logarithmic transformation: {args.log_transformation}")
     print(f"Codify categorical variables: {args.encode_categorical}")
-
+    print(f"Final preprocessing: {args.final_preprocessing}")
         
-    main(args.type_p, args.normalize_matrix, args.log_transformation, args.encode_categorical)    
+    main(args.type_p, args.normalize_matrix, args.log_transformation, args.encode_categorical,args.final_preprocessing)    
     # Crear una lista de las columnas a normalizar (todas las columnas excepto 'CCS CODES', 'HADM_ID' y 'SUBJECT_ID')
     #cols_to_itereate = [col for col in df.columns if col not in ['LEVE3 CODES', 'HADM_ID', 'SUBJECT_ID']]
     '''for i in cols_to_itereate:

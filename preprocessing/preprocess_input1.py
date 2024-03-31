@@ -30,7 +30,7 @@ import glob
 import pandas as pd
 from icdmappings import Mapper
 import pandas as pd
-
+from pathlib import Path
 import plotly.express as px
 
 import glob
@@ -108,8 +108,8 @@ def med_process(med_file):
     return med_pd
 
 def codeMapping2atc4(med_pd):
-    RXCUI2atc4_file =Path('..') /RAW/"suplement/RXCUI2atc4.csv"
-    ndc2RXCUI_file=Path('..') /RAW/"suplement/ndc2RXCUI.txt"
+    RXCUI2atc4_file =RAW/"suplement/RXCUI2atc4.csv"
+    ndc2RXCUI_file=RAW/"suplement/ndc2RXCUI.txt"
     with open(ndc2RXCUI_file, "r") as f:
         ndc2RXCUI = eval(f.read())
     #med_pd["RXCUI"] = med_pd["NDC"].map(ndc2RXCUI)
@@ -137,9 +137,9 @@ def codeMapping2atc4(med_pd):
 def drug2(d1):
     med_pd = med_process(d1)
     
-    print("med_pd initial shape : ",med_pd.shape)
-    RXCUI2atc4_file = "./data/RXCUI2atc4.csv"
-    ndc2RXCUI_file="./data/ndc2RXCUI.txt"
+    print("med_pd initial shape"  ,med_pd.shape)
+    RXCUI2atc4_file = "data/RXCUI2atc4.csv"
+    ndc2RXCUI_file="data/ndc2RXCUI.txt"
     med_pd = codeMapping2atc4(med_pd)
     med_pd.drop_duplicates(subset=['SUBJECT_ID', 'HADM_ID', 'ATC3','ATC4','NDC'],inplace=True)
     for i in med_pd.columns:    
@@ -670,7 +670,10 @@ def cumulative_plot(icd9_codes, num_bins,threshold_value,cat):
     # Show the plot
     plt.tight_layout()  # Adjust layout for labels
     #plt.show()
-    plt.savefig(IMAGES_Demo+'thresholds_'+str(threshold_value)+'.svg')
+    #try:
+    #   plt.savefig(IMAGES_Demo/'thresholds_'/str(threshold_value)/'.svg')
+    #except:
+    #   plt.savefig(Path('..')/IMAGES_Demo/'thresholds_'str(threshold_value)'.svg')     
     return bins_before_threshold,bins_before_threshold_i
 
 
@@ -975,7 +978,10 @@ def calculate_agregacion_cl(adm,pa, categorical_cols, level,cat_considered,prod_
     Returns:
         agregacion_cl (DataFrame): DataFrame with aggregated demographics.
     """
-    adm = pd.read_csv(adm)
+    try:
+       adm = pd.read_csv(adm)
+    except:
+       adm = pd.read_csv(Path('..')/adm) 
     aux_ad = last_firs(adm,level)
     
     pa = pd.read_csv(pa)

@@ -26,8 +26,7 @@ from multiprocessing import Pool, cpu_count
 from config import *
 import os
 import gzip
-# Cambiar el directorio de trabajo actual a 'nueva/ruta'
-os.chdir('../')
+
 
 
 def split(valid_perc,dataset_name,features,attributes):
@@ -335,24 +334,49 @@ def obtener_entire(res,type_df):
     return dfs     
     
 
-def main(task):
+def main(task,preprocessing):
     import pickle
     import gzip
-    name_df = "raw_input.csv"
+    if preprocessing=="True":
+       name_df = "raw_input.csv"
+    else:
+       name_df = "raw_input_non_preprocess.csv"
+           
     
     if task =="concat":
-        df_procedures = DARTA_INTERM_intput+"/CCS CODES_procedures.csv"
-        df_diagnosis =DARTA_INTERM_intput+"/CCS CODES_diagnosis.csv"
-        df_drugs = DARTA_INTERM_intput+"/ATC3_drug2.csv"
-        df =  concat_input(df_procedures,df_diagnosis,df_drugs,name_df)
+        if preprocessing=="True":
+            df_procedures = DARTA_INTERM_intput+"CCS CODES_procedures.csv"
+            df_diagnosis =DARTA_INTERM_intput+"CCS CODES_diagnosis.csv"
+            df_drugs = DARTA_INTERM_intput+"ATC3_drug2.csv"
+            df =  concat_input(df_procedures,df_diagnosis,df_drugs,name_df)
+        else:
+            df_procedures = DARTA_INTERM_intput+"CCS CODES_procedures_non_prep.csv"
+            df_diagnosis =DARTA_INTERM_intput+"CCS CODES_diagnosis_non_prepo.csv"
+            df_drugs = DARTA_INTERM_intput+"ATC3_drug2_non_prepo.csv"
+            df =  concat_input(df_procedures,df_diagnosis,df_drugs,name_df)
+
+                
        
     if task =="entire_ceros":
-        name_entire = "entire_ceros"
+        
+        if preprocessing == "True":
+            name_entire = "entire_ceros"
+        else:
+            name_entire = "entire_ceros_non_preprocess"    
         aux = obtener_added_cols_targer_visitrank_(DARTA_INTERM_intput+ name_df)
         dfs = obtener_entire(aux,"entire")    
-        dfs.to_parquet(DARTA_INTERM_intput+ name_entire+"_.parquet")
+       
+        dfs.to_csv(DARTA_INTERM_intput+ name_entire+"_.csv")
+        
+           
+           
     if task =="temporal_state":
-        name_entire = "entire_ceros"
+        if preprocessing == "True":
+            name_entire = "entire_ceros"
+            dataset_name = 'DATASET_NAME_prepo'
+        else:
+            name_entire = "entire_ceros_non_preprocess"    
+            dataset_name = 'DATASET_NAME_non_prepo'
         type_df = "entire"
         
         arhivo = DARTA_INTERM_intput+ name_df
@@ -361,18 +385,28 @@ def main(task):
         status = "full_input"
         #res = obtener_added_cols_targer_visitrank_(arhivo,name)
         cols_to_drop1 = ['ADMITTIME','HADM_ID']
-        res = pd.read_parquet(DARTA_INTERM_intput+ name_entire+"_.parquet", engine='pyarrow')
+        try:
+            res = pd.read_csv(DARTA_INTERM_intput+ name_entire+".csv")
+        except:    
+            res = pd.read_parquet(DARTA_INTERM_intput+ name_entire+".parquet", engine='pyarrow')
         keywords = ['INSURANCE', 'RELIGION', 'MARITAL_STATUS', 'ETHNICITY','GENDER','SUBJECT']
         static_data, temporal_dataframes, observation_data,outcomes,sample_patients = get_input_time( type_df,arhivo,name,cols_to_drop1,res,keywords,s,status)
-        dataset_name = 'DATASET_NAME_prepo'
+        
         
         #guardar_data
-        
-        with gzip.open(DARTA_INTERM_intput + dataset_name + '_preprocess.pkl', 'wb') as f:
+        if preprocessing == "True":
+            with gzip.open(DARTA_INTERM_intput + dataset_name + '_preprocess.pkl', 'wb') as f:
+                pickle.dump(temporal_dataframes, f)
+            pd.DataFrame(observation_data).to_csv(DARTA_INTERM_intput+"observation_data_preprocess.csv")
+            static_data.to_csv(DARTA_INTERM_intput+"static_data_preprocess.csv")
+            outcomes.to_csv(DARTA_INTERM_intput+"outcomes_data_preprocess.csv")     
+        else:
+            with gzip.open(DARTA_INTERM_intput + dataset_name + '_non_preprocess.pkl', 'wb') as f:
              pickle.dump(temporal_dataframes, f)
-        pd.DataFrame(observation_data).to_csv(DARTA_INTERM_intput+"observation_data_preprocess.csv")
-        static_data.to_csv(DARTA_INTERM_intput+"static_data_preprocess.csv")
-        outcomes.to_csv(DARTA_INTERM_intput+"static_data_preprocess.csv")     
+            pd.DataFrame(observation_data).to_csv(DARTA_INTERM_intput+"observation_data_non_preprocess.csv")
+            static_data.to_csv(DARTA_INTERM_intput+"static_data_non_preprocess.csv")
+            outcomes.to_csv(DARTA_INTERM_intput+"outcomes_data__non_preprocess.csv")     
+        
 if __name__ == "__main__":
     import argparse
     import os
@@ -391,10 +425,13 @@ if __name__ == "__main__":
     # Este argumento es obligatorio, así que no tiene un valor por defecto.
     parser.add_argument("task", type=str, choices=["concat","entire_ceros","temporal_state"],default="temporal_state",
                         help="Tipo de procesamiento a realizar.")
+    parser.add_argument("preprocessing", choices=["True","False"],default="True",
+                        help="Esta preprocess")
     args = parser.parse_args()
     task = args.task
-    t#ask = "temporal_state"
-    main(task)
+    preprocessing = args.preprocessing
+    #ask = "temporal_state"
+    main(task,preprocessing)
 ####################################Conatenacion primera
 #ruta_archivos = 's_data\*.csv.gz'  # Puedes cambiar '*.csv' por la extensión que desees
 #save = True #dfale
