@@ -86,41 +86,37 @@ def metrics_Ev(total_features,total_features_s,train_test,results):
 
         
         
-def main( total_features,total_features_s,total_features_test,total_features_test_syn,dict_res):
+def main( total_features_synthethic,total_fetura_valid,total_features_train,dict_res):
     
-    results = metrics_Ev(total_features,total_features_s,"train",dict_res)
-    results = metrics_Ev(total_features_test,total_features_test_syn,"test",results)
+    results = metrics_Ev(total_features_train,total_features_synthethic,"train",dict_res)
+    results = metrics_Ev(total_fetura_valid,total_features_synthethic,"test",results)
     return results
 
 if __name__=='__main__':
     import wandb
-    path_features =  "../train_sp/"
+    path_features =  "train_sp/"
     path = "/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/"
     
     features = load_data(path_features+"train_splitDATASET_NAME_preprotrain_data_features.pkl")
     attributes=load_data(path_features+"train_splitDATASET_NAME_preprotrain_data_attributes.pkl")
     synthetic_attributes = load_data(path_features+'DATASET_NAME_preprosynthetic_attributes.pkl')
     synthetic_features=load_data(path_features+'DATASET_NAME_preprosynthetic_features.pkl')
-    features_v_syn = load_data(path_features+"train_splitDATASET_NAME_preprovalid_data_features.pkl")
-    attributes_v_syn=load_data(path_features+"train_splitDATASET_NAME_preprovalid_data_attributes.pkl")
+    features_valid = load_data(path_features+"train_splitDATASET_NAME_preprovalid_data_features.pkl")
+    attributes_valid=load_data(path_features+"train_splitDATASET_NAME_preprovalid_data_attributes.pkl")
     config_w = {
          "preprocessed": "True",
          "max_sequence_len": 666,
          "sample_len": 111,
          "batch_size": 100,
-         "epochs": 120
+         "epochs": 60
         }
     wandb.init(project='SD_generation',config=config_w)
 
 
-    features = features[:1000]
-    attributes = attributes[:1000]   
-    features_v = features[:attributes_v_syn.shape[0]]
-    attributes_v = attributes[:attributes_v_syn.shape[0]]   
+    features_v = features[:attributes_valid.shape[0]]
+    attributes_v = attributes[:attributes_valid.shape[0]]   
 
-    synthetic_attributes = synthetic_attributes[:1000]
-    synthetic_features = synthetic_features[:1000]
-    # Imprimir la ruta del directorio actual
+     # Imprimir la ruta del directorio actual
     N, T, D = features.shape  
 
 
@@ -128,14 +124,14 @@ if __name__=='__main__':
     print(attributes.shape)
     print(synthetic_features.shape)
     print(synthetic_attributes.shape)
-    total_features = concat_attributes(features, attributes)
-    total_features_s = concat_attributes(synthetic_features, synthetic_attributes)
-    total_features_test_syn = concat_attributes(features_v_syn, attributes_v_syn)
-    total_features_test = concat_attributes(features_v, attributes_v)
+    
+    total_features_synthethic = concat_attributes(synthetic_features, synthetic_attributes)
+    total_fetura_valid = concat_attributes(features_valid, attributes_valid)
+    total_features_train = concat_attributes(features_v, attributes_v)
     results = {} 
 
 
-    results = main(total_features,total_features_s,total_features_test,total_features_test_syn,results)
+    results = main(total_features_synthethic,total_fetura_valid,total_features_train,results)
     print(results)
     wandb.log( results)
     wandb.finish()

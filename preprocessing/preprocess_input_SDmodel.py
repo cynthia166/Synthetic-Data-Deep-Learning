@@ -29,9 +29,9 @@ import gzip
 
 
 
-def split(valid_perc,dataset_name,features,attributes):
+def split(valid_perc,dataset_name,features,attributes,):
 
-
+    N, T, D = features.shape  
     # further split the training data into train and validation set - same thing done in forecasting task
     N_train = int(N * (1 - valid_perc))
     N_valid = N - N_train
@@ -45,7 +45,7 @@ def split(valid_perc,dataset_name,features,attributes):
     train_data_attributes = attributes[:N_train]
     valid_data_attributes = attributes[N_train:]   
     print("train/valid shapes: ", train_data_features.shape, valid_data_features.shape)    
-   
+    SD_DATA_split = "train_sp"
     with gzip.open(SD_DATA_split + dataset_name + 'train_data_features.pkl', 'wb') as f:
         pickle.dump(train_data_features, f)
     with gzip.open(SD_DATA_split+ dataset_name + 'valid_data_features.pkl', 'wb') as f:

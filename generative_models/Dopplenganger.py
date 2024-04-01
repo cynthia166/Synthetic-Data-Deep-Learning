@@ -10,7 +10,7 @@ print(os.getcwd())
 
 print(os.getcwd())
 
-sys.path.append('../')
+sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning')
 #sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning')
 from preprocessing.preprocess_input_SDmodel import *
 import numpy as np
@@ -35,13 +35,49 @@ import pandas as pd
 #from synthcity.plugins.core.dataloader import TimeSeriesDataLoader
      
 from preprocessing.preprocess_input_SDmodel import *
-
+import pickle
+import gzip
 import os
-os.chdir('./')
+import config
+#os.chdir('./')
 
 # Imprimir la ruta del directorio actual
-print(os.getcwd())
-SD = "generative_models/SD_results_"
+
+def load_data(file_path):
+    with gzip.open(file_path, 'rb') as f:
+        return pickle.load(f)
+    
+SD = "generative_models/"
+ 
+train_split = False
+if train_split == True:
+    print(os.getcwd())
+        
+        
+
+    
+    features = load_data("train_sp/non_prepo/DATASET_NAME_non_prepo_non_preprocess.pkl")
+    attributes=pd.read_csv("train_sp/non_prepo/static_data_non_preprocess.csv")
+    numpy_array_t = np.stack([df.to_numpy() for df in features])
+    features = numpy_array_t.reshape(numpy_array_t.shape[0],numpy_array_t.shape[2],numpy_array_t.shape[1])
+    attributes = attributes.to_numpy()
+
+    N, T, D = features.shape   
+    print('data shape:', N, T, D) 
+    print('attributes shape:', attributes.shape)
+    valid_perc = 0.1
+    dataset_name = '/non_prepo/DATASET_NAME_non_prepro'
+    
+    split(valid_perc,dataset_name,features,attributes)
+
+#outcomes=pd.read_csv(DARTA_INTERM_intput+"outcomes_preprocess.csv")     
+#########################################################################
+#########################################################################
+#########################################################################
+##########################LOAD DATA##########################
+#########################################################################
+#########################################################################
+dataset_name = SD
 ruta = SD  # Reemplaza esto con la ruta que quieres verificar
 
 if os.path.exists(ruta):
@@ -50,36 +86,14 @@ if os.path.exists(ruta):
 else:
     print('La ruta no existe.')
     print(ruta)
-    
-    
-
-import pickle
-import gzip
-
-
-def load_data(file_path):
-    with gzip.open(file_path, 'rb') as f:
-        return pickle.load(f)
-dataset_name = 'DATASET_NAME_prepo'
-features = load_data("train_sp/train_splitDATASET_NAME_preprotrain_data_features.pkl")
-attributes=load_data("train_sp/train_splitDATASET_NAME_preprotrain_data_attributes.pkl")
-#outcomes=pd.read_csv(DARTA_INTERM_intput+"outcomes_preprocess.csv")     
-#####################################################################################
-
-
-
-#numpy_array_t = np.stack([df.to_numpy() for df in temporal_dataframes])
-#features = numpy_array_t.reshape(numpy_array_t.shape[0],numpy_array_t.shape[2],numpy_array_t.shape[1])
-#attributes = static_data.to_numpy()
-
-
+   
+dataset_name = '/non_prepo/DATASET_NAME_non_prepro'
+features_train = load_data('train_sp' + dataset_name + 'train_data_features.pkl')
+attribute_train = load_data('train_sp'  + dataset_name + 'train_data_attributes.pkl')
 #full_train_data = np.array(data)
-N, T, D = features.shape   
-print('data shape:', N, T, D) 
-print('attributes shape:', attributes.shape)
-valid_perc = 0.1
-dataset_name = 'DATASET_NAME_prepro'
-name_file = "Dopplenganger_epochocs_120.pth"  
+
+
+name_file = "Dopplenganger_nonprepo_epochocs_120.pth"  
 #realizar train and test split
 #split(valid_perc,dataset_name):
 
@@ -91,23 +105,19 @@ name_file = "Dopplenganger_epochocs_120.pth"
 #attributes = np.random.rand(10000, 3)
 #features = np.random.rand(10000, 20, 2)
  
-config = DGANConfig(
-    max_sequence_len=20,
-    sample_len=2,
-    batch_size=1000,
-    epochs=10
-)
+#config = DGANConfig(    max_sequence_len=20,sample_len=2, batch_size=1000,epochs=10)
+
 config2 = DGANConfig(
-    max_sequence_len=666,
-    sample_len=111,
+    max_sequence_len=features_train.shape[1],
+    sample_len=661,
     batch_size=100,
-    epochs=120
+    epochs=60
 )
 
 model = DGAN(config2)
 
-model.train_numpy(  features=features,
-        attributes= attributes)
+model.train_numpy(  features=features_train,
+        attributes= attribute_train)
 
 
 model.save(SD+name_file )
