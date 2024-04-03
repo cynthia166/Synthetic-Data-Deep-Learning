@@ -1,4 +1,8 @@
 
+import sys
+sys.path.append('')
+sys.path.append('preprocessing')
+
 from preprocess_input1 import *
 # The above code is importing the necessary modules, such as `config` and `os`, in a Python script. It
 # then changes the current working directory to a new path specified as `'../'`, which typically means
@@ -139,6 +143,10 @@ def diagnosis_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,
     print(" Diagnosis Done")
 
 def main(type_p,normalize_matrix, log_transformation, encode_categorical,final_preprocessing):
+    import sys
+    sys.path.append('')
+    sys.path.append('preprocessing')
+    MIMIC = Path('data/raw/MIMIC/')
     
     admissions_path = MIMIC/'ADMISSIONS.csv.gz'
     patients_path = MIMIC /'PATIENTS.csv.gz'
@@ -163,12 +171,12 @@ def main(type_p,normalize_matrix, log_transformation, encode_categorical,final_p
             #diagnosis_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical)
     
     elif type_p == "procedures":
-        try:
-            doc_path = MIMIC/'PROCEDURES_ICD.csv.gz'
-            procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing)
-        except:
-            doc_path =Path('..')/'PROCEDURES_ICD.csv.gz'
-            procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing)
+        
+        doc_path = MIMIC/'PROCEDURES_ICD.csv.gz'
+        procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing)
+        #except:
+        #    doc_path =Path('..')/'PROCEDURES_ICD.csv.gz'
+        #    procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing)
 
     elif type_p in ["drug1", "drug2"]:
         #try:
@@ -184,13 +192,17 @@ def main(type_p,normalize_matrix, log_transformation, encode_categorical,final_p
 if __name__ == "__main__":
     import argparse
     import os
+    
+    import sys
+    sys.path.append('')
+    sys.path.append('preprocessing')
+    import config 
+    #ruta = Path('..')/IMAGES_Demo
 
-    ruta = Path('..')/IMAGES_Demo
-
-    if os.path.exists(ruta):
-        print("La ruta existe.")
-    else:
-        print("La ruta no existe.")
+    #if os.path.exists(ruta):
+    #    print("La ruta existe.")
+    #else:
+    #    print("La ruta no existe.")
 
     parser = argparse.ArgumentParser(description="Script para procesar datos de salud con opciones adicionales.")
 

@@ -1,7 +1,7 @@
 import sys
 import os
 sys.path.append('')
-os.chdir('../')
+#os.chdir('../')
 from preprocessing.config import *
 from preprocessing.function_pred import *
 from preprocessing.config import *
@@ -20,6 +20,7 @@ import pandas as pd
 directorio_actual = os.getcwd()
 print("Directorio actual:", directorio_actual)
 import pandas as pd
+
 def create_graphs(graph,type_procedur= None):
     import numpy as np
     import matplotlib.pyplot as plt
@@ -732,14 +733,36 @@ def create_graphs(graph,type_procedur= None):
             group  ="DRUG"
         result = df.groupby([group]).size().reset_index(name='Count')
         result = result.sort_values(by="Count", ascending=False)[:10]
-        plt.figure(figsize=(12, 8))
-        sns.barplot(x=group, y='Count', data=result, color='lightblue')
-        plt.xticks(rotation=45, fontsize=12)  # Increase the font size of x-axis labels
-        plt.xlabel(type_procedur, fontsize=14)  # Increase the font size of x-axis label
-        plt.ylabel('Count', fontsize=14)  # Increase the font size of y-axis label
-        plt.title('Top 10 Most Frequent '+type_procedur, fontsize=16)  # Increase the font size of the title
+        plt.figure(figsize=(10, 6))
+
+        # La anchura de las barras puede ser ajustada con el parámetro 'height'
+        sns.barplot(x='Count', y=group, data=result, color='skyblue') 
+
+        # Eliminar el borde de cada barra para un aspecto más limpio
+        sns.despine()
+
+        # Ajusta la estética del gráfico
+        plt.xticks(fontsize=12)
+        plt.yticks(fontsize=12)
+        plt.xlabel('Count', fontsize=14)
+        plt.ylabel(type_procedur, fontsize=14)
+        plt.title('Top 10 Most Frequent ' + type_procedur, fontsize=14)
+
+        # Ajusta el layout para asegurarse de que todo encaje bien
+        plt.tight_layout()
+
+        # Guardar la figura con calidad alta
+        #plt.savefig(IMAGES_Demo + type_procedur + 'top_tencounts_.png', format='png', dpi=300)
+        plt.savefig(IMAGES_Demo+type_procedur+'top_tencounts_.svg') 
+        plt.show()
+        '''plt.figure(figsize=(8, 8))  # Cambia el tamaño de la figura para acomodar las barras verticales
+        sns.barplot(x='Count', y=group, data=result, color='lightblue')  # Intercambia x e y
+        plt.yticks(rotation=0, fontsize=12)  # Cambia xticks a yticks
+        plt.ylabel(type_procedur, fontsize=14)  # Intercambia xlabel y ylabel
+        plt.xlabel('Count', fontsize=14)  # Intercambia xlabel y ylabel
+        plt.title('Top 10 Most Frequent '+type_procedur, fontsize=16)
         plt.savefig(IMAGES_Demo+type_procedur+'top_tencounts_.svg')
-        plt.show()            
+        plt.show()'''
         sns.set(style="darkgrid")
     # Load the iris dataset
     if graph== "countpr_admi_patient": 
@@ -817,6 +840,8 @@ if __name__ == "__main__":
                         help="Tipo de procesamiento a realizar.")
     parser.add_argument("--type_procedur", default=None, choices=['procedures', 'diagnosis', 'medicament'], 
                     help="Tipo de procedimiento a realizar. Las opciones disponibles son: 'procedures', 'diagnosis', 'medicament'.")
+    #python report/vis_.py "10_most_frequent" '--type_procedur diagnosis
+
     args = parser.parse_args()
     graph = args.graph
     type_procedur = args.type_procedur

@@ -1,68 +1,14 @@
-# -*- coding: utf-8 -*-
-# %%
-import subprocess
-#######################################################Files#######################################################
-#data_preprocess_non_filtered.csv
-## File for demographic and admission figures
-###input:  
-###output:
-# %jupyter notebook 4_concat_input_.ipynb
-
-
-# %% [markdown]
-# DARTA_INTERM/"choices_preprocess_threshold_nonfiltered.csv"
-# # File for 10 top counts, histogram per patient and admission leveñ
-# ##input:  
-# ##output: 
-
-# %% [markdown]
-# ICD9_CODE_procedures_outs_visit_non_filtered
-# #file for LOS and age kernel density plot
-# ##input:
-# ##output:  not applied
-# ######################################################Algorithm####################################################
-
-# %%
-
-
-# %% [markdown]
-# ######################################################Figures#######################################################
-# MIMIC-III database schema
-# # 
-# ##input:  not applied
-# ##output:  not applied
-
-# %% [markdown]
-#  Entity relationship diagram
-# # It is done manually with Mino website
-# ##input:  not applied
-# ##output:  not applied
 
 
 # %%
-# Demographics and admission variables
-## Figure pie charts (Figure 2.3:)
-###input:  MIMIC / 'ADMISSIONS.csv.gz' /DARTA_INTERM/ 'data_preprocess_non_filtered.csv'
-###output: IMAGES_Demo+'demo_pie.svg'
-python vis_.py "demo_pie"
 
 
-# %%
-#  Distribution of counts of ICD-9 ['procedures', 'diagnosis', 'medicament']
-##  ['procedures', 'diagnosis', 'medicament'] per patient and admission.
-###input:  DARTA_INTERM/"choices_preprocess_threshold_nonfiltered.csv" 
-###output: IMAGES_Demo + 'counts_10.svg' /IMAGES_Demo + 'histograns_patient.svg'
-python vis_.py "countpr_admi_patient" --type_procedur procedures
-choices=['procedures', 'diagnosis', 'medicament']
 
 
-# %%
-# 10 most frequent Procedures, Diagnosis and Medicament
-## ['procedures', 'diagnosis', 'medicament']
-###input:   DARTA_INTERM/"choices_preprocess_threshold_nonfiltered.csv"
-###output: 
-python vis_.py "10_most_frequent" --type_procedur procedures
-choices=['procedures', 'diagnosis', 'medicament']
+
+
+
+
 
 
 # %%
