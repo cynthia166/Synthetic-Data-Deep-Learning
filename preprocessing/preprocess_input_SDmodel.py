@@ -1,8 +1,4 @@
 # -*- coding: utf-8 -*-
-
-# The code snippet you provided is importing various Python libraries and modules that are commonly
-# used in data analysis, visualization, and manipulation tasks. Here is a brief explanation of each
-# import statement:
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
 import pandas as pd
@@ -30,15 +26,12 @@ import gzip
 
 
 def split(valid_perc,dataset_name,features,attributes,):
-
+    '''Function to splitthe data into train and validation sets / is is also sotres in SD_DATA_split
+    input: valid_perc,dataset_name,features,attributes
+    output: train_data_features, valid_data_features, train_data_attributes, valid_data_attributes'''
     N, T, D = features.shape  
-    # further split the training data into train and validation set - same thing done in forecasting task
     N_train = int(N * (1 - valid_perc))
     N_valid = N - N_train
-
-    # Shuffle data
-    #np.random.shuffle(full_train_data)
-
     train_data_features = features[:N_train]
     valid_data_features = features[N_train:]   
 
@@ -58,15 +51,14 @@ def split(valid_perc,dataset_name,features,attributes,):
 
 
 def get_input_time( type_df,arhivo,name,cols_to_drop1,res,keywords,s,status):
-     # Obtener una lista de pacientes únicos
+    '''Function to get the input for the time series model
+    input: type_df,arhivo,name,cols_to_drop1,res,keywords,s,status
+    output: static_data, temporal_dataframes, observation_data,outcomes,sample_patients'''
     
     if s != 1:
         unique_patients = res['SUBJECT_ID'].unique()
-    # Calcular el 20% del total de pacientes únicos
         sample_size = int(s* len(unique_patients))
-        # Obtener una muestra aleatoria del 20% de los pacientes únicos
         sample_patients = np.random.choice(unique_patients, size=sample_size, replace=False)
-        # Filtrar el DataFrame para incluir solo los registros de los pacientes en la muestra
         sample_df = res[res['SUBJECT_ID'].isin(sample_patients)]
     else:
         sample_df = res 
@@ -77,11 +69,7 @@ def get_input_time( type_df,arhivo,name,cols_to_drop1,res,keywords,s,status):
     else:         
         dfs = obtener_entire(sample_df,type_df)
     
-    # Lista de nombres de columnas a buscar
-    # Supongamos que type_df es tu DataFrame
-      # Filtrar las columnas de type_df que contienen las palabras clave
     static_data_cols = [col for col in dfs.columns if any(keyword in col for keyword in keywords)]
-    # Crear un nuevo DataFrame que solo incluye las columnas filtradas
     not_considet_temporal = [
     i for i in static_data_cols if i != 'SUBJECT_ID'
     ]
@@ -93,21 +81,19 @@ def get_input_time( type_df,arhivo,name,cols_to_drop1,res,keywords,s,status):
     temporal_data.drop(cols_to_drop, axis=1, inplace=True)
     
 
-    # Establecer 'SUBJECT_ID' y 'visit_rank' como índices
     temporal_data.set_index(['SUBJECT_ID', 'visit_rank'], inplace=True)
-    # Ordenar temporal_data por el índice 'visit_rank' en orden ascendente
     temporal_data.sort_index(level='visit_rank', inplace=True)
-    # Ahora se agrupa por 'SUBJECT_ID' y se recoge la información necesaria.
     grouped = temporal_data.groupby(level='SUBJECT_ID')
 
-    # Se obtiene 'observations' como los índices de segundo nivel para cada grupo.
     observation_data = [group.index.get_level_values('visit_rank').tolist() for _, group in grouped]
 
-    # Se obtiene los dataframes temporales por grupo, reseteando el índice 'SUBJECT_ID'.
     temporal_dataframes = [group.reset_index(level=0, drop=True) for _, group in grouped]
     return static_data, temporal_dataframes, observation_data,outcomes,sample_patients
 
 def cols_not_consideres(aux):
+    '''Function to get the columns not considered
+    input: aux
+    output: cols_to_drop'''
     int_index_columns = []
     for col in aux.columns:
         try:
@@ -115,11 +101,15 @@ def cols_not_consideres(aux):
             # Si la conversión es exitosa, agrega la columna a la lista
         except ValueError:
             int_index_columns.append(col)
-            # Si la conversión falla, ignora la columna
+            
 
     print(int_index_columns)
     return int_index_columns
+
 def concat_input(df_procedures,df_diagnosis,df_drugs,name_df):
+    '''Function to concatenate the three inputs and the demographic and admission variables
+    input: df_procedures,df_diagnosis,df_drugs,name_df
+    output: res'''
     df_procedures = pd.read_csv(df_procedures)
     df_diagnosis =pd.read_csv(df_diagnosis)
     df_drugs = pd.read_csv(df_drugs)
@@ -128,8 +118,7 @@ def concat_input(df_procedures,df_diagnosis,df_drugs,name_df):
                     'MARITAL_STATUS',  'ETHNICITY','GENDER']
     numerical_cols =  ['Age_max', 'LOSRD_sum',
             'LOSRD_avg','L_1s_last_p1']
-    # The code `columnas` and `
-    # The code `columnas` and `
+
     columnas = categorical_cols+numerical_cols
     drugs_cols = [col for col in df_drugs.columns if any(item in col for item in columnas)]
     catnum_cols = [col for col in df_procedures.columns if any(item in col for item in columnas)]
@@ -302,19 +291,13 @@ def obtener_entire(res,type_df):
     res['visit_rank'] = res['visit_rank'].astype(int)
 
     temporal_surv = res.copy()
-# Supongamos que 'temporal_surv' es tu DataFrame original y tiene una columna 'SUBJECT_ID' y 'visitas'.
-# Crear un nuevo DataFrame con todas las combinaciones posibles de 'SUBJECT_ID' y 'visitas'.
     unique_subjects = temporal_surv['SUBJECT_ID'].unique()
     all_visits = range(1, 43)  # Crear una lista de visitas de 1 a 42.
 
-    # Utiliza el producto cartesiano para obtener todas las combinaciones posibles de 'SUBJECT_ID' y 'visitas'.
     combinations = pd.MultiIndex.from_product([unique_subjects, all_visits], names=['SUBJECT_ID', 'visit_rank']).to_frame(index=False)
 
-    # Ahora mergea esto con el DataFrame original. 
-    # Esto asegurará que todas las combinaciones de 'SUBJECT_ID' y 'visitas' estén presentes.
     new_temporal_surv = pd.merge(combinations, temporal_surv, on=['SUBJECT_ID', 'visit_rank'], how='left')
 
-    # Rellena los NaNs con ceros para todas las columnas excepto 'visitas' y 'SUBJECT_ID'.
     columns_to_fill = new_temporal_surv.columns.difference(['SUBJECT_ID', 'visit_rank'])
     new_temporal_surv[columns_to_fill] = new_temporal_surv[columns_to_fill].fillna(0)
 
@@ -335,6 +318,19 @@ def obtener_entire(res,type_df):
     
 
 def main(task,preprocessing):
+    '''####  Specific preparation for SD model
+
+    They most be run sequentially as they appear in the following list 
+    [ "concat","entire_ceros","temporal_state"]
+
+    1. Concatenation of the three representation - "concat"
+    
+    2. padding with 0  so every patient has the same number of visits - "entire_ceros"
+
+    3. create a list of dataframe where each dataframe represents the trajectory of the patients
+    where they all have equal rows, padded with 0, and the features are count matrix, and demographics
+    variables. and static matrix, which represent the static features that do not change over time.
+    '''
     import pickle
     import gzip
     if preprocessing=="True":
@@ -408,6 +404,11 @@ def main(task,preprocessing):
             outcomes.to_csv(DARTA_INTERM_intput+"outcomes_data__non_preprocess.csv")     
         
 if __name__ == "__main__":
+    '''This script is used to preprocess the input for the SD model
+    The input is the output of the preprocessing pipeline, which is the concatenation of the three
+    dataframes, and the demographic and admission variables.
+    The output is the input for the SD model, which is the temporal dataframes, the static data, onservation times
+    and the outcomes.'''
     import argparse
     import os
     name_entire = "entire_ceros"
@@ -417,85 +418,13 @@ if __name__ == "__main__":
         print("La ruta existe.")
     else:
         print("La ruta no existe.")
-    
-    
-    
-    parser = argparse.ArgumentParser(description="Scripti input special SD model")
 
-    # Este argumento es obligatorio, así que no tiene un valor por defecto.
+    parser = argparse.ArgumentParser(description="Scripti input special SD model")
     parser.add_argument("task", type=str, choices=["concat","entire_ceros","temporal_state"],default="temporal_state",
                         help="Tipo de procesamiento a realizar.")
     parser.add_argument("preprocessing", choices=["True","False"],default="True",
                         help="Esta preprocess")
     args = parser.parse_args()
     task = args.task
-    preprocessing = args.preprocessing
-    #ask = "temporal_state"
+    preprocessing = args.preprocessing  
     main(task,preprocessing)
-####################################Conatenacion primera
-#ruta_archivos = 's_data\*.csv.gz'  # Puedes cambiar '*.csv' por la extensión que desees
-#save = True #dfale
-
-#mi_objeto = PreprocessInput()
-#df_concat_primero = concat_archivo_primeto(procedures,admi,ruta_archivos,save,nom_archivo)
-
-
-
-#d1 = '.\s_data\DIAGNOSES_ICD.csv.gz'
-
-
-#didf_diagnosisa = diagnosis(d1,n,name)
-
-#desconcatenación, y se obtiene threshold y mapping
-#d2 = '.\s_data\PROCEDURES_ICD.csv.gz' 
-#prod = procedures(d2,n,name)
-#prod = limipiar_Codigos(prod)
-#caluco de matrix de conteo
-
-#prod_ipvot  = calculate_pivot_df(prod, real, level) #if normalize matrix == True
-#prod_ipvot = normalize_count_matrix(prod_ipvot, level, )
-#prod_ipvot
-
-#prod_ipvot
-#calcul de variable demos
-#adm = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/ADMISSIONS.csv.gz"
-#pa = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/MIMIC/PATIENTS.csv.gz"
-
-
-#cat_considered = ['ADMITTIME','ADMISSION_TYPE', 'ADMISSION_LOCATION',
-#                'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
-#                'MARITAL_STATUS', 'ETHNICITY','DEATHTIME'] + ['DISCHTIME','SUBJECT_ID', 'HADM_ID']
-#demos_pivot = calculate_agregacion_cl(adm,pa, categorical_cols, level,cat_considered,prod_ipvot)
-
-
-#print(demos_pivot.isnull().sum()) #if variable logtransforamtio == true
-#demos_pivot = apply_log_transformation(demos_pivot, 'L_1s_last_p1')
-#merge demographic df with count matrix
-#df_merge  = merge_df(demos_pivot, prod_ipvot)
-#df_merge.shape
-#if encoding categorical variables=true
-#df_merge_e = encoding(df_merge, categorical_cols, 'onehot')
-#df_merge_e
-
-
-# if preprocesamiento final == True
-#numerical_cols =  ['Age_max', 'LOSRD_sum',
-#    'LOSRD_avg','L_1s_last_p1']
-#df_merge_e.columns = df_merge_e.columns.astype(str)
-#cols_to_normalize = [col for col in df_merge_e.columns if col not in ['SUBJECT_ID', 'HADM_ID']]
-
-
-
-#df_final_prepo = preprocess(df_merge_e, "max", cols_to_normalize)
-       
-       
-#d1 = '..\s_data\PRESCRIPTIONS.csv.gz'
-#name1 = "DRUG"
-#df_drugs = drugs(d1,name1)
-
-#name_df = "raw_input.csv"
-#name_encodeing = "input_onehot_encoding.csv"
-
-
-#df_final = concat_input(df_drugs, df_diagnosis, df_procedures,numerical_cols,categorical_cols,name_df)
-#df_final_encoded = encoding(df_final,categorical_cols)

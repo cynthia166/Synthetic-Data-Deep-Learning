@@ -4,32 +4,30 @@ sys.path.append('')
 sys.path.append('preprocessing')
 
 from preprocess_input1 import *
-# The above code is importing the necessary modules, such as `config` and `os`, in a Python script. It
-# then changes the current working directory to a new path specified as `'../'`, which typically means
-# moving up one directory level from the current working directory.
 from config import *
 
 class DataPreprocessor:
     def __init__(self, type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False,proportion = False,prop = 0.09 ):
-        self.type_p = type_p  # Correctly initializing type_p here
-        self.doc_path = doc_path
-        self.admissions_path = admissions_path
-        self.patients_path = patients_path
-        self.categorical_cols = categorical_cols
-        self.real = real
-        self.level = level
-        self.numerical_cols = numerical_cols
-        self.prepomax = prepomax
-        self.name = name
-        self.n = n
-        self.cols_to = cols_to
-        self.normalize_matrix = normalize_matrix
-        self.log_transformation = log_transformation
-        self.encode_categorical = encode_categorical
-        self.final_preprocessing = final_preprocessing
-        self.proportion = proportion
-        self.prop = prop
+        self.type_p = type_p  #drugs procedures diagnosis
+        self.doc_path = doc_path # Path to the document above
+        self.admissions_path = admissions_path #admissions_path
+        self.patients_path = patients_path #patients_path
+        self.categorical_cols = categorical_cols #8 categorical cols
+        self.real = real #CCS CODES whar simpñification is to be considered
+        self.level = level #patient level or admission level
+        self.numerical_cols = numerical_cols # 4 numerical cols
+        self.prepomax = prepomax # preporcessing method
+        self.name = name # ICD9_CODE or DRUGS
+        self.n = n # thresholds
+        self.cols_to = cols_to # columns to normalize
+        self.normalize_matrix = normalize_matrix # normalize matrix or not / true or false
+        self.log_transformation = log_transformation # log transformation or not / true or false for lenght of stay variable
+        self.encode_categorical = encode_categorical # encode categorical variables or not / true or false
+        self.final_preprocessing = final_preprocessing  # final preprocessing or not / true or false
+        self.proportion = proportion  # proportion to considere for the agruping of demographical variables or not / true or false         
+        self.prop = prop #preprocessing portion
     def load_data_clean_data(self, type_p):
+        #clean data, and create indiidual counts of drugs or codes
         if type_p == "procedures":
             data = procedures(self.doc_path, self.n, self.name)
         elif type_p == "diagnosis":
@@ -45,31 +43,39 @@ class DataPreprocessor:
 
 
     def calculate_count_matrix(self, data):
+        # calculate pivot matrix
         return calculate_pivot_df(data, self.real, self.level,self.type_p)
 
     def normalize_count_matrix(self, data):
+        #normalize the coun matrix
         if self.normalize_matrix:
             return normalize_count_matrix__aux(data, self.level)
         return data
 
     def calculate_demographics(self, data):
+        #calculates demographical data
         cat_considered = ['ADMITTIME', 'ADMISSION_TYPE', 'ADMISSION_LOCATION', 'DISCHARGE_LOCATION', 'INSURANCE', 'RELIGION', 'MARITAL_STATUS', 'ETHNICITY', 'DEATHTIME'] + ['DISCHTIME', 'SUBJECT_ID', 'HADM_ID']
         return calculate_agregacion_cl(self.admissions_path, self.patients_path, self.categorical_cols, self.level, cat_considered, data)
 
+
     def apply_log_transformation(self, data):
+        #transform the lenght of stay variable
         if self.log_transformation:
             return apply_log_transformation(data, 'L_1s_last_p1')
         return data
 
     def merge_data(self, demographic_data, count_data):
+        #concatenate demographic and count_data
         return merge_df(demographic_data, count_data,self.level)
 
     def encode_categorical_data(self, data):
+        #encode categorical data
         if self.encode_categorical:
             return encoding(data, self.categorical_cols, 'onehot', self.proportion,self.prop)
         return data
 
     def final_preprocessing_fun(self, data):
+        #final preprocessing
         data.columns = data.columns.astype(str)
         if self.cols_to is None:
             cols_to_normalize = [col for col in data.columns if col not in ['SUBJECT_ID', 'HADM_ID'] ]
@@ -78,6 +84,7 @@ class DataPreprocessor:
         return preprocess(data, self.prepomax, cols_to_normalize)
 
     def run(self,type_p):
+        # run the whole process sequentially
         data = self.load_data_clean_data(type_p)
         count_matrix = self.calculate_count_matrix(data)
         count_matrix = self.normalize_count_matrix(count_matrix)
@@ -100,6 +107,9 @@ class DataPreprocessor:
 ########################### ########################### ########################### ########################### ########################### ########################### 
 
 
+# each of the following functions is a step in the process of data preprocessing
+# the DataPreprocessor class is in charge of coordinating the execution of these functions
+# the functions are defined in the preprocess_input1.py file
 
 def procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing):
     name="ICD9_CODE"   
@@ -109,9 +119,7 @@ def procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols
     prepomax = 'std'
     real = "CCS CODES"
     level = "Otro"
-    # type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False
     preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=normalize_matrix, log_transformation=log_transformation, encode_categorical=encode_categorical, final_preprocessing=final_preprocessing,proportion = True)
-    #df = preprocessor.load_data(type_p)
     df_final = preprocessor.run(type_p)
     df_final.to_csv(str(DARTA_INTERM_intput) + real +"_"+type_p+"_non_prep.csv")
     print(" Procedures Done")
@@ -122,22 +130,19 @@ def drugs_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,ca
     name = "DRUG"
     real = "ATC3"
     level = "Otro"
-  # type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False
     preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=normalize_matrix, log_transformation=log_transformation, encode_categorical=encode_categorical, final_preprocessing=final_preprocessing,proportion=True)
     aux = preprocessor.load_data_clean_data(type_p)
     df_final = preprocessor.run(type_p)
     df_final.to_csv(str(DARTA_INTERM_intput)+ real +"_"+type_p+"_non_prepo.csv")
-
     print(" Drugs Done")
+    
 def diagnosis_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing):
-
     type_p = "diagnosis"
     name="ICD9_CODE"
     prepomax = 'std'
     real = "CCS CODES"
     level = "Otro"
     preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=normalize_matrix, log_transformation=log_transformation, encode_categorical=encode_categorical, final_preprocessing=final_preprocessing,proportion=True)
-    #df = preprocessor.load_data(type_p)
     df_final = preprocessor.run(type_p)
     df_final.to_csv(str(DARTA_INTERM_intput)+ real +"_"+type_p+"_non_prepo.csv")
     print(" Diagnosis Done")
@@ -151,40 +156,24 @@ def main(type_p,normalize_matrix, log_transformation, encode_categorical,final_p
     admissions_path = MIMIC/'ADMISSIONS.csv.gz'
     patients_path = MIMIC /'PATIENTS.csv.gz'
     numerical_cols =  ['Age_max', 'LOSRD_sum',
-            'LOSRD_avg','L_1s_last_p1']
-
-        
+            'LOSRD_avg','L_1s_last_p1']        
     n = [.88,.95,.98,.999]
     categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
                     'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
                     'MARITAL_STATUS',  'ETHNICITY','GENDER']
-    if type_p == "diagnosis":
-        #try:
-            
+    if type_p == "diagnosis":       
         doc_path = MIMIC/'DIAGNOSES_ICD.csv.gz'  
         diagnosis_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing)
-        #except:
-                     
-        #    doc_path =Path('..')/ MIMIC/'DIAGNOSES_ICD.csv.gz' 
-        #    print("diangosis",doc_path)
-           
-            #diagnosis_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical)
-    
+
     elif type_p == "procedures":
         
         doc_path = MIMIC/'PROCEDURES_ICD.csv.gz'
         procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing)
-        #except:
-        #    doc_path =Path('..')/'PROCEDURES_ICD.csv.gz'
-        #    procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing)
 
     elif type_p in ["drug1", "drug2"]:
-        #try:
+        
         doc_path = MIMIC/'PRESCRIPTIONS.csv.gz'
         drugs_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing)
-        #except:
-        #    doc_path =Path('..')/'PRESCRIPTIONS.csv.gz'
-        #    drugs_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing)
     else:
         print("Tipo de procesamiento no reconocido.")
 
@@ -197,26 +186,20 @@ if __name__ == "__main__":
     sys.path.append('')
     sys.path.append('preprocessing')
     import config 
-    #ruta = Path('..')/IMAGES_Demo
-
-    #if os.path.exists(ruta):
-    #    print("La ruta existe.")
-    #else:
-    #    print("La ruta no existe.")
-
+  
     parser = argparse.ArgumentParser(description="Script para procesar datos de salud con opciones adicionales.")
 
-    # Este argumento es obligatorio, así que no tiene un valor por defecto.
+    #This argumer is for which option is the process goin to tun
     parser.add_argument("type_p", type=str, choices=["diagnosis", "procedures", "drug1", "drug2"],default="diagnosis",
                         help="Tipo de procesamiento a realizar.")
 
-    # Argumentos opcionales con valores por defecto para facilitar la depuración.
+    # normalize matrix, true if it is adde when the function is run
     parser.add_argument("--normalize_matrix", action="store_true", 
                         help="Normaliza la matriz durante el procesamiento. Por defecto es True para depuración.")
-
+    #log transformation, true if it is adde when the function is run
     parser.add_argument("--log_transformation", action="store_true", 
                         help="Aplica transformación logarítmica durante el procesamiento. Por defecto es True para depuración.")
-
+    #encode categorical,true if it is adde when the function is run
     parser.add_argument("--encode_categorical", action="store_true", 
                         help="Codifica variables categóricas durante el procesamiento. Por defecto es True para depuración.")
     parser.add_argument("--final_preprocessing", action="store_true", 
@@ -232,38 +215,4 @@ if __name__ == "__main__":
     print(f"Final preprocessing: {args.final_preprocessing}")
         
     main(args.type_p, args.normalize_matrix, args.log_transformation, args.encode_categorical,args.final_preprocessing)    
-    # Crear una lista de las columnas a normalizar (todas las columnas excepto 'CCS CODES', 'HADM_ID' y 'SUBJECT_ID')
-    #cols_to_itereate = [col for col in df.columns if col not in ['LEVE3 CODES', 'HADM_ID', 'SUBJECT_ID']]
-    '''for i in cols_to_itereate:
-        real = i
-        preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=False, log_transformation=False, encode_categorical=True, final_preprocessing=None)
-        df_final = preprocessor.run(type_p)
-        df_final.to_csv("input_pred_p/"+ real +type_p+".csv")
-
-        
-    aux = pd.read_csv("input_pred_p/"+ real +type_p+".csv")
-    int_index_columns = []
-    for col in aux.columns:
-        try:
-            int(col)  # Intenta convertir el índice de la columna a un entero
-            # Si la conversión es exitosa, agrega la columna a la lista
-        except ValueError:
-            int_index_columns.append(col)
-            # Si la conversión falla, ignora la columna
-
-    print(int_index_columns)
-    aux = aux[int_index_columns]
-    cols_to_drop = aux.filter(like='Unnamed', axis=1).columns
-    aux.drop(cols_to_drop, axis=1, inplace=True)
-    aux.to_csv("input_pred_p/sin_codigo.csv")'''  
-        
-        
-
-
-
-    ########################### ########################### ########################### ########################### ########################### ###########################    
-    ########################### ########################### DIAGNOSIS########################### ########################### ########################### ########################### 
-    ########################### ########################### ########################### ########################### ########################### ########################### 
-    ##### Para las que no tiene columnas##################################
-
-
+    
