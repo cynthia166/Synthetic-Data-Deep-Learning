@@ -271,7 +271,9 @@ def obtener_added_cols_targer_visitrank_(arhivo):
     res['visit_rank'] = res.groupby('SUBJECT_ID').cumcount() + 1
 # Crear una nueva columna 'visit_rank' que represente el número de la visita para cada paciente
 
-
+    # Calcular la diferencia en días entre visitas consecutivas
+    res['days_between_visits'] = res.groupby('SUBJECT_ID')['ADMITTIME'].diff().dt.days.fillna(0)
+    res['days_between_visits'] = res['days_between_visits'].astype(int)
 # Ahora, vamos a separar las visitas en DataFrames individuales y guardarlos en una lista
     
     # Asegúrate de que 'ADMITTIME' es una fecha
