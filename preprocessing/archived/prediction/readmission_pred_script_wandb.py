@@ -62,6 +62,7 @@ def train(config):
     prepo = prepro[i]
     print(prepo)
     
+    
     X,y ,concat_var  = lectura_variables(readmit_df,fichero,prepo,ejemplo_dir,days)
     try:
         X = X.values
