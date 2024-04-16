@@ -1,7 +1,8 @@
 
 import sys
 import os
-os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning")
+current_directory = os.getcwd()
+os.chdir("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning")
 current_directory = os.getcwd()
 
 print(current_directory)
@@ -31,7 +32,10 @@ path_features =  "train_sp/"
 # `'/train_splitDATASET_NAME_prepro'`. Then, it is loading data files using the `load_data` function
 
 #funciones
-
+def load_data(file_path):
+    with gzip.open(file_path, 'rb') as f:
+        return pickle.load(f)
+    
 def function_models_s(model,K,X,y):
     '''function that trains the predictive model, it is able to stratifi splits the input, it 
     also take sin acounts wtih selection of variables, ussing logistic regression with penanlty l1, '''
@@ -224,8 +228,8 @@ def get_valid_train_synthetic (path_features, attributes_path_train, features_pa
 
     #revisar que este productp sea cohere con primer debe ser 0
     total_features_synthethic = concat_attributes(synthetic_features, synthetic_attributes)
-    total_fetura_valid = concat_attributes(features_valid, attributes_valid.to_numpy())
-    total_features_train = concat_attributes(features_v, attributes_v.to_numpy())
+    total_fetura_valid = concat_attributes(features_valid, attributes_valid)
+    total_features_train = concat_attributes(features_v, attributes_v)
 
 
     #aqui tengo que agregar una columnas que sea id_paciente y otra visit_rank
@@ -290,153 +294,205 @@ def obtener_dataframe_inicial_denumpyarrray(total_features_synthethic, total_fet
 
 def crear_syntheti_visit(df):
 
+    try:
+        # Paso 1: Identificar todos los id_paciente únicos
+        unique_ids = df[681].unique()
 
-    # Paso 1: Identificar todos los id_paciente únicos
-    unique_ids = df[681].unique()
+        # Paso 2: Asignar un número máximo de consultas aleatorio para cada id_paciente
+        np.random.seed(42)  # Para reproducibilidad de los resultados
+        max_consultas = np.random.randint(1, 21, size=len(unique_ids))  # Números entre 1 y 20
 
-    # Paso 2: Asignar un número máximo de consultas aleatorio para cada id_paciente
-    np.random.seed(42)  # Para reproducibilidad de los resultados
-    max_consultas = np.random.randint(1, 21, size=len(unique_ids))  # Números entre 1 y 20
+        # Crear un diccionario para mapear cada id_paciente con su máximo de consultas
+        id_to_max_consultas = dict(zip(unique_ids, max_consultas))
 
-    # Crear un diccionario para mapear cada id_paciente con su máximo de consultas
-    id_to_max_consultas = dict(zip(unique_ids, max_consultas))
+        # Paso 3: Mapear estos máximos al DataFrame original
+        df['max_consultas'] = df[681].map(id_to_max_consultas)
+    except: 
+            # Paso 1: Identificar todos los id_paciente únicos
+        unique_ids = df['id_patient'].unique()
 
-    # Paso 3: Mapear estos máximos al DataFrame original
-    df['max_consultas'] = df[681].map(id_to_max_consultas)
+        # Paso 2: Asignar un número máximo de consultas aleatorio para cada id_paciente
+        np.random.seed(42)  # Para reproducibilidad de los resultados
+        max_consultas = np.random.randint(1, 21, size=len(unique_ids))  # Números entre 1 y 20
+
+        # Crear un diccionario para mapear cada id_paciente con su máximo de consultas
+        id_to_max_consultas = dict(zip(unique_ids, max_consultas))
+
+        # Paso 3: Mapear estos máximos al DataFrame original
+        df['max_consultas'] = df['id_patient'].map(id_to_max_consultas)
+    
 
     return df 
 
 
 # Definir las condiciones y los valores correspondientes
 def visitas_readmission(df):
-    condiciones = [
-        df['max_consultas'] == df['visit_rank'],
-        df['max_consultas'] < df['visit_rank'],
-        df['max_consultas'] > df['visit_rank']
-    ]
-    valores = [0, 1, -1]
+    try:
+        condiciones = [
+            df['max_consultas'] == df['visit_rank'],
+            df['max_consultas'] < df['visit_rank'],
+            df['max_consultas'] > df['visit_rank']
+        ]
+        valores = [0, 1, -1]
 
-    # Crear la nueva columna usando np.select
-    df['readmission'] = np.select(condiciones, valores)
+        # Crear la nueva columna usando np.select
+        df['readmission'] = np.select(condiciones, valores)
+    except:
+        condiciones = [
+            df['max_consultas'] == df[680],
+            df['max_consultas'] < df[680],
+            df['max_consultas'] > df[680]
+        ]
+        valores = [0, 1, -1]
 
+        # Crear la nueva columna usando np.select
+        df['readmission'] = np.select(condiciones, valores)
     return df
 
+def obtain_readmission_realdata(total_fetura_valid):
+    # Ordenando el DataFrame por 'id_' y 'visit_rank'
+    total_fetura_valid = total_fetura_valid.sort_values(by=['id_patient', 'visit_rank'])
 
+    # Crear una nueva columna 'readmission'
+    # Comparamos si el siguiente 'visit_rank' es mayor que el actual para el mismo 'id_'
+    total_fetura_valid['readmission'] = total_fetura_valid.groupby('id_patient')['visit_rank'].shift(-1).notna().astype(int)  
+    return  total_fetura_valid
 
-attributes_path_train= "non_prepo/DATASET_NAME_non_preprotrain_data_attributes.pkl"
-features_path_train = "non_prepo/DATASET_NAME_non_preprotrain_data_features.pkl"
-features_path_valid = "non_prepo/DATASET_NAME_non_preprovalid_data_features.pkl"
-attributes_path_valid = "non_prepo/DATASET_NAME_non_preprovalid_data_attributes.pkl"
-synthetic_path_attributes = 'non_prepo/DATASET_NAME_non_prepronon_prepo_synthetic_attributes_10.pkl'
-synthetic_path_features = 'non_prepo/DATASET_NAME_non_prepronon_prepo_synthetic_features_10.pkl'
+def predict_readmission(total_features_synthethic,result,type_s):
+    try:
+        X = X.drop(columns=['readmission',"visit_rank","id_patient","max_consultas"])
+    except:    
+        X = total_features_synthethic.drop(columns=['readmission',"visit_rank","id_patient"]).values
+    y = total_features_synthethic['readmission'].to_numpy()
+    X = X[:1000]
+    y= y[:1000]
+    type = "Valid"
+    K = 5
+    model = XGBClassifier(
+                    use_label_encoder=False
+            
+                    
+                )
 
-# se lee los archivos y se obtiene del la longitude de valid
-total_features_synthethic, total_fetura_valid,total_features_train,attributes =  get_valid_train_synthetic (path_features, attributes_path_train, features_path_train, features_path_valid, attributes_path_valid)
-# se transforma de numpy array 3 dimensiones a dataframe
-total_features_synthethic,total_fetura_valid,total_features_train = obtener_dataframe_inicial_denumpyarrray(total_features_synthethic, total_fetura_valid,total_features_train )
-
-
-dataset_name = 'DATASET_NAME_non_prepo'
-aux = load_data(DARTA_INTERM_intput + dataset_name + '_non_preprocess.pkl')
-con_cols = list(aux[0].columns)
-cat = list(attributes.columns) +["visit_rank","id_patient",'max_consultas']
-del aux
-total_cols =  con_cols+cat 
-
-#crea un random visitas maximas
-total_features_synthethic = crear_syntheti_visit(total_features_synthethic)
-#agrega los nomrbres de columnas
-total_features_synthethic = add_names_numpy_array(total_features_synthethic,total_cols)
-#crea readmission columnas
-total_features_synthethic = visitas_readmission(total_features_synthethic)
-#filtra aquellas que sean -1 las que no son mayores a max admissions
-total_features_synthethic = total_features_synthethic[total_features_synthethic['readmission']!=-1]
-# Supongamos que 'features' es tu array numpy 3D
-# Convertir el array numpy 3D a una lista de DataFrames
-
-# Ahora 'list_of_dfs' es una lista de DataFrames
-# Ahora 'list_of_dfs' es una lista de DataFrames
-# Ahora 'list_of_dfs' es una lista de DataFrames
-total_fetura_valid = total_fetura_valid.drop(columns=[300])
-total_features_train = total_features_train.drop(columns=[300])
-
-total_fetura_valid = total_fetura_valid[(total_fetura_valid[1]!=0.0)]
-total_features_train = total_features_train[(total_features_train[1]!=0.0)]
-total_fetura_valid = add_names_numpy_array(total_fetura_valid,total_cols)
-total_features_train = add_names_numpy_array(total_features_train,total_cols)
-
-#rename columnas
-total_fetura_valid = add_names_numpy_array(total_fetura_valid,total_cols)
-total_features_train = add_names_numpy_array(total_features_train,total_cols)
-
-
-# Imprimir la cantidad de ceros en cada fila
-print(total_fetura_valid.shape)
-
-import pandas as pd
-
-# Ejemplo de DataFrame
-
-
-# Ordenando el DataFrame por 'id_' y 'visit_rank'
-total_fetura_valid = total_fetura_valid.sort_values(by=['id_patient', 'visit_rank'])
-
-# Crear una nueva columna 'readmission'
-# Comparamos si el siguiente 'visit_rank' es mayor que el actual para el mismo 'id_'
-total_fetura_valid['readmission'] = total_fetura_valid.groupby('id_patient')['visit_rank'].shift(-1).notna().astype(int)
-
-X = total_features_synthethic.drop(columns=['readmission',"visit_rank","id_patient"]).values
-y = total_features_synthethic['readmission'].to_numpy()
-X = X[:1000]
-y= y[:1000]
-type = "Valid"
-K = 5
-model = XGBClassifier(
-                use_label_encoder=False
+    model_name = "XGBClassifier"
         
-                
-            )
+     
 
-result = {   'f1_test':0,
-    'f1_train':0,
+    timi_ini =time.time()
+    #model = LogisticRegression(penalty='l1', solver='saga')
+    rf_sen,rf_spe,rf_prec,rf_acc,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t = function_models_s(model,K,X,y)            
+    time_model = timi_ini-time.time()  
+    result['sensitivity_test '+type_s]=rf_sen
+    result['specificity_test '+type_s]=rf_spe
+    result['precision_test '+type_s]=rf_prec
+    result['accuracy_test '+type_s]=rf_acc
+    result['sensitivity_train '+type_s]=rf_sen_t
+    result['specificity_train '+type_s]=rf_spe_t
+    result['precision_train '+type_s]=rf_prec_t
+    result['accuracy_train '+type_s]=rf_acc_t
+    result['f1_test '+type_s]=f1
+    result['f1_train '+type_s]=f1_t
+    result['confusion matrix '+type_s]=rf_conf
+    result['Classifiers '+type_s]=model_name
+    result["time_model "+type_s]=time_model
+    result["type "+type_s]=type
 
-    'sensitivity_test':0,
-    'specificity_test':0,
-    'precision_test':0,
-    'accuracy_test':0,
-    'sensitivity_train':0,
-    'specificity_train':0,
-    'precision_train':0,
-    'accuracy_train':0, 
-    'confusion matrix':0,
-    'Feature selection':0,
-    'Classifiers':0,
-    'time_model':0,
-    'type':0,
+    print(result)
+    return result
 
-} 
+def crear_pred(result,total_features_synthethic,total_fetura_valid,total_features_train):
+    result = predict_readmission(total_features_synthethic,result,"Synthetic")
 
-model_name = "XGBClassifier"
+
+    #filtra aquellas que sean -1 las que no son mayores a max admissions
+    # Ejemplo de DataFrame
+
+    result = predict_readmission(total_fetura_valid,result,"Valid")
+    result = predict_readmission(total_features_train,result,"Train")
+
+    return result 
+ 
+ 
+     
+def preprocess_data(total_cols,total_features_synthethic,total_cols1,total_fetura_valid,total_features_train):
+
+   
+    #crea un random visitas maximas
+    total_features_synthethic = crear_syntheti_visit(total_features_synthethic)
+    #agrega los nomrbres de columnas
+    total_features_synthethic = add_names_numpy_array(total_features_synthethic,total_cols)
+    #crea readmission columnas
+    total_features_synthethic = visitas_readmission(total_features_synthethic)
     
+    
+    
+    total_features_synthethic = total_features_synthethic[total_features_synthethic['readmission']!=-1]
+    total_fetura_valid = total_fetura_valid.drop(columns=[300])
+    total_features_train = total_features_train.drop(columns=[300])
+
+    total_fetura_valid = total_fetura_valid[(total_fetura_valid[1]!=0.0)]
+    total_features_train = total_features_train[(total_features_train[1]!=0.0)]
+
+    total_fetura_valid = add_names_numpy_array(total_fetura_valid,total_cols1)
+    total_features_train = add_names_numpy_array(total_features_train,total_cols1)
+
+    #rbtener readmission
+    total_fetura_valid = obtain_readmission_realdata(total_fetura_valid)
+    total_features_train = obtain_readmission_realdata(total_features_train)
+    # Imprimir la cantidad de ceros en cada fila
+    print(total_fetura_valid.shape)
+    
+    return total_fetura_valid,total_features_train,total_features_synthethic
+    
+    
+if __name__=='__main__':
+    attributes_path_train= "non_prepo/DATASET_NAME_non_preprotrain_data_attributes.pkl"
+    features_path_train = "non_prepo/DATASET_NAME_non_preprotrain_data_features.pkl"
+    features_path_valid = "non_prepo/DATASET_NAME_non_preprovalid_data_features.pkl"
+    attributes_path_valid = "non_prepo/DATASET_NAME_non_preprovalid_data_attributes.pkl"
+    synthetic_path_attributes = 'non_prepo/DATASET_NAME_non_prepronon_prepo_synthetic_attributes_10.pkl'
+    synthetic_path_features = 'non_prepo/DATASET_NAME_non_prepronon_prepo_synthetic_features_10.pkl'
+
+    # se lee los archivos y se obtiene del la longitude de valid
+    total_features_synthethic, total_fetura_valid,total_features_train,attributes =  get_valid_train_synthetic (path_features, attributes_path_train, features_path_train, features_path_valid, attributes_path_valid)
+    # se transforma de numpy array 3 dimensiones a dataframe
+    total_features_synthethic,total_fetura_valid,total_features_train = obtener_dataframe_inicial_denumpyarrray(total_features_synthethic, total_fetura_valid,total_features_train )
+
+    dataset_name = 'DATASET_NAME_non_prepo'
+    file_name = "train_sp/non_prepo/DATASET_NAME_non_prepo_non_preprocess.pkl"
+    aux = load_data(file_name)
+    #aux = load_data(DARTA_INTERM_intput + dataset_name + '_non_preprocess.pkl')
+    con_cols = list(aux[0].columns)
+    static = pd.read_csv("train_sp/non_prepo/static_data_non_preprocess.csv")
+    # Suponiendo que 'total_features_synthethic' es tu DataFrame
+    if 'Unnamed' in static.columns:
+        static = static.drop(columns=['Unnamed'])
+    cat = list(static.columns[1:]) +["visit_rank","id_patient" ,"max_consultas" ]
+    del aux
+    total_cols =  con_cols+cat 
+    cat1 = list(static.columns[2:]) +["visit_rank","id_patient","max_consultas"     ]
+    total_cols1 =  con_cols+cat1 
+ 
+
         
+    result = {   'f1_test':0,
+        'f1_train':0,
 
-timi_ini =time.time()
-#model = LogisticRegression(penalty='l1', solver='saga')
-rf_sen,rf_spe,rf_prec,rf_acc,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t = function_models_s(model,K,X,y)            
-time_model = timi_ini-time.time()  
-result['sensitivity_test']=rf_sen
-result['specificity_test']=rf_spe
-result['precision_test']=rf_prec
-result['accuracy_test']=rf_acc
-result['sensitivity_train']=rf_sen_t
-result['specificity_train']=rf_spe_t
-result['precision_train']=rf_prec_t
-result['accuracy_train']=rf_acc_t
-result['f1_test']=f1
-result['f1_train']=f1_t
-result['confusion matrix']=rf_conf
-result['Classifiers']=model_name
-result["time_model"]=time_model
-result["type"]=type
+        'sensitivity_test':0,
+        'specificity_test':0,
+        'precision_test':0,
+        'accuracy_test':0,
+        'sensitivity_train':0,
+        'specificity_train':0,
+        'precision_train':0,
+        'accuracy_train':0, 
+        'confusion matrix':0,
+        'Feature selection':0,
+        'Classifiers':0,
+        'time_model':0,
+        'type':0,
 
-print(result)
+        }     
+    total_fetura_valid,total_features_train,total_features_synthethic = preprocess_data(total_cols,total_features_synthethic,total_cols1,total_fetura_valid,total_features_train)
+    result  = crear_pred(result,total_features_synthethic,total_fetura_valid,total_features_train)
+   

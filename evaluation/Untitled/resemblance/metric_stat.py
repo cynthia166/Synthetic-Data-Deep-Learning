@@ -18,7 +18,7 @@ from scipy.stats import chisquare, ks_2samp
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
-
+import seaborn as sns
 class JensenShannonDistance:
     """Evaluate the average Jensen-Shannon distance (metric) between two probability arrays."""
     
@@ -204,3 +204,20 @@ def plot_tsne(
     ax.set_ylabel("Componente 2")
     plt.show()    
     
+def corr_plot(total_features_train,type_im ):
+    correlation_matrix = total_features_train.corr()
+# Calcular la matriz de correlación
+    from scipy.sparse import csr_matrix
+    corr_matrix = total_features_train.corr()
+
+    # Crear una figura y un eje para el gráfico
+    fig, ax = plt.subplots()
+
+    # Crear un mapa de calor de la matriz de correlación
+    sns.heatmap(corr_matrix, annot=True, ax=ax)
+
+    # Mostrar el gráfico
+    plt.savefig(ruta_correl)
+    plt.show()
+
+
