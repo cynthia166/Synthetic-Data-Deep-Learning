@@ -364,8 +364,7 @@ def predict_readmission(total_features_synthethic,result,type_s):
     except:    
         X = total_features_synthethic.drop(columns=['readmission',"visit_rank","id_patient"]).values
     y = total_features_synthethic['readmission'].to_numpy()
-    X = X[:1000]
-    y= y[:1000]
+  
     type = "Valid"
     K = 5
     model = XGBClassifier(

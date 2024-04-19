@@ -1,4 +1,13 @@
 from scipy.spatial.distance import jensenshannon
+import os
+os.chdir("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning")
+current_directory = os.getcwd()
+
+print(current_directory)
+import sys
+sys.path.append('preprocessing')
+sys.path.append('evaluation')
+sys.path.append('privacy')
 from scipy.stats import entropy
 import numpy as np
 from typing import Dict
@@ -19,8 +28,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 import seaborn as sns
-from evaluation.privacy.metric_privacy import*
+import pickle
+from tqdm import tqdm
+import numpy as np
+from evaluation.privacy.metric_privacy import *
 
+#from evaluation.resemb.resemblance.metric_stat import *
+from evaluation.functions import *
 class JensenShannonDistance:
     
     """Evaluate the average Jensen-Shannon distance (metric) between two probability arrays."""
@@ -51,7 +65,7 @@ class JensenShannonDistance:
     
     def _evaluate(self, X_gt: np.ndarray, X_syn: np.ndarray) -> Dict[str, float]:
         score = self._evaluate_stats(X_gt, X_syn)
-        return {"marginal": score}
+        return {"JensenShannonDistance": score}
 
 
 class KolmogorovSmirnovTest:
@@ -130,7 +144,7 @@ class MaximumMeanDiscrepancy():
             score = XX.mean() + YY.mean() - 2 * XY.mean()
         else:
             raise ValueError(f"Unsupported kernel {self.kernel}")
-        return {"joint": float(score)}
+        return {"MaximumMeanDiscrepancy": float(score)}
 
 def plot_marginal_comparison(
     plt: Any, X_gt: np.ndarray, X_syn: np.ndarray, n_histogram_bins: int = 10, normalize: bool = True
@@ -207,7 +221,7 @@ def plot_tsne(
     ax.set_ylabel("Componente 2")
     plt.show()    
     
-def corr_plot(total_features_train,type_im ):
+def corr_plot(total_features_train,name ):
     correlation_matrix = total_features_train.corr()
 # Calcular la matriz de correlación
     from scipy.sparse import csr_matrix
@@ -220,13 +234,11 @@ def corr_plot(total_features_train,type_im ):
     sns.heatmap(corr_matrix, annot=True, ax=ax)
 
     # Mostrar el gráfico
-    plt.savefig(ruta_correl)
+    plt.savefig('results_SD/img/'+name+'_kernelplot.svg')
     plt.show()
 
 
-import pickle
-from tqdm import tqdm
-import numpy as np
+
 
 # Define a function to calculate statistics on the visits without considering labels
 def generate_statistics(ehr_datasets):
@@ -323,95 +335,7 @@ def plot_procedures_diag_drugs(col_prod,train_ehr_dataset,type_procedur,name):
     plt.savefig('results_SD/hist/'+type_procedur+'_'+name+'_kernelplot.svg')
     plt.show()
 
-# Example datasets
 
-
-# Save the statistics to a file
-
-
-
-path_o = "train_sp/"    
-attributes_path_train= "non_prepo/DATASET_NAME_non_preprotrain_data_attributes.pkl"
-features_path_train = "non_prepo/DATASET_NAME_non_preprotrain_data_features.pkl"
-features_path_valid = "non_prepo/DATASET_NAME_non_preprovalid_data_features.pkl"
-attributes_path_valid = "non_prepo/DATASET_NAME_non_preprovalid_data_attributes.pkl"
-synthetic_path_attributes = 'non_prepo/DATASET_NAME_non_prepronon_prepo_synthetic_attributes_10.pkl'
-synthetic_path_features = 'non_prepo/DATASET_NAME_non_prepronon_prepo_synthetic_features_10.pkl'
-
-# se lee los archivos y se obtiene del la longitude de valid
-total_features_synthethic, total_fetura_valid,total_features_train,attributes =  get_valid_train_synthetic (path_o, attributes_path_train, features_path_train, features_path_valid, attributes_path_valid,synthetic_path_attributes,synthetic_path_features)
-# se transforma de numpy array 3 dimensiones a dataframe
-total_features_synthethic,total_fetura_valid,total_features_train = obtener_dataframe_inicial_denumpyarrray(total_features_synthethic, total_fetura_valid,total_features_train )
-
-# esta es para agregar la columnas
-dataset_name = 'DATASET_NAME_non_prepo'
-file_name = "train_sp/non_prepo/DATASET_NAME_non_prepo_non_preprocess.pkl"
-aux = load_data(file_name)
-#aux = load_data(DARTA_INTERM_intput + dataset_name + '_non_preprocess.pkl')
-con_cols = list(aux[0].columns)
-static = pd.read_csv("train_sp/non_prepo/static_data_non_preprocess.csv")
-# Suponiendo que 'total_features_synthethic' es tu DataFrame
-if 'Unnamed' in static.columns:
-    static = static.drop(columns=['Unnamed'])
-cat = list(static.columns[2:]) +["visit_rank","id_patient"  ]
-del aux
-total_cols =  con_cols+cat 
-cat1 = list(static.columns[2:]) +["visit_rank","id_patient","max_consultas"     ]
-total_cols1 =  con_cols+cat1 
-
-test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset = preprocess_data(total_cols,total_features_synthethic,total_cols1,total_fetura_valid,total_features_train)
-
-
-#obtener coluans que contenga diagnosis,procedures,drugs
-columnas_test_ehr_dataset = get_cols_diag_proc_drug(train_ehr_dataset)
-
-#obtener n mas frequent codes
-top_300_codes = obtain_most_freuent(train_ehr_dataset,columnas_test_ehr_dataset,100)
-
-#obtener un syntethic datafram que considere el percentil y si es mayor a eso se considera 1 si no 0, si es false no se le agrega la columnas id_patient
-synthetic_ehr = change_tosyn_stickers_temporal(synthetic_ehr_dataset,columnas_test_ehr_dataset,True)
-
-dataset_train = obtain_dataset(train_ehr_dataset,columnas_test_ehr_dataset)
-dataset_test = obtain_dataset(test_ehr_dataset,columnas_test_ehr_dataset)
-
-dataset_syn = obtain_dataset(synthetic_ehr,columnas_test_ehr_dataset)
-
-##obtener static lenght o stay
-ehr_datasets = [
-    ('Train', dataset_train),
-    ('Test', dataset_test),
-    ('Synthetic', dataset_syn),
-    # ... other datasets
-]
-
-# continous_plot
-statistics = generate_statistics(ehr_datasets)
-plot_age(test_ehr_dataset,"Age_max","test")
-plot_age(synthetic_ehr,"Age_max","synthetic")
-plot_age(train_ehr_dataset,"Age_max","synthetic")
-#plot histograms
-keywords = ['diagnosis', 'procedures', 'drugs']
-for i in keywords:
-    col_prod = [col for col in train_ehr_dataset.columns if any(palabra in col for palabra in [i])]
-    name = "Train"
-    type_procedur = i
-
-    plot_procedures_diag_drugs(col_prod,train_ehr_dataset,type_procedur,name)
-
-    col_prod = [col for col in test_ehr_dataset.columns if any(palabra in col for palabra in [i])]
-    name = "Test"
-
-
-    plot_procedures_diag_drugs(col_prod,test_ehr_dataset,type_procedur,name)
-    
-    col_prod = [col for col in synthetic_ehr.columns if any(palabra in col for palabra in [i])]
-    name = "Synthetic"
-
-
-    plot_procedures_diag_drugs(col_prod,synthetic_ehr_dataset,type_procedur,name)
-    
-
-    
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 import pandas as pd
@@ -440,10 +364,160 @@ def plot_tsne(name,X_gt_df: pd.DataFrame, X_syn_df: pd.DataFrame) -> None:
     plt.savefig('results_SD/hist/tsne'+'_'+name+'_kernelplot.svg')
     # Display the plot
     plt.show()
+ 
+def histograms_codes(train_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset):
+    keywords = ['diagnosis', 'procedures', 'drugs']
+    for i in keywords:
+        col_prod = [col for col in train_ehr_dataset.columns if any(palabra in col for palabra in [i])]
+        name = "Train"
+        type_procedur = i
 
-# Example usage with two dataframes, `X_gt_df` and `X_syn_df`
-test_ehr_dataset = test_ehr_dataset[:synthetic_ehr_dataset.shape[0]]
-plot_tsne("Doop",test_ehr_dataset, synthetic_ehr_dataset)
+        plot_procedures_diag_drugs(col_prod,train_ehr_dataset,type_procedur,name)
+
+        col_prod = [col for col in test_ehr_dataset.columns if any(palabra in col for palabra in [i])]
+        name = "Test"
+
+
+        plot_procedures_diag_drugs(col_prod,test_ehr_dataset,type_procedur,name)
+        
+        col_prod = [col for col in synthetic_ehr.columns if any(palabra in col for palabra in [i])]
+        name = "Synthetic"
+
+
+        plot_procedures_diag_drugs(col_prod,synthetic_ehr_dataset,type_procedur,name)
+        
+def get_statistics(train_ehr_dataset,columnas_test_ehr_dataset,test_ehr_dataset,synthetic_ehr):
+
+
+        dataset_train = obtain_dataset(train_ehr_dataset,columnas_test_ehr_dataset)
+        dataset_test = obtain_dataset(test_ehr_dataset,columnas_test_ehr_dataset)
+
+        dataset_syn = obtain_dataset(synthetic_ehr,columnas_test_ehr_dataset)
+
+        ##obtener static lenght o stay
+        ehr_datasets = [
+            ('Train', dataset_train),
+            ('Test', dataset_test),
+            ('Synthetic', dataset_syn),
+            # ... other datasets
+        ]
+
+        # continous_plot
+
+        statistics = generate_statistics(ehr_datasets)
+        return statistics
+# Example datasets
+
+def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance):
+    result_resemblence = []
+    results_final={}
+
+    if "mmd" in list_metric_resemblance:
+        mmd_evaluator = MaximumMeanDiscrepancy(kernel="rbf")
+        train_test = "test"
+        result =   mmd_evaluator._evaluate(test_ehr_dataset.iloc[:,:synthetic_ehr.shape[1]], synthetic_ehr)
+        print("MaximumMeanDiscrepancy (flattened):", result)
+        result_resemblence.append(result)
+
+    # Example usage:
+    # X_gt and X_syn are two numpy arrays representing empirical distributions
+    if "ks_test" in list_metric_resemblance:
+        features_1d = test_ehr_dataset.iloc[:,:synthetic_ehr.shape[1]].values.flatten()
+        synthetic_features_1d = synthetic_ehr.values.flatten()
+        ks_test = KolmogorovSmirnovTest()
+        result = ks_test._evaluate(features_1d, synthetic_features_1d)
+        print("Kolmog orov-Smirnov Test:", result)
+        result_resemblence.append(result)
+
+    if "jensenshannon_dist" in list_metric_resemblance:
+        score = JensenShannonDistance()._evaluate(test_ehr_dataset.iloc[:,:synthetic_ehr.shape[1]].values, synthetic_ehr.values)
+        #score = JensenShannonDistance()._evaluate(features_2d, synthetic_features_2d)synthetic_ehr
+        print("Jensen-Shannon Distance:", score)
+        result_resemblence.append(score)
+
+
+    if "statistics" in list_metric_resemblance:
+        statistics = get_statistics(train_ehr_dataset,columnas_test_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset)
+        result_resemblence.append(statistics)
+        
+    if "kernel_density" in list_metric_resemblance:
+        
+        plot_age(test_ehr_dataset,"Age_max","test")
+        plot_age(synthetic_ehr,"Age_max","synthetic")
+        plot_age(train_ehr_dataset,"Age_max","synthetic")
+    #plot histograms
+        
+    if "histogramas" in list_metric_resemblance:
+        histograms_codes(train_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset)    
+
+
+    # Example usage with two dataframes, `X_gt_df` and `X_syn_df`
+    if "tsne" in list_metric_resemblance:
+        plot_tsne("Doop",test_ehr_dataset, synthetic_ehr_dataset)
+        
+    if "corr" in list_metric_resemblance:
+        corr_plot(synthetic_ehr_dataset,"Syn" )
+        corr_plot(test_ehr_dataset,"Test" )  
+
+    for i in result_resemblence:
+        results_final.update(i)  
+
+    return results_final
+# Save the statistics to a file
 
 
 
+if __name__=="main":
+        
+    path_o = "train_sp/"    
+    attributes_path_train= "non_prepo/DATASET_NAME_non_preprotrain_data_attributes.pkl"
+    features_path_train = "non_prepo/DATASET_NAME_non_preprotrain_data_features.pkl"
+    features_path_valid = "non_prepo/DATASET_NAME_non_preprovalid_data_features.pkl"
+    attributes_path_valid = "non_prepo/DATASET_NAME_non_preprovalid_data_attributes.pkl"
+    synthetic_path_attributes = 'non_prepo/DATASET_NAME_non_prepronon_prepo_synthetic_attributes_10.pkl'
+    synthetic_path_features = 'non_prepo/DATASET_NAME_non_prepronon_prepo_synthetic_features_10.pkl'
+
+    # se lee los archivos y se obtiene del la longitude de valid
+    total_features_synthethic, total_fetura_valid,total_features_train,attributes =  get_valid_train_synthetic (path_o, attributes_path_train, features_path_train, features_path_valid, attributes_path_valid,synthetic_path_attributes,synthetic_path_features)
+    # se transforma de numpy array 3 dimensiones a dataframe
+    total_features_synthethic,total_fetura_valid,total_features_train = obtener_dataframe_inicial_denumpyarrray(total_features_synthethic, total_fetura_valid,total_features_train )
+
+
+
+
+    # esta es para agregar la columnas
+    dataset_name = 'DATASET_NAME_non_prepo'
+    file_name = "train_sp/non_prepo/DATASET_NAME_non_prepo_non_preprocess.pkl"
+    aux = load_data(file_name)
+    #aux = load_data(DARTA_INTERM_intput + dataset_name + '_non_preprocess.pkl')
+    con_cols = list(aux[0].columns)
+    static = pd.read_csv("train_sp/non_prepo/static_data_non_preprocess.csv")
+    # Suponiendo que 'total_features_synthethic' es tu DataFrame
+    if 'Unnamed' in static.columns:
+        static = static.drop(columns=['Unnamed'])
+    cat = list(static.columns[2:]) +["visit_rank","id_patient"  ]
+    del aux
+    total_cols =  con_cols+cat 
+    cat1 = list(static.columns[2:]) +["visit_rank","id_patient","max_consultas"     ]
+    total_cols1 =  con_cols+cat1 
+
+    test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset = preprocess_data(total_cols,total_features_synthethic,total_cols1,total_fetura_valid,total_features_train)
+
+
+
+
+
+    #obtener coluans que contenga diagnosis,procedures,drugs
+    columnas_test_ehr_dataset = get_cols_diag_proc_drug(train_ehr_dataset)
+
+    #obtener n mas frequent codes
+    top_300_codes = obtain_most_freuent(train_ehr_dataset,columnas_test_ehr_dataset,100)
+
+    #obtener un syntethic datafram que considere el percentil y si es mayor a eso se considera 1 si no 0, si es false no se le agrega la columnas id_patient
+    synthetic_ehr = change_tosyn_stickers_temporal(synthetic_ehr_dataset,columnas_test_ehr_dataset,True)
+
+    #list_metric_resemblance = ["histogramas","tsne","statistics","kernel_density","mmd","ks_test","jensenshannon_dist"]
+    list_metric_resemblance = ["statistics","mmd","ks_test","jensenshannon_dist"]
+
+    results  =    calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance)
+    print(results)
