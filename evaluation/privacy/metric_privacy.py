@@ -1,5 +1,6 @@
 
 import pandas as pd 
+import random
 import sys
 import os
 import os
@@ -12,7 +13,7 @@ sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/pre
 sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/evaluation/evaluation/utility')
 sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/evaluation/evaluation/functions')
 sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/evaluation')
-
+from sklearn import metrics
 from evaluation.functions import *
 # stdlib
 import platform
@@ -339,7 +340,7 @@ def calc_attribute_risk(train_dataset, reference_dataset, k):
        
     return f1
 
-def attribute_attack(synthetic_ehr_dataset,test_ehr_dataset,train_ehr_dataset,K):
+def attribute_attack(synthetic_ehr_dataset,test_ehr_dataset,train_ehr_dataset,K,synthetic_ehr,top_300_codes,columnas_test_ehr_dataset):
     ''''funcion que realiza el attack attribu HALO_Synthetic'''
     num_filas = {
             "synthethic": synthetic_ehr_dataset.shape[0],
@@ -436,6 +437,8 @@ def obtain_dataset(train_ehr_dataset,columnas_test_ehr_dataset):
     return dataset
 
 def membership_attack(train_ehr_dataset, test_ehr_dataset,synthetic_ehr,columnas_test_ehr_dataset,NUM_TEST_EXAMPLES,NUM_TOT_EXAMPLES,NUM_VAL_EXAMPLES):    
+    import random
+    from sklearn import metrics
     dataset_train = obtain_dataset(train_ehr_dataset,columnas_test_ehr_dataset)
     dataset_test = obtain_dataset(test_ehr_dataset,columnas_test_ehr_dataset)
 
@@ -508,7 +511,7 @@ def find_hamming_visits_nn(ehr, dataset):
     return min_d
 
 
-def calc_nnaar(train, evaluation, synthetic):
+def calc_nnaar(train, evaluation, synthetic,NUM_SAMPLES):
     val1 = 0
     val2 = 0
     val3 = 0
@@ -552,7 +555,7 @@ def evaluate_attacks(list_metric, test_ehr_dataset,train_ehr_dataset,synthetic_e
     if "attributes_attack" in list_metric:
         K = 1
 
-        result = attribute_attack(synthetic_ehr,test_ehr_dataset,train_ehr_dataset,K)
+        result = attribute_attack(synthetic_ehr,test_ehr_dataset,train_ehr_dataset,K,synthetic_ehr,top_300_codes,columnas_test_ehr_dataset)
         list_res.append(result)
 
     #################################################M
@@ -603,7 +606,7 @@ def evaluate_attacks(list_metric, test_ehr_dataset,train_ehr_dataset,synthetic_e
         synthetic_ehr = np.random.choice([p for p in dataset_syn if len(p['visits']) > 0], NUM_SAMPLES)
 
 
-        nnaar = calc_nnaar(dataset_train, dataset_test, synthetic_ehr)
+        nnaar = calc_nnaar(dataset_train, dataset_test, synthetic_ehr,NUM_SAMPLES)
         results = {
             "nn_distance_attack": nnaar
         }
@@ -612,7 +615,7 @@ def evaluate_attacks(list_metric, test_ehr_dataset,train_ehr_dataset,synthetic_e
     if "delta" in list_metric:
         train_test= " test"
         delta = DeltaPresence()
-        delta_s = delta.evaluate(total_fetura_valid.values,total_features_synthethic.values)
+        delta_s = delta.evaluate(test_ehr_dataset.values,synthetic_ehr_dataset.iloc[:,1:].values)
         print("Delta Presence:", delta_s)
         results["Delta Presence "+train_test] = delta_s
         list_res.append(results)

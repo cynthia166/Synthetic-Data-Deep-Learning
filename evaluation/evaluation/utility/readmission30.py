@@ -10,7 +10,7 @@ sys.path.append('preprocessing')
 sys.path.append('evaluation')
 import config
 from evaluation.privacy.metric_privacy import *
-from evaluation.resemblance.metric_stat import *
+from evaluation.resemb.resemblance.metric_stat import *
 from sklearn.decomposition import PCA
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
@@ -492,6 +492,8 @@ if __name__=='__main__':
         'type':0,
 
         }     
-    total_fetura_valid,total_features_train,total_features_synthethic = preprocess_data(total_cols,total_features_synthethic,total_cols1,total_fetura_valid,total_features_train)
-    result  = crear_pred(result,total_features_synthethic,total_fetura_valid,total_features_train)
+    test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset = preprocess_data(total_cols,total_features_synthethic,total_cols1,total_fetura_valid,total_features_train)
+    
+    results  =    calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance)
+    result  = crear_pred(result,synthetic_ehr_dataset,test_ehr_dataset,train_ehr_dataset)
    

@@ -520,4 +520,5 @@ if __name__=="main":
     list_metric_resemblance = ["statistics","mmd","ks_test","jensenshannon_dist"]
 
     results  =    calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance)
+    
     print(results)
