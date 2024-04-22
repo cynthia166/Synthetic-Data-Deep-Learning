@@ -91,7 +91,7 @@ class KolmogorovSmirnovTest:
         # Perform the Kolmogorov-Smirnov test
         statistic, _ = ks_2samp(X_gt, X_syn)
         score = 1 - statistic  # The score is the complement of the KS statistic
-        return {"marginal": score}
+        return {"KolmogorovSmirnovTest_marginal": score}
 
 class MaximumMeanDiscrepancy():
     """
