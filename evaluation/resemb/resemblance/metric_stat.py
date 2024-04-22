@@ -465,7 +465,211 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
     return results_final
 # Save the statistics to a file
 
+import numpy as np
+from typing import Any, Dict
 
+class DataMismatchScore:
+    """
+    Basic sanity score. Compares the data types between elements of the ground truth and the synthetic data.
+
+    Score:
+        0: no datatype mismatch.
+        1: complete data type mismatch between the datasets.
+    """
+
+    def __init__(self, **kwargs) -> None:
+        self.default_metric = kwargs.get("default_metric", "score")
+
+
+    def evaluate(self, X_gt: np.ndarray, X_syn: np.ndarray) -> Dict[str, float]:
+        if X_gt.dtype != X_syn.dtype:
+            # If simple arrays with different types, return maximum mismatch score
+            return {"score": 1.0}
+
+        if X_gt.dtype.names is not None and X_syn.dtype.names is not None:
+            # Handling for structured arrays with fields
+            diffs = 0
+            for name in X_gt.dtype.names:
+                if X_gt[name].dtype != X_syn[name].dtype:
+                    diffs += 1
+            score = diffs / len(X_gt.dtype.names)
+        else:
+            # Handling for regular numpy arrays
+            score = 0 if X_gt.dtype == X_syn.dtype else 1
+
+        return {"score": score}
+
+# Example usage
+# Example with regular arrays
+
+class CommonRowsProportion:
+    """
+    Returns the proportion of rows in the real dataset leaked in the synthetic dataset.
+
+    Score:
+        0: there are no common rows between the real and synthetic datasets.
+        1: all the rows in the real dataset are leaked in the synthetic dataset.
+    """
+
+    def __init__(self, **kwargs) -> None:
+        self.default_metric = kwargs.get("default_metric", "score")
+
+
+    def evaluate(self, X_gt: np.ndarray, X_syn: np.ndarray) -> Dict[str, float]:
+        if X_gt.shape[1] != X_syn.shape[1]:
+            raise ValueError(f"Incompatible array shapes {X_gt.shape} and {X_syn.shape}")
+
+        # Convert numpy arrays to pandas DataFrames
+        df_gt = pd.DataFrame(X_gt)
+        df_syn = pd.DataFrame(X_syn)
+
+        # Find intersection of rows
+        intersection = pd.merge(df_gt, df_syn, how='inner').drop_duplicates()
+
+        # Calculate score
+        score = len(intersection) / (len(df_gt) + 1e-8)
+        return {"score": score}
+
+import numpy as np
+from scipy import stats
+
+def descriptive_statistics_matrix(data):
+    # Check if the data is empty
+    if data.size == 0:
+        return "Empty array, no statistics available."
+    
+    # Initialize a dictionary to hold statistics for each feature
+    stats_dict = {
+        'mean': [],
+        'median': [],
+        'mode': [],
+        'minimum': [],
+        'maximum': [],
+        'range': [],
+        'variance': [],
+        'standard_deviation': [],
+        'skewness': [],
+        'kurtosis': []
+    }
+
+    # Calculate statistics for each feature (column)
+    for i in range(data.shape[1]):  # iterate over columns
+        column_data = data[:, i]
+        stats_dict['mean'].append(np.mean(column_data))
+        stats_dict['median'].append(np.median(column_data))
+        stats_dict['mode'].append(stats.mode(column_data)[0][0])
+        stats_dict['minimum'].append(np.min(column_data))
+        stats_dict['maximum'].append(np.max(column_data))
+        stats_dict['range'].append(np.ptp(column_data))
+        stats_dict['variance'].append(np.var(column_data, ddof=1))
+        stats_dict['standard_deviation'].append(np.std(column_data, ddof=1))
+        stats_dict['skewness'].append(stats.skew(column_data))
+        stats_dict['kurtosis'].append(stats.kurtosis(column_data))
+
+    return stats_dict
+
+import numpy as np
+import pandas as pd
+
+def multivariate_statistics(data):
+    # Check if the data is empty
+    if data.size == 0:
+        return "Empty array, no statistics available."
+
+    # Compute the covariance matrix
+    # Note: numpy.cov assumes rows are variables and columns are observations,
+    # so we transpose data for correct calculation as our rows are observations.
+    covariance_matrix = np.cov(data.T)
+
+    # Convert the numpy array to a pandas DataFrame to compute the correlation matrix
+    df = pd.DataFrame(data)
+    correlation_matrix = df.corr()
+
+    # Prepare the results in a dictionary
+    stats_dict = {
+        'covariance_matrix': covariance_matrix,
+        'correlation_matrix': correlation_matrix
+    }
+
+    return stats_dict
+
+import numpy as np
+
+def compare_matrices(matrix1, matrix2, method="frobenius"):
+    """
+    Compare two matrices using the specified method.
+
+    Parameters:
+        matrix1 (numpy.ndarray): The first matrix.
+        matrix2 (numpy.ndarray): The second matrix.
+        method (str): Method of comparison. Options are "frobenius", "spectral", "max_diff".
+
+    Returns:
+        float: The comparison result.
+    """
+    # Check if the matrices have the same shape
+    if matrix1.shape != matrix2.shape:
+        raise ValueError("Matrices must have the same dimensions")
+
+    # Compute the difference matrix
+    diff_matrix = matrix1 - matrix2
+
+    if method == "frobenius":
+        # Frobenius norm of the difference matrix
+        return np.linalg.norm(diff_matrix, 'fro')
+    elif method == "spectral":
+        # Spectral norm (maximum singular value) of the difference matrix
+        return np.linalg.norm(diff_matrix, 2)
+    elif method == "max_diff":
+        # Maximum absolute difference
+        return np.max(np.abs(diff_matrix))
+    else:
+        raise ValueError("Unknown comparison method")
+
+# Example usage
+matrix1 = np.array([[1, 0.5], [0.5, 1]])
+matrix2 = np.array([[1, 0.3], [0.3, 1]])
+
+# Compare using Frobenius norm
+print("Frobenius norm:", compare_matrices(matrix1, matrix2, method="frobenius"))
+# Compare using Spectral norm
+print("Spectral norm:", compare_matrices(matrix1, matrix2, method="spectral"))
+# Compare using Maximum Absolute Difference
+print("Maximum Absolute Difference:", compare_matrices(matrix1, matrix2, method="max_diff"))
+
+'''Frobenius Norm: This method calculates the square root of the sum of the absolute squares of the differences between corresponding elements in the two matrices. It effectively measures the "distance" between two matrices.
+Spectral Norm (or Maximum Singular Value): This measures the largest singular value (i.e., the largest length of the vector in the transformed space) of the difference between two matrices. It gives the maximum stretch between two datasets.
+Maximum Absolute Difference: This method simply finds the maximum absolute difference between corresponding elements of the two matrices. It highlights the largest discrepancy between the two matrices.'''
+# Example usage
+# Creating a small example matrix for demonstration; use your actual data here
+data = np.random.rand(100, 5)  # 100 instances, 5 features
+result = multivariate_statistics(data)
+
+# Printing results
+print("Covariance Matrix:")
+print(result['covariance_matrix'])
+print("\nCorrelation Matrix:")
+print(result['correlation_matrix'])
+
+# Example usage
+# Creating a small example matrix for demonstration; use your actual data here
+data = np.random.rand(40000, 600)  # Simulating a 40,000 x 600 matrix with random data
+result = descriptive_statistics_matrix(data)
+
+# Print statistics for the first feature
+print("Statistics for the first feature:")
+for key, value in result.items():
+    print(f"{key}: {value[0]}")
+
+X_gt = np.array([[1, 2], [3, 4], [5, 6]])
+X_syn = np.array([[1, 2], [7, 8], [5, 6]])
+evaluator = CommonRowsProportion()
+print(evaluator.evaluate(X_gt, X_syn))
+
+X_gt = np.array([1, 2, 3])
+X_syn = np.array([1.0, 2.0, 3.0])
+evaluator = DataMismatchScore()
+print(evaluator.evaluate(X_gt, X_syn))
 
 if __name__=="main":
         

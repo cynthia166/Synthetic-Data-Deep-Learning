@@ -157,10 +157,6 @@ def concat_input(df_procedures,df_diagnosis,df_drugs,name_df):
 
 
 
-
-
-
-
     
 
 
@@ -364,8 +360,14 @@ def main(task,preprocessing):
         aux = obtener_added_cols_targer_visitrank_(DARTA_INTERM_intput+ name_df)
         dfs = obtener_entire(aux,"entire")    
        
-        dfs.to_csv(DARTA_INTERM_intput+ name_entire+"_.csv")
-        
+        dfs.to_csv(DARTA_INTERM_intput+ name_entire+".csv")
+    if task == "tabular_data_beteween_visits":
+  
+        archivo = DARTA_INTERM_intput+ name_df
+        res= obtener_added_cols_targer_visitrank_(archivo)
+        #res.to_csv(DARTA_INTERM_intput+ name_entire+"_tabular_data.csv")
+        with gzip.open(DARTA_INTERM_intput+ name_entire+'_tabular_data.pkl', 'wb') as f:
+             pickle.dump(res, f)
            
            
     if task =="temporal_state":
@@ -382,6 +384,7 @@ def main(task,preprocessing):
         name  = "input_generative_g.csv"
         status = "full_input"
         #res = obtener_added_cols_targer_visitrank_(arhivo,name)
+        
         cols_to_drop1 = ['ADMITTIME','HADM_ID']
         try:
             res = pd.read_csv(DARTA_INTERM_intput+ name_entire+".csv")
@@ -422,7 +425,7 @@ if __name__ == "__main__":
         print("La ruta no existe.")
 
     parser = argparse.ArgumentParser(description="Scripti input special SD model")
-    parser.add_argument("task", type=str, choices=["concat","entire_ceros","temporal_state"],default="temporal_state",
+    parser.add_argument("task", type=str, choices=["concat","entire_ceros","temporal_state","tabular_data_beteween_visits"],default="temporal_state",
                         help="Tipo de procesamiento a realizar.")
     parser.add_argument("preprocessing", choices=["True","False"],default="True",
                         help="Esta preprocess")
