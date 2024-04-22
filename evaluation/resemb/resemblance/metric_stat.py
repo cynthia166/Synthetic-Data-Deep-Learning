@@ -626,6 +626,49 @@ def compare_matrices(matrix1, matrix2, method="frobenius"):
     else:
         raise ValueError("Unknown comparison method")
 
+import numpy as np
+
+def compare_data_ranges(real_data, synthetic_data):
+    """
+    Compare the range (min to max) of each feature in real and synthetic datasets.
+
+    Parameters:
+        real_data (numpy.ndarray): The real dataset (observations as rows, features as columns).
+        synthetic_data (numpy.ndarray): The synthetic dataset (similar structure as real_data).
+
+    Returns:
+        dict: A dictionary containing the ranges for each feature in both datasets and differences.
+    """
+    if real_data.shape[1] != synthetic_data.shape[1]:
+        raise ValueError("Both datasets must have the same number of features.")
+    
+    feature_ranges = {
+        'real_min': np.min(real_data, axis=0),
+        'real_max': np.max(real_data, axis=0),
+        'synthetic_min': np.min(synthetic_data, axis=0),
+        'synthetic_max': np.max(synthetic_data, axis=0)
+    }
+    
+    range_difference = {
+        'min_difference': feature_ranges['real_min'] - feature_ranges['synthetic_min'],
+        'max_difference': feature_ranges['real_max'] - feature_ranges['synthetic_max']
+    }
+
+    return {
+        'ranges': feature_ranges,
+        'differences': range_difference
+    }
+
+# Example usage
+# Generate some example data
+real_data = np.random.normal(0, 1, (100, 3))  # 100 samples, 3 features
+synthetic_data = np.random.normal(0.1, 1.2, (100, 3))  # 100 synthetic samples, slightly different stats
+
+# Compare ranges
+result = compare_data_ranges(real_data, synthetic_data)
+print("Feature Ranges:\n", result['ranges'])
+print("\nRange Differences:\n", result['differences'])
+
 # Example usage
 matrix1 = np.array([[1, 0.5], [0.5, 1]])
 matrix2 = np.array([[1, 0.3], [0.3, 1]])
