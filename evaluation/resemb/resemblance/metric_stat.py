@@ -408,63 +408,6 @@ def get_statistics(train_ehr_dataset,columnas_test_ehr_dataset,test_ehr_dataset,
         return statistics
 # Example datasets
 
-def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance):
-    result_resemblence = []
-    results_final={}
-
-    if "mmd" in list_metric_resemblance:
-        mmd_evaluator = MaximumMeanDiscrepancy(kernel="rbf")
-        train_test = "test"
-        result =   mmd_evaluator._evaluate(test_ehr_dataset.iloc[:,:synthetic_ehr.shape[1]], synthetic_ehr)
-        print("MaximumMeanDiscrepancy (flattened):", result)
-        result_resemblence.append(result)
-
-    # Example usage:
-    # X_gt and X_syn are two numpy arrays representing empirical distributions
-    if "ks_test" in list_metric_resemblance:
-        features_1d = test_ehr_dataset.iloc[:,:synthetic_ehr.shape[1]].values.flatten()
-        synthetic_features_1d = synthetic_ehr.values.flatten()
-        ks_test = KolmogorovSmirnovTest()
-        result = ks_test._evaluate(features_1d, synthetic_features_1d)
-        print("Kolmog orov-Smirnov Test:", result)
-        result_resemblence.append(result)
-
-    if "jensenshannon_dist" in list_metric_resemblance:
-        score = JensenShannonDistance()._evaluate(test_ehr_dataset.iloc[:,:synthetic_ehr.shape[1]].values, synthetic_ehr.values)
-        #score = JensenShannonDistance()._evaluate(features_2d, synthetic_features_2d)synthetic_ehr
-        print("Jensen-Shannon Distance:", score)
-        result_resemblence.append(score)
-
-
-    if "statistics" in list_metric_resemblance:
-        statistics = get_statistics(train_ehr_dataset,columnas_test_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset)
-        result_resemblence.append(statistics)
-        
-    if "kernel_density" in list_metric_resemblance:
-        
-        plot_age(test_ehr_dataset,"Age_max","test")
-        plot_age(synthetic_ehr,"Age_max","synthetic")
-        plot_age(train_ehr_dataset,"Age_max","synthetic")
-    #plot histograms
-        
-    if "histogramas" in list_metric_resemblance:
-        histograms_codes(train_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset)    
-
-
-    # Example usage with two dataframes, `X_gt_df` and `X_syn_df`
-    if "tsne" in list_metric_resemblance:
-        plot_tsne("Doop",test_ehr_dataset, synthetic_ehr_dataset)
-        
-    if "corr" in list_metric_resemblance:
-        corr_plot(synthetic_ehr_dataset,"Syn" )
-        corr_plot(test_ehr_dataset,"Test" )  
-
-    for i in result_resemblence:
-        results_final.update(i)  
-
-    return results_final
-# Save the statistics to a file
-
 import numpy as np
 from typing import Any, Dict
 
@@ -713,6 +656,66 @@ X_gt = np.array([1, 2, 3])
 X_syn = np.array([1.0, 2.0, 3.0])
 evaluator = DataMismatchScore()
 print(evaluator.evaluate(X_gt, X_syn))
+
+
+def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance):
+    result_resemblence = []
+    results_final={}
+
+    if "mmd" in list_metric_resemblance:
+        mmd_evaluator = MaximumMeanDiscrepancy(kernel="rbf")
+        train_test = "test"
+        result =   mmd_evaluator._evaluate(test_ehr_dataset.iloc[:,:synthetic_ehr.shape[1]], synthetic_ehr)
+        print("MaximumMeanDiscrepancy (flattened):", result)
+        result_resemblence.append(result)
+
+    # Example usage:
+    # X_gt and X_syn are two numpy arrays representing empirical distributions
+    if "ks_test" in list_metric_resemblance:
+        features_1d = test_ehr_dataset.iloc[:,:synthetic_ehr.shape[1]].values.flatten()
+        synthetic_features_1d = synthetic_ehr.values.flatten()
+        ks_test = KolmogorovSmirnovTest()
+        result = ks_test._evaluate(features_1d, synthetic_features_1d)
+        print("Kolmog orov-Smirnov Test:", result)
+        result_resemblence.append(result)
+
+    if "jensenshannon_dist" in list_metric_resemblance:
+        score = JensenShannonDistance()._evaluate(test_ehr_dataset.iloc[:,:synthetic_ehr.shape[1]].values, synthetic_ehr.values)
+        #score = JensenShannonDistance()._evaluate(features_2d, synthetic_features_2d)synthetic_ehr
+        print("Jensen-Shannon Distance:", score)
+        result_resemblence.append(score)
+
+
+    if "statistics" in list_metric_resemblance:
+        statistics = get_statistics(train_ehr_dataset,columnas_test_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset)
+        result_resemblence.append(statistics)
+        
+    if "kernel_density" in list_metric_resemblance:
+        
+        plot_age(test_ehr_dataset,"Age_max","test")
+        plot_age(synthetic_ehr,"Age_max","synthetic")
+        plot_age(train_ehr_dataset,"Age_max","synthetic")
+    #plot histograms
+        
+    if "histogramas" in list_metric_resemblance:
+        histograms_codes(train_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset)    
+
+
+    # Example usage with two dataframes, `X_gt_df` and `X_syn_df`
+    if "tsne" in list_metric_resemblance:
+        plot_tsne("Doop",test_ehr_dataset, synthetic_ehr_dataset)
+        
+    if "corr" in list_metric_resemblance:
+        corr_plot(synthetic_ehr_dataset,"Syn" )
+        corr_plot(test_ehr_dataset,"Test" )  
+
+    for i in result_resemblence:
+        results_final.update(i)  
+
+    return results_final
+# Save the statistics to a file
+
+
 
 if __name__=="main":
         
