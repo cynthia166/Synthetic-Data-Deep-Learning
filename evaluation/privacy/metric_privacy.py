@@ -3,16 +3,16 @@ import pandas as pd
 import random
 import sys
 import os
-import os
+
 import pickle
 import gzip
 print(os.getcwd())
 sys.path.append('../../')
 import os
-sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/preprocessing')
-sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/evaluation/evaluation/utility')
-sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/evaluation/evaluation/functions')
-sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/evaluation')
+#sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/preprocessing')
+#sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/evaluation/evaluation/utility')
+#sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/evaluation/evaluation/functions')
+#sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/evaluation')
 from sklearn import metrics
 from evaluation.functions import *
 # stdlib
@@ -48,7 +48,7 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedKFold
 from xgboost import XGBClassifier
 
-sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/')
+#sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/')
 #os.chdir('../')
 print(os.getcwd())
 from gretel_synthetics.timeseries_dgan.dgan import DGAN
@@ -649,7 +649,7 @@ if __name__ == "__main__":
     # Suponiendo que 'total_features_synthethic' es tu DataFrame
     if 'Unnamed' in static.columns:
         static = static.drop(columns=['Unnamed'])
-    cat = list(static.columns[2:]) +["visit_rank","id_patient"  ]
+    cat = list(static.columns[2:]) +["visit_rank","id_patient"  ] 
     del aux
     total_cols =  con_cols+cat 
     cat1 = list(static.columns[2:]) +["visit_rank","id_patient","max_consultas"     ]

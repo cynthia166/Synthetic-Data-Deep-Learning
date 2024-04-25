@@ -32,7 +32,8 @@ import pickle
 from tqdm import tqdm
 import numpy as np
 from evaluation.privacy.metric_privacy import *
-
+import pandas as pd
+import glob
 #from evaluation.resemb.resemblance.metric_stat import *
 from evaluation.functions import *
 class JensenShannonDistance:
@@ -476,40 +477,46 @@ class CommonRowsProportion:
 import numpy as np
 from scipy import stats
 
-def descriptive_statistics_matrix(data):
+def descriptive_statistics_matrix(data,cols):
     # Check if the data is empty
     if data.size == 0:
         return "Empty array, no statistics available."
     
     # Initialize a dictionary to hold statistics for each feature
-    stats_dict = {
-        'mean': [],
-        'median': [],
-        'mode': [],
-        'minimum': [],
-        'maximum': [],
-        'range': [],
-        'variance': [],
-        'standard_deviation': [],
-        'skewness': [],
-        'kurtosis': []
-    }
 
+    ori ={}
     # Calculate statistics for each feature (column)
     for i in range(data.shape[1]):  # iterate over columns
-        column_data = data[:, i]
-        stats_dict['mean'].append(np.mean(column_data))
-        stats_dict['median'].append(np.median(column_data))
-        stats_dict['mode'].append(stats.mode(column_data)[0][0])
-        stats_dict['minimum'].append(np.min(column_data))
-        stats_dict['maximum'].append(np.max(column_data))
-        stats_dict['range'].append(np.ptp(column_data))
-        stats_dict['variance'].append(np.var(column_data, ddof=1))
-        stats_dict['standard_deviation'].append(np.std(column_data, ddof=1))
-        stats_dict['skewness'].append(stats.skew(column_data))
-        stats_dict['kurtosis'].append(stats.kurtosis(column_data))
+        column_data = data.values[:, i]
+        
+        if i == 0:
+            
+            stats_dict = {
+            'mean_'+data.columns[i]: [],
+            'median_'+data.columns[i]: [],
+            'mode_'+data.columns[i]: [],
+            'minimum_'+data.columns[i]: [],
+            'maximum_'+data.columns[i]: [],
+            'range_'+data.columns[i]: [],
+            'variance_'+data.columns[i]: [],
+            'standard_deviation_'+data.columns[i]: [],
+            'skewness_'+data.columns[i]: [],
+            'kurtosis_'+data.columns[i]: []
+            }
+        else:
+            ori.update(stats_dict)  
+        stats_dict['mean_'+data.columns[i]].append(np.mean(column_data))
+        stats_dict['median_'+data.columns[i]].append(np.median(column_data))
+        stats_dict['mode_'+data.columns[i]].append(stats.mode(column_data)[0][0])
+        stats_dict['minimum_'+data.columns[i]].append(np.min(column_data))
+        stats_dict['maximum_'+data.columns[i]].append(np.max(column_data))
+        stats_dict['range_'+data.columns[i]].append(np.ptp(column_data))
+        stats_dict['variance_'+data.columns[i]].append(np.var(column_data, ddof=1))
+        stats_dict['standard_deviation_'+data.columns[i]].append(np.std(column_data, ddof=1))
+        stats_dict['skewness_'+data.columns[i]].append(stats.skew(column_data))
+        stats_dict['kurtosis_'+data.columns[i]].append(stats.kurtosis(column_data))
 
-    return stats_dict
+    return ori
 
 import numpy as np
 import pandas as pd
@@ -608,44 +615,45 @@ real_data = np.random.normal(0, 1, (100, 3))  # 100 samples, 3 features
 synthetic_data = np.random.normal(0.1, 1.2, (100, 3))  # 100 synthetic samples, slightly different stats
 
 # Compare ranges
-result = compare_data_ranges(real_data, synthetic_data)
-print("Feature Ranges:\n", result['ranges'])
-print("\nRange Differences:\n", result['differences'])
+if "kernel_density" in list_metric_resemblance:
+        
+    result = compare_data_ranges(test_ehr_dataset.values, train_ehr_dataset.values)
 
-# Example usage
-matrix1 = np.array([[1, 0.5], [0.5, 1]])
-matrix2 = np.array([[1, 0.3], [0.3, 1]])
+    print("Feature Ranges:\n", result['ranges'])
+    print("\nRange Differences:\n", result['differences'])
 
-# Compare using Frobenius norm
-print("Frobenius norm:", compare_matrices(matrix1, matrix2, method="frobenius"))
-# Compare using Spectral norm
-print("Spectral norm:", compare_matrices(matrix1, matrix2, method="spectral"))
-# Compare using Maximum Absolute Difference
-print("Maximum Absolute Difference:", compare_matrices(matrix1, matrix2, method="max_diff"))
 
-'''Frobenius Norm: This method calculates the square root of the sum of the absolute squares of the differences between corresponding elements in the two matrices. It effectively measures the "distance" between two matrices.
-Spectral Norm (or Maximum Singular Value): This measures the largest singular value (i.e., the largest length of the vector in the transformed space) of the difference between two matrices. It gives the maximum stretch between two datasets.
-Maximum Absolute Difference: This method simply finds the maximum absolute difference between corresponding elements of the two matrices. It highlights the largest discrepancy between the two matrices.'''
-# Example usage
-# Creating a small example matrix for demonstration; use your actual data here
-data = np.random.rand(100, 5)  # 100 instances, 5 features
-result = multivariate_statistics(data)
+if "distance_max" in list_metric_resemblance:
+    # Compare using Frobenius norm
+    train_test = compare_matrices(test_ehr_dataset.values, train_ehr_dataset.values, method="max_diff")
+    train_synthethic = compare_matrices(synthetic_ehr_dataset.values, train_ehr_dataset.values, method="max_diff")
+    test_synthethic = compare_matrices(synthetic_ehr_dataset.values, test_ehr_dataset.values, method="max_diff")    
+    print("Frobenius norm:", compare_matrices(test_ehr_dataset.values, train_ehr_dataset.values, method="frobenius"))
+    # Compare using Spectral norm
+    print("Spectral norm:", compare_matrices(test_ehr_dataset.values, train_ehr_dataset.values, method="spectral"))
+    # Compare using Maximum Absolute Difference
+    print("Maximum Absolute Difference:", compare_matrices(synthetic_ehr_dataset.values, train_ehr_dataset.values, method="max_diff"))
 
-# Printing results
-print("Covariance Matrix:")
-print(result['covariance_matrix'])
-print("\nCorrelation Matrix:")
-print(result['correlation_matrix'])
+    
+   
+ if "distance_max" in list_metric_resemblance:
+        result_sy = multivariate_statistics(synthetic_ehr_dataset.values)
+        result_tr = multivariate_statistics(train_test.values)
+        result_test = multivariate_statistics(test_synthethic.values) 
+        # Printing results
+        print("Covariance Matrix:")
+        print(result['covariance_matrix'])
+        print("\nCorrelation Matrix:")
+        print(result['correlation_matrix'])
 
 # Example usage
 # Creating a small example matrix for demonstration; use your actual data here
 data = np.random.rand(40000, 600)  # Simulating a 40,000 x 600 matrix with random data
-result = descriptive_statistics_matrix(data)
+cols = ['HOSPITAL_EXPIRE_FLAG', 'id_patient', 'Age_max', 'LOSRD_sum',
+       'L_1s_last_p1','visit_rank',
+       'days_between_visits', 'readmission']
+result = descriptive_statistics_matrix(synthetic_ehr_dataset[cols],cols)
 
-# Print statistics for the first feature
-print("Statistics for the first feature:")
-for key, value in result.items():
-    print(f"{key}: {value[0]}")
 
 X_gt = np.array([[1, 2], [3, 4], [5, 6]])
 X_syn = np.array([[1, 2], [7, 8], [5, 6]])
@@ -715,58 +723,129 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
     return results_final
 # Save the statistics to a file
 
+def obtain_dataset_admission_visit_rank(path_to_directory,file,valid_perc,features_path):
+    features = load_data(features_path)
+    total_features_synthethic = pd.read_csv(file)
 
+    
+    #split_dataset
+    N = features.shape[0]
+    
+    N_train = int(N * (1 - valid_perc))
+    N_valid = N - N_train
+    total_features_train = features[:N_train]
+    total_fetura_valid = features[N_train:]   
+    total_features_synthethic = total_features_synthethic[N_train:]
+    
+    total_features_train   = total_features_train.rename(columns={"SUBJECT_ID":"id_patient"})
+    total_features_synthethic   = total_features_synthethic.rename(columns={"SUBJECT_ID":"id_patient"})
+    total_fetura_valid   = total_fetura_valid.rename(columns={"SUBJECT_ID":"id_patient"})
+    train_ehr_dataset = obtain_readmission_realdata(total_features_train)
+    test_ehr_dataset = obtain_readmission_realdata(total_fetura_valid) 
+    
+
+    
+    #obtener readmission
+    
+    total_features_synthethic['ADMITTIME'] = pd.to_datetime(total_features_synthethic['ADMITTIME'])
+    total_features_synthethic = total_features_synthethic.sort_values(by=['id_patient', 'ADMITTIME'])
+    # Ordena el DataFrame por 'patient_id' y 'visit_date' para garantizar el ranking correcto
+    
+    # Agrupa por 'patient_id' y asigna un rango a cada visita
+    total_features_synthethic['visit_rank'] = total_features_synthethic.groupby('id_patient')['ADMITTIME'].rank(method='first').astype(int)
+    synthetic_ehr_dataset = obtain_readmission_realdata(total_features_synthethic) 
+
+    return  test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset
+
+def cols_todrop(total_features_synthethic,cols):
+    cols_to_drop = list(total_features_synthethic.filter(like='Unnamed', axis=1).columns) + cols
+    total_features_synthethic.drop(cols_to_drop, axis=1, inplace=True) 
+    return total_features_synthethic
 
 if __name__=="main":
+    if attributes == "True":    
+        path_o = "train_sp/"    
+        attributes_path_train= "non_prepo/DATASET_NAME_non_preprotrain_data_attributes.pkl"
+        features_path_train = "non_prepo/DATASET_NAME_non_preprotrain_data_features.pkl"
+        features_path_valid = "non_prepo/DATASET_NAME_non_preprovalid_data_features.pkl"
+        attributes_path_valid = "non_prepo/DATASET_NAME_non_preprovalid_data_attributes.pkl"
+        synthetic_path_attributes = 'non_prepo/DATASET_NAME_non_prepronon_prepo_synthetic_attributes_10.pkl'
+        synthetic_path_features = 'non_prepo/DATASET_NAME_non_prepronon_prepo_synthetic_features_10.pkl'
+
+        # se lee los archivos y se obtiene del la longitude de valid
+        total_features_synthethic, total_fetura_valid,total_features_train,attributes =  get_valid_train_synthetic (path_o, attributes_path_train, features_path_train, features_path_valid, attributes_path_valid,synthetic_path_attributes,synthetic_path_features)
+        # se transforma de numpy array 3 dimensiones a dataframe
+        total_features_synthethic,total_fetura_valid,total_features_train = obtener_dataframe_inicial_denumpyarrray(total_features_synthethic, total_fetura_valid,total_features_train )
+
         
-    path_o = "train_sp/"    
-    attributes_path_train= "non_prepo/DATASET_NAME_non_preprotrain_data_attributes.pkl"
-    features_path_train = "non_prepo/DATASET_NAME_non_preprotrain_data_features.pkl"
-    features_path_valid = "non_prepo/DATASET_NAME_non_preprovalid_data_features.pkl"
-    attributes_path_valid = "non_prepo/DATASET_NAME_non_preprovalid_data_attributes.pkl"
-    synthetic_path_attributes = 'non_prepo/DATASET_NAME_non_prepronon_prepo_synthetic_attributes_10.pkl'
-    synthetic_path_features = 'non_prepo/DATASET_NAME_non_prepronon_prepo_synthetic_features_10.pkl'
+        
+        # esta es para agregar la columnas
+        dataset_name = 'DATASET_NAME_non_prepo'
+        file_name = "train_sp/non_prepo/DATASET_NAME_non_prepo_non_preprocess.pkl"
+        aux = load_data(file_name)
+        #aux = load_data(DARTA_INTERM_intput + dataset_name + '_non_preprocess.pkl')
+        con_cols = list(aux[0].columns)
+        static = pd.read_csv("train_sp/non_prepo/static_data_non_preprocess.csv")
+        # Suponiendo que 'total_features_synthethic' es tu DataFrame
+        if 'Unnamed' in static.columns:
+            static = static.drop(columns=['Unnamed'])
+        cat = list(static.columns[2:]) +["visit_rank","id_patient"  ]
+        del aux
+        total_cols =  con_cols+cat 
+        cat1 = list(static.columns[2:]) +["visit_rank","id_patient","max_consultas"     ]
+        total_cols1 =  con_cols+cat1 
 
-    # se lee los archivos y se obtiene del la longitude de valid
-    total_features_synthethic, total_fetura_valid,total_features_train,attributes =  get_valid_train_synthetic (path_o, attributes_path_train, features_path_train, features_path_valid, attributes_path_valid,synthetic_path_attributes,synthetic_path_features)
-    # se transforma de numpy array 3 dimensiones a dataframe
-    total_features_synthethic,total_fetura_valid,total_features_train = obtener_dataframe_inicial_denumpyarrray(total_features_synthethic, total_fetura_valid,total_features_train )
-
-
-
-
-    # esta es para agregar la columnas
-    dataset_name = 'DATASET_NAME_non_prepo'
-    file_name = "train_sp/non_prepo/DATASET_NAME_non_prepo_non_preprocess.pkl"
-    aux = load_data(file_name)
-    #aux = load_data(DARTA_INTERM_intput + dataset_name + '_non_preprocess.pkl')
-    con_cols = list(aux[0].columns)
-    static = pd.read_csv("train_sp/non_prepo/static_data_non_preprocess.csv")
-    # Suponiendo que 'total_features_synthethic' es tu DataFrame
-    if 'Unnamed' in static.columns:
-        static = static.drop(columns=['Unnamed'])
-    cat = list(static.columns[2:]) +["visit_rank","id_patient"  ]
-    del aux
-    total_cols =  con_cols+cat 
-    cat1 = list(static.columns[2:]) +["visit_rank","id_patient","max_consultas"     ]
-    total_cols1 =  con_cols+cat1 
-
-    test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset = preprocess_data(total_cols,total_features_synthethic,total_cols1,total_fetura_valid,total_features_train)
+        test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset = preprocess_data(total_cols,total_features_synthethic,total_cols1,total_fetura_valid,total_features_train)
 
 
+        
 
 
+        #obtener coluans que contenga diagnosis,procedures,drugs
+        columnas_test_ehr_dataset = get_cols_diag_proc_drug(train_ehr_dataset)
 
-    #obtener coluans que contenga diagnosis,procedures,drugs
+        #obtener n mas frequent codes
+        top_300_codes = obtain_most_freuent(train_ehr_dataset,columnas_test_ehr_dataset,100)
+
+        #obtener un syntethic datafram que considere el percentil y si es mayor a eso se considera 1 si no 0, si es false no se le agrega la columnas id_patient
+        synthetic_ehr = change_tosyn_stickers_temporal(synthetic_ehr_dataset,columnas_test_ehr_dataset,True)
+        
+       
+
+  
+
+    # Definir la ruta al directorio que contiene los archivos CSV
+    path_to_directory = 'generated_synthcity_tabular/*'  # Asegúrate de incluir el asterisco al final
+    csv_files = glob.glob(path_to_directory + '.pkl')
+    file = csv_files[0]
+    valid_perc = 0.5
+    
+    
+    features_path = "data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl"
+
+    test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset = obtain_dataset_admission_visit_rank(path_to_directory,file,valid_perc,features_path)
+    #list_metric_resemblance = ["histogramas","tsne","statistics","kernel_density","mmd","ks_test","jensenshannon_dist"]
+
+    
+    cols = ['ADMITTIME','HADM_ID']
+    test_ehr_dataset = cols_todrop(test_ehr_dataset,cols)
+    train_ehr_dataset = cols_todrop(train_ehr_dataset,cols)
+    synthetic_ehr_dataset = cols_todrop(synthetic_ehr_dataset,cols)
+    
+    print(test_ehr_dataset.shape)
+    print(train_ehr_dataset.shape)
+    print(synthetic_ehr_dataset.shape)
+    
     columnas_test_ehr_dataset = get_cols_diag_proc_drug(train_ehr_dataset)
 
     #obtener n mas frequent codes
     top_300_codes = obtain_most_freuent(train_ehr_dataset,columnas_test_ehr_dataset,100)
 
     #obtener un syntethic datafram que considere el percentil y si es mayor a eso se considera 1 si no 0, si es false no se le agrega la columnas id_patient
-    synthetic_ehr = change_tosyn_stickers_temporal(synthetic_ehr_dataset,columnas_test_ehr_dataset,True)
+    synthetic_ehr = synthetic_ehr_dataset
+    
+    
 
-    #list_metric_resemblance = ["histogramas","tsne","statistics","kernel_density","mmd","ks_test","jensenshannon_dist"]
     list_metric_resemblance = ["statistics","mmd","ks_test","jensenshannon_dist"]
 
     results  =    calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance)

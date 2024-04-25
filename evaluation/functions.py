@@ -2,7 +2,7 @@
 import sys
 import os
 current_directory = os.getcwd()
-os.chdir("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning")
+#os.chdir("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning")
 current_directory = os.getcwd()
 
 print(current_directory)
