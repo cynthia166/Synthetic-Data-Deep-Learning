@@ -1,6 +1,7 @@
 from scipy.spatial.distance import jensenshannon
 import os
-os.chdir("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning")
+#os.chdir("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning")
+os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
 current_directory = os.getcwd()
 
 print(current_directory)
@@ -8,6 +9,7 @@ import sys
 sys.path.append('preprocessing')
 sys.path.append('evaluation')
 sys.path.append('privacy')
+sys.path.append('evaluation')
 from scipy.stats import entropy
 import numpy as np
 from typing import Dict
@@ -35,7 +37,9 @@ from evaluation.privacy.metric_privacy import *
 import pandas as pd
 import glob
 #from evaluation.resemb.resemblance.metric_stat import *
-from evaluation.functions import *
+#from evaluation.functions import *
+
+
 class JensenShannonDistance:
     
     """Evaluate the average Jensen-Shannon distance (metric) between two probability arrays."""
@@ -199,22 +203,43 @@ def plot_marginal_comparison(
     plt.figure(figsize=(8, 6))
     plt.tight_layout()
     plt.show()
+import numpy as np
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
+
+def plot_tsne(test_ehr_dataset, synthetic_ehr_dataset) -> None:
+    fig, ax = plt.subplots(1, 1, figsize=(12, 10))
+    # Configure t-SNE for real data
+    tsne_gt = TSNE(n_components=2, random_state=0, learning_rate="auto", init="pca")
+    proj_gt = tsne_gt.fit_transform(test_ehr_dataset.values)
+    # Configure t-SNE for synthetic data
+    tsne_syn = TSNE(n_components=2, random_state=0, learning_rate="auto", init="pca")
+    proj_syn = tsne_syn.fit_transform(synthetic_ehr_dataset)
+    # Plot scatter plots for t-SNE-transformed data
+    ax.scatter(x=proj_gt[:, 0], y=proj_gt[:, 1], s=10, label="Real Data")
+    ax.scatter(x=proj_syn[:, 0], y=proj_syn[:, 1], s=10, label="Synthetic Data")
+    # Additional plot configurations
+    ax.legend(loc="upper left")
+    ax.set_title("t-SNE Plot")
+    ax.set_xlabel("Component 1")
+    ax.set_ylabel("Component 2")
+    plt.show()   
     
-def plot_tsne(
+def plot_tsne_(
     plt: Any,
-    X_gt: np.ndarray,
-    X_syn: np.ndarray,
+    test_ehr_dataset: np.ndarray,
+    synthetic_ehr_dataset: np.ndarray,
 ) -> None:
     fig, ax = plt.subplots(1, 1, figsize=(12, 10))
     # Configurar t-SNE para los datos reales
     tsne_gt = TSNE(n_components=2, random_state=0, learning_rate="auto", init="pca")
-    proj_gt = tsne_gt.fit_transform(X_gt)
+    proj_gt = tsne_gt.fit_transform(test_ehr_dataset.values)
     # Configurar t-SNE para los datos sintéticos
     tsne_syn = TSNE(n_components=2, random_state=0, learning_rate="auto", init="pca")
-    proj_syn = tsne_syn.fit_transform(X_syn)
+    proj_syn = tsne_syn.fit_transform(synthetic_ehr_dataset)
     # Dibujar los scatter plots para los datos transformados por t-SNE
-    ax.scatter(x=proj_gt[:, 0], y=proj_gt[:, 1], s=10, label="Datos Reales")
-    ax.scatter(x=proj_syn[:, 0], y=proj_syn[:, 1], s=10, label="Datos Sintéticos")
+    ax.scatter(x=proj_gt[:, 0], y=proj_gt[:, 1], s=10, label="Real Data")
+    ax.scatter(x=proj_syn[:, 0], y=proj_syn[:, 1], s=10, label="Synthetic Data")
     # Configuraciones adicionales para el plot
     ax.legend(loc="upper left")
     ax.set_title("Gráfico t-SNE")
@@ -223,7 +248,7 @@ def plot_tsne(
     plt.show()    
     
 def corr_plot(total_features_train,name ):
-    correlation_matrix = total_features_train.corr()
+    #correlation_matrix = total_features_train.corr()
 # Calcular la matriz de correlación
     from scipy.sparse import csr_matrix
     corr_matrix = total_features_train.corr()
@@ -242,29 +267,29 @@ def corr_plot(total_features_train,name ):
 
 
 # Define a function to calculate statistics on the visits without considering labels
-def generate_statistics(ehr_datasets):
-    stats = {}
+def generate_statistics(ehr_datasets,type_s):
+    stats_ = {}
 
     for label, dataset in ehr_datasets:
         aggregate_stats = {}
         record_lens = [len(p['visits'][0]) for p in dataset]  # List of record lengths
-        visit_lens = [len(v) for p in dataset for v in p['visits']]  # List of visit lengths
+        #visit_lens = [len(v) for p in dataset for v in p['visits']]  # List of visit lengths
 
         # Calculating aggregates
         avg_record_len = np.mean(record_lens)
         std_record_len = np.std(record_lens)
-        avg_visit_len = np.mean(visit_lens)
-        std_visit_len = np.std(visit_lens)
+        #avg_visit_len = np.mean(visit_lens)
+        #std_visit_len = np.std(visit_lens)
 
         # Storing results
-        aggregate_stats["Record Length Mean"] = avg_record_len
-        aggregate_stats["Record Length Standard Deviation"] = std_record_len
-        aggregate_stats["Visit Length Mean"] = avg_visit_len
-        aggregate_stats["Visit Length Standard Deviation"] = std_visit_len
+        aggregate_stats["Record Length Mean" +type_s] = avg_record_len
+        aggregate_stats["Record Length Standard Deviation" +type_s] = std_record_len
+        #aggregate_stats["Visit Length Mean"] = avg_visit_len
+        #aggregate_stats["Visit Length Standard Deviation"] = std_visit_len
 
-        stats[label] = aggregate_stats
+        #stats[label] = aggregate_stats
 
-    return stats
+    return aggregate_stats
 
 
 
@@ -393,19 +418,27 @@ def get_statistics(train_ehr_dataset,columnas_test_ehr_dataset,test_ehr_dataset,
         dataset_train = obtain_dataset(train_ehr_dataset,columnas_test_ehr_dataset)
         dataset_test = obtain_dataset(test_ehr_dataset,columnas_test_ehr_dataset)
 
-        dataset_syn = obtain_dataset(synthetic_ehr,columnas_test_ehr_dataset)
+        dataset_syn = obtain_dataset(synthetic_ehr_dataset,columnas_test_ehr_dataset)
 
         ##obtener static lenght o stay
         ehr_datasets = [
-            ('Train', dataset_train),
+           
             ('Test', dataset_test),
-            ('Synthetic', dataset_syn),
+         
             # ... other datasets
         ]
 
         # continous_plot
 
-        statistics = generate_statistics(ehr_datasets)
+        statistics = generate_statistics(ehr_datasets,'Test')
+        ehr_datasets = [
+           
+           
+            ('Synthetic', dataset_syn),
+            # ... other datasets
+        ]
+        statistics2 = generate_statistics(ehr_datasets,'Synthetic')
+        statistics.update(statistics2)
         return statistics
 # Example datasets
 
@@ -472,51 +505,40 @@ class CommonRowsProportion:
 
         # Calculate score
         score = len(intersection) / (len(df_gt) + 1e-8)
-        return {"score": score}
+        return {"Common Rows Proportion score": score}
 
 import numpy as np
 from scipy import stats
 
-def descriptive_statistics_matrix(data,cols):
-    # Check if the data is empty
-    if data.size == 0:
-        return "Empty array, no statistics available."
-    
+import pandas as pd
+import numpy as np
+from scipy import stats
+
+def descriptive_statistics_matrix(data):
+    # Check if the DataFrame is empty
+    if data.empty:
+        return "Empty DataFrame, no statistics available."
+
     # Initialize a dictionary to hold statistics for each feature
-
-    ori ={}
+    stats_dict = {}
+    
     # Calculate statistics for each feature (column)
-    for i in range(data.shape[1]):  # iterate over columns
-        column_data = data.values[:, i]
+    for column in data.columns:
+        column_data = data[column]
         
-        if i == 0:
-            
-            stats_dict = {
-            'mean_'+data.columns[i]: [],
-            'median_'+data.columns[i]: [],
-            'mode_'+data.columns[i]: [],
-            'minimum_'+data.columns[i]: [],
-            'maximum_'+data.columns[i]: [],
-            'range_'+data.columns[i]: [],
-            'variance_'+data.columns[i]: [],
-            'standard_deviation_'+data.columns[i]: [],
-            'skewness_'+data.columns[i]: [],
-            'kurtosis_'+data.columns[i]: []
-            }
-        else:
-            ori.update(stats_dict)  
-        stats_dict['mean_'+data.columns[i]].append(np.mean(column_data))
-        stats_dict['median_'+data.columns[i]].append(np.median(column_data))
-        stats_dict['mode_'+data.columns[i]].append(stats.mode(column_data)[0][0])
-        stats_dict['minimum_'+data.columns[i]].append(np.min(column_data))
-        stats_dict['maximum_'+data.columns[i]].append(np.max(column_data))
-        stats_dict['range_'+data.columns[i]].append(np.ptp(column_data))
-        stats_dict['variance_'+data.columns[i]].append(np.var(column_data, ddof=1))
-        stats_dict['standard_deviation_'+data.columns[i]].append(np.std(column_data, ddof=1))
-        stats_dict['skewness_'+data.columns[i]].append(stats.skew(column_data))
-        stats_dict['kurtosis_'+data.columns[i]].append(stats.kurtosis(column_data))
+        # Compute each statistic and concatenate it with the column name
+        stats_dict['mean_' + column] = np.mean(column_data)
+        stats_dict['median_' + column] = np.median(column_data)
+        stats_dict['mode_' + column] = stats.mode(column_data)[0][0] if len(column_data) > 0 else None
+        stats_dict['minimum_' + column] = np.min(column_data)
+        stats_dict['maximum_' + column] = np.max(column_data)
+        stats_dict['range_' + column] = np.ptp(column_data)
+        stats_dict['variance_' + column] = np.var(column_data, ddof=1)
+        stats_dict['standard_deviation_' + column] = np.std(column_data, ddof=1)
+        stats_dict['skewness_' + column] = stats.skew(column_data)
+        stats_dict['kurtosis_' + column] = stats.kurtosis(column_data)
 
-    return ori
+    return stats_dict
 
 import numpy as np
 import pandas as pd
@@ -578,98 +600,342 @@ def compare_matrices(matrix1, matrix2, method="frobenius"):
 
 import numpy as np
 
-def compare_data_ranges(real_data, synthetic_data):
+import pandas as pd
+
+import pandas as pd
+
+def compare_descriptive_statistics(data1, data2):
     """
-    Compare the range (min to max) of each feature in real and synthetic datasets.
+    Compare descriptive statistics between two dataframes.
 
     Parameters:
-        real_data (numpy.ndarray): The real dataset (observations as rows, features as columns).
-        synthetic_data (numpy.ndarray): The synthetic dataset (similar structure as real_data).
+        data1 (pd.DataFrame): First dataset.
+        data2 (pd.DataFrame): Second dataset.
 
     Returns:
-        dict: A dictionary containing the ranges for each feature in both datasets and differences.
+        dict: A dictionary containing differences in descriptive statistics between the two datasets.
     """
-    if real_data.shape[1] != synthetic_data.shape[1]:
-        raise ValueError("Both datasets must have the same number of features.")
-    
-    feature_ranges = {
-        'real_min': np.min(real_data, axis=0),
-        'real_max': np.max(real_data, axis=0),
-        'synthetic_min': np.min(synthetic_data, axis=0),
-        'synthetic_max': np.max(synthetic_data, axis=0)
-    }
-    
-    range_difference = {
-        'min_difference': feature_ranges['real_min'] - feature_ranges['synthetic_min'],
-        'max_difference': feature_ranges['real_max'] - feature_ranges['synthetic_max']
-    }
+    # Calculating descriptive statistics for both datasets
+    stats1 = descriptive_statistics_matrix(data1)
+    stats2 = descriptive_statistics_matrix(data2)
 
-    return {
-        'ranges': feature_ranges,
-        'differences': range_difference
-    }
+    # Dictionary to store the differences
+    stats_differences = {}
 
-# Example usage
-# Generate some example data
-real_data = np.random.normal(0, 1, (100, 3))  # 100 samples, 3 features
-synthetic_data = np.random.normal(0.1, 1.2, (100, 3))  # 100 synthetic samples, slightly different stats
+    # Compute differences only for keys that exist in both dictionaries
+    common_keys = set(stats1.keys()).intersection(set(stats2.keys()))
+    for key in common_keys:
+        if isinstance(stats1[key], (int, float)) and isinstance(stats2[key], (int, float)):
+            # Calculate the difference and store it
+            stats_differences[f'diff_{key}'] = abs(stats1[key] - stats2[key])
 
-# Compare ranges
-if "kernel_density" in list_metric_resemblance:
+    return stats_differences
+import pandas as pd
+
+def compare_proportions_and_return_dictionary(real_data, synthetic_data):
+    """
+        dict: A dictionary with column names as keys and proportion differences as values.
+    """
+    # Initialize a dictionary to hold the differences in proportions
+    proportion_differences = {}
+
+    # Ensure that both DataFrames have the same columns
+    if not real_data.columns.equals(synthetic_data.columns):
+        raise ValueError("Both datasets must have the same columns")
+
+    # Calculate proportions for each column
+    for column in real_data.columns:
+        real_proportion = real_data[column].mean()
+        synthetic_proportion = synthetic_data[column].mean()
         
-    result = compare_data_ranges(test_ehr_dataset.values, train_ehr_dataset.values)
+        # Calculate the absolute difference in proportions and store it
+        proportion_differences[column] = abs(real_proportion - synthetic_proportion)
 
-    print("Feature Ranges:\n", result['ranges'])
-    print("\nRange Differences:\n", result['differences'])
+    return proportion_differences
 
 
-if "distance_max" in list_metric_resemblance:
-    # Compare using Frobenius norm
-    train_test = compare_matrices(test_ehr_dataset.values, train_ehr_dataset.values, method="max_diff")
-    train_synthethic = compare_matrices(synthetic_ehr_dataset.values, train_ehr_dataset.values, method="max_diff")
-    test_synthethic = compare_matrices(synthetic_ehr_dataset.values, test_ehr_dataset.values, method="max_diff")    
-    print("Frobenius norm:", compare_matrices(test_ehr_dataset.values, train_ehr_dataset.values, method="frobenius"))
-    # Compare using Spectral norm
-    print("Spectral norm:", compare_matrices(test_ehr_dataset.values, train_ehr_dataset.values, method="spectral"))
-    # Compare using Maximum Absolute Difference
-    print("Maximum Absolute Difference:", compare_matrices(synthetic_ehr_dataset.values, train_ehr_dataset.values, method="max_diff"))
+def compare_data_ranges(real_data, synthetic_data, columns):
+    """
+    Compare the maximum values of specified features in real and synthetic datasets.
 
+    Parameters:
+        real_data (pd.DataFrame): The real dataset.
+        synthetic_data (pd.DataFrame): The synthetic dataset.
+        columns (list): List of column names to compare.
+
+    Returns:
+        dict: A dictionary with the "real_max_{column}" and "synthetic_max_{column}" for each specified feature.
+    """
+    if not all(col in real_data.columns and col in synthetic_data.columns for col in columns):
+        raise ValueError("All specified columns must exist in both datasets.")
     
-   
- if "distance_max" in list_metric_resemblance:
-        result_sy = multivariate_statistics(synthetic_ehr_dataset.values)
-        result_tr = multivariate_statistics(train_test.values)
-        result_test = multivariate_statistics(test_synthethic.values) 
-        # Printing results
-        print("Covariance Matrix:")
-        print(result['covariance_matrix'])
-        print("\nCorrelation Matrix:")
-        print(result['correlation_matrix'])
+    range_comparison = {}
 
-# Example usage
-# Creating a small example matrix for demonstration; use your actual data here
-data = np.random.rand(40000, 600)  # Simulating a 40,000 x 600 matrix with random data
-cols = ['HOSPITAL_EXPIRE_FLAG', 'id_patient', 'Age_max', 'LOSRD_sum',
-       'L_1s_last_p1','visit_rank',
-       'days_between_visits', 'readmission']
-result = descriptive_statistics_matrix(synthetic_ehr_dataset[cols],cols)
+    for col in columns:
+        range_comparison[f"real_max_{col}"] = real_data[col].max()
+        range_comparison[f"synthetic_max_{col}"] = synthetic_data[col].max()
+
+    return range_comparison
 
 
-X_gt = np.array([[1, 2], [3, 4], [5, 6]])
-X_syn = np.array([[1, 2], [7, 8], [5, 6]])
+import pandas as pd
+
+def descriptive_statistics_one_hot(data):
+    """
+    Calculate descriptive statistics for one-hot encoded categorical data.
+
+    Parameters:
+        data (pd.DataFrame): The dataset containing one-hot encoded columns.
+
+    Returns:
+        dict: A dictionary containing statistics for each one-hot encoded column.
+    """
+    stats_dict = {}
+    for column in data.columns:
+        column_data = data[column]
+        
+        # Calculate and store the frequency of the '1' category (presence of the category)
+        frequency_1 = column_data.sum()
+
+        # Store the proportion of '1' values (category presence)
+        proportion_1 = frequency_1 / len(column_data)
+
+        
+        stats_dict['proportion_' + column] = proportion_1
+
+    return stats_dict
+
+def value_couts_visit(df,type_d):
+    mean_count_codes_visit_rank_1 = df.groupby(['visit_rank']).count().iloc[:,0]
+    #mean_count_codes_visit_rank_1 = df.groupby(['visit_rank']).count().iloc[:,0].mean()
+    top_5_visits_dict = mean_count_codes_visit_rank_1[1:6].to_dict()
+    modified_dict = {f"{type_d}_dataset_{key}_visit": value for key, value in top_5_visits_dict.items()}
+    return modified_dict
+# Compare ranges
+
+    # Calculate the total codes per patient across all visits
+ 
+
+'''
+if "common_proportion" in list_metric_resemblance:
+cols = [ 'Age_max', 'LOSRD_sum','LOSRD_avg',
+    'L_1s_last_p1','visit_rank',
+    'days_between_visits']
+columns_take_account = [i for i in cols if i not in  cols]
 evaluator = CommonRowsProportion()
-print(evaluator.evaluate(X_gt, X_syn))
+print(evaluator.evaluate(test_ehr_dataset[columns_take_account].values, synthetic_ehr_dataset[columns_take_account].values))
 
 X_gt = np.array([1, 2, 3])
 X_syn = np.array([1.0, 2.0, 3.0])
 evaluator = DataMismatchScore()
-print(evaluator.evaluate(X_gt, X_syn))
+print(evaluator.evaluate(X_gt, X_syn))'''
 
 
 def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance):
     result_resemblence = []
     results_final={}
+    if "compare_ranges" in list_metric_resemblance:
+        cols = [ 'Age_max', 'LOSRD_sum','LOSRD_avg','L_1s_last_p1','visit_rank','days_between_visits']
+        result = compare_data_ranges(test_ehr_dataset, synthetic_ehr_dataset,cols)
+        print("Feature Ranges:\n", result)
+        result_resemblence.append(result)
+    if "distance_max" in list_metric_resemblance:
+        # Compare using Frobenius norm
+        train_test = compare_matrices(test_ehr_dataset.values, train_ehr_dataset.values, method="max_diff")
+        train_synthethic = compare_matrices(synthetic_ehr_dataset.values, train_ehr_dataset.values, method="max_diff")
+        test_synthethic = compare_matrices(synthetic_ehr_dataset.values, test_ehr_dataset.values, method="max_diff")    
+        result = {}
+        result["MaxAbsDif_train_test"] = train_test
+        result["MaxAbsDif_train_synthethic"] = train_synthethic
+        result["MaxAbsDif_test_synthethic"] = test_synthethic
+        result_resemblence.append(result)
+    if "coorr_matrix_abs_dif" in list_metric_resemblance:
+        result_sy = multivariate_statistics(synthetic_ehr_dataset.values)
+        result_train = multivariate_statistics(train_ehr_dataset.values)
+        result_test = multivariate_statistics(test_ehr_dataset.values) 
+        # Printing results
+        train_test = compare_matrices(result_test['correlation_matrix'], result_train['correlation_matrix'], method="max_diff")
+        train_synthethic = compare_matrices(result_train['correlation_matrix'], result_sy['correlation_matrix'], method="max_diff")
+        test_synthethic = compare_matrices(result_test['correlation_matrix'], result_sy['correlation_matrix'], method="max_diff")    
+        mean_diff_train_test = np.mean(train_test)
+        max_diff_train_test = max(train_test)
+        min_diff_train_test = min(train_test)
+        std_diff_train_test = np.std(train_test)
+        mean_diff_syn_test = np.mean(test_synthethic)
+        max_diff_syn_test = max(test_synthethic)
+        min_diff_syn_test = min(test_synthethic)
+        std_diff_syn_test = np.std(test_synthethic)
+        result = {}
+        result["MaxAbsDif_test_train_corr_mean"] = mean_diff_train_test
+        result["MaxAbsDif_test_train_synthethic_corr_max"] = max_diff_train_test
+        result["MaxAbsDif_test_train_corr_min"] = min_diff_train_test
+        result["MaxAbsDif_test_synthethic_corr_mean"] = mean_diff_syn_test
+        result["MaxAbsDif_test_synthethic_corr_max"] = max_diff_syn_test
+        result["MaxAbsDif_test_synthethic_corr_min"] = min_diff_syn_test
+        result_resemblence.append(result)
+    if "descriptive_statistics" in list_metric_resemblance:
+        cols = ['Age_max', 'LOSRD_sum','LOSRD_avg','L_1s_last_p1','visit_rank','days_between_visits']
+        result = descriptive_statistics_matrix(synthetic_ehr_dataset[cols])
+        #result = descriptive_statistics_matrix(test_ehr_dataset[cols])
+        result_resemblence.append(result)
+    if "diference_decriptives" in list_metric_resemblance:
+        cols = ['Age_max', 'LOSRD_sum','LOSRD_avg','L_1s_last_p1','visit_rank','days_between_visits']
+        dif = compare_descriptive_statistics(test_ehr_dataset[cols], synthetic_ehr_dataset[cols])
+        top_10_differences = sorted(dif.items(), key=lambda x: abs(x[1]), reverse=True)[:5]
+        top_10_dict = {item[0]: item[1] for item in top_10_differences}
+        result_resemblence.append(top_10_dict)
+    if "frequency_categorical_10" in list_metric_resemblance:
+        cols = ['Age_max', 'LOSRD_sum','LOSRD_avg','id_patient','L_1s_last_p1','days_between_visits']
+        columns_take_account = [i for i in test_ehr_dataset.columns if i not in cols]
+        res = compare_proportions_and_return_dictionary(test_ehr_dataset[columns_take_account], synthetic_ehr_dataset[columns_take_account])    
+        top_10_diff_proportions = dict(sorted(res.items(), key=lambda item: item[1], reverse=True)[:10])
+        result_resemblence.append(top_10_diff_proportions)
+    if "visit_counts" in list_metric_resemblance:
+        df = test_ehr_dataset[columnas_test_ehr_dataset+["visit_rank"]]
+        type_d = "test"
+        res = df.groupby(["visit_rank"]).count().iloc[:,0].head().to_dict()
+        res = {f"{key} test set": value for key, value in res.items()}
 
+        df = synthetic_ehr_dataset[columnas_test_ehr_dataset+["visit_rank"]]
+        type_d = "synthetic"
+        res2 = df.groupby(["visit_rank"]).count().iloc[:,0].head().to_dict()
+        res2 = {f"{key} synthetic set": value for key, value in res2.items()}
+
+        res.update(res2)
+        result_resemblence.append(res)
+    if "mmd" in list_metric_resemblance:
+        mmd_evaluator = MaximumMeanDiscrepancy(kernel="rbf")
+        result = mmd_evaluator._evaluate(test_ehr_dataset.iloc[:,:synthetic_ehr.shape[1]], synthetic_ehr)
+        print("MaximumMeanDiscrepancy (flattened):", result)
+        result_resemblence.append(result)
+    if "ks_test" in list_metric_resemblance:
+        features_1d = test_ehr_dataset.iloc[:,:synthetic_ehr.shape[1]].values.flatten()
+        synthetic_features_1d = synthetic_ehr.values.flatten()
+        ks_test = KolmogorovSmirnovTest()
+        result = ks_test._evaluate(features_1d, synthetic_features_1d)
+        print("Kolmogorov-Smirnov Test:", result)
+        result_resemblence.append(result)
+    if "jensenshannon_dist" in list_metric_resemblance:
+        score = JensenShannonDistance()._evaluate(test_ehr_dataset.iloc[:,:synthetic_ehr.shape[1]].values, synthetic_ehr.values)
+        print("Jensen-Shannon Distance:", score)
+        result_resemblence.append(score)
+    if "statistics" in list_metric_resemblance:
+        statistics = get_statistics(train_ehr_dataset,columnas_test_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset)
+        result_resemblence.append(statistics)
+    if "kernel_density" in list_metric_resemblance:
+        plot_age(test_ehr_dataset,"Age_max","test")
+        plot_age(synthetic_ehr,"Age_max","synthetic")
+        plot_age(train_ehr_dataset,"Age_max","train")
+    if "histogramas" in list_metric_resemblance:
+        histograms_codes(train_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset)
+    if "tsne" in list_metric_resemblance:
+        plot_tsne("Doop",test_ehr_dataset[columnas_test_ehr_dataset], synthetic_ehr_dataset[columnas_test_ehr_dataset])
+    if "corr" in list_metric_resemblance:
+        corr_plot(synthetic_ehr_dataset,"Syn" )
+        corr_plot(test_ehr_dataset,"Test" )  
+    for i in result_resemblence:
+        results_final.update(i)  
+    return results_final
+    
+def calcular_remblencemetric_(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance):
+    result_resemblence = []
+    results_final={}
+    
+    if "compare_ranges" in list_metric_resemblance:
+        cols = [ 'Age_max', 'LOSRD_sum','LOSRD_avg',
+        'L_1s_last_p1','visit_rank',
+        'days_between_visits']
+            
+        result = compare_data_ranges(test_ehr_dataset, synthetic_ehr_dataset,cols)
+
+        print("Feature Ranges:\n", result)
+        result_resemblence.append(result)
+
+
+    if "distance_max" in list_metric_resemblance:
+        # Compare using Frobenius norm
+        train_test = compare_matrices(test_ehr_dataset.values, train_ehr_dataset.values, method="max_diff")
+        train_synthethic = compare_matrices(synthetic_ehr_dataset.values, train_ehr_dataset.values, method="max_diff")
+        test_synthethic = compare_matrices(synthetic_ehr_dataset.values, test_ehr_dataset.values, method="max_diff")    
+        result = {}
+        result["MaxAbsDif_train_test"] = train_test
+        result["MaxAbsDif_train_synthethic"] = train_synthethic
+        result["MaxAbsDif_test_synthethic"] = test_synthethic
+        result_resemblence.append(result)
+        
+        
+
+        
+    
+    if "coorr_matrix_abs_dif" in list_metric_resemblance:
+            result_sy = multivariate_statistics(synthetic_ehr_dataset.values)
+            result_train = multivariate_statistics(train_ehr_dataset.values)
+            result_test = multivariate_statistics(test_ehr_dataset.values) 
+            # Printing results
+            
+            train_test = compare_matrices(result_test['correlation_matrix'], result_train['correlation_matrix'], method="max_diff")
+            train_synthethic = compare_matrices(result_train['correlation_matrix'], result_sy['correlation_matrix'], method="max_diff")
+            test_synthethic = compare_matrices(result_test['correlation_matrix'], result_sy['correlation_matrix'], method="max_diff")    
+            
+            mean_diff_train_test = np.mean(train_test)
+            max_diff_train_test = max(train_test)
+            min_diff_train_test = min(train_test)
+            std_diff_train_test = np.std(train_test)
+            
+            mean_diff_syn_test = np.mean(test_synthethic)
+            max_diff_syn_test = max(test_synthethic)
+            min_diff_syn_test = min(test_synthethic)
+            std_diff_syn_test = np.std(test_synthethic)
+            
+            result = {}
+            
+            result["MaxAbsDif_test_train_corr_mean"] = mean_diff_train_test
+            result["MaxAbsDif_test_train_synthethic_corr_max"] = max_diff_train_test
+            result["MaxAbsDif_test_train_corr_min"] = min_diff_train_test
+            
+            result["MaxAbsDif_test_synthethic_corr_mean"] = mean_diff_syn_test
+            result["MaxAbsDif_test_synthethic_corr_max"] = max_diff_syn_test
+            result["MaxAbsDif_test_synthethic_corr_min"] = min_diff_syn_test
+            result_resemblence.append(result)
+
+    if "descriptive_statistics" in list_metric_resemblance:
+        # Example usage
+        # Creating a small example matrix for demonstration; use your actual data here
+        cols = [ 'Age_max', 'LOSRD_sum','LOSRD_avg',
+        'L_1s_last_p1','visit_rank',
+        'days_between_visits']
+        result = descriptive_statistics_matrix(synthetic_ehr_dataset[cols])
+        result = descriptive_statistics_matrix(test_ehr_dataset[cols])
+        result_resemblence.append(result)
+
+    if "diference_decriptives" in list_metric_resemblance:
+        cols = [ 'Age_max', 'LOSRD_sum','LOSRD_avg',
+        'L_1s_last_p1','visit_rank',
+        'days_between_visits']
+    
+        dif =  compare_descriptive_statistics(test_ehr_dataset[cols], synthetic_ehr_dataset[cols])
+        top_10_differences = sorted(dif.items(), key=lambda x: abs(x[1]), reverse=True)[:5]
+        top_10_dict = {item[0]: item[1] for item in top_10_differences}
+        result_resemblence.append(top_10_dict)
+        
+    if "frequency_categorical_10" in lidt_metric_resemblance:
+        cols = [ 'Age_max', 'LOSRD_sum','LOSRD_avg','id_patient','L_1s_last_p1','days_between_visits']
+    
+        columns_take_account = [i for i in test_ehr_dataset.columns if i not in  cols]
+        res = compare_proportions_and_return_dictionary(test_ehr_dataset[columns_take_account], synthetic_ehr_dataset[columns_take_account])    
+        top_10_diff_proportions = dict(sorted(res.items(), key=lambda item: item[1], reverse=True)[:10])
+        result_resemblence.append(top_10_diff_proportions)
+  
+    if "visit_counts" in  lidt_metric_resemblance:
+        df =  test_ehr_dataset[columnas_test_ehr_dataset+["visit_rank"]]
+        type_d = "test"
+        res = value_couts_visit(df,type_d)
+        df =  synthetic_ehr_dataset[columnas_test_ehr_dataset+["visit_rank"]]
+        type_d = "synthetic"
+        res2 =  value_couts_visit(df,type_d)
+        res.update(res2)
+        result_resemblence.append(res)
+        
     if "mmd" in list_metric_resemblance:
         mmd_evaluator = MaximumMeanDiscrepancy(kernel="rbf")
         train_test = "test"
@@ -711,7 +977,7 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
 
     # Example usage with two dataframes, `X_gt_df` and `X_syn_df`
     if "tsne" in list_metric_resemblance:
-        plot_tsne("Doop",test_ehr_dataset, synthetic_ehr_dataset)
+        plot_tsne("Doop",test_ehr_dataset[columnas_test_ehr_dataset], synthetic_ehr_dataset[columnas_test_ehr_dataset])
         
     if "corr" in list_metric_resemblance:
         corr_plot(synthetic_ehr_dataset,"Syn" )
@@ -753,7 +1019,7 @@ def obtain_dataset_admission_visit_rank(path_to_directory,file,valid_perc,featur
     
     # Agrupa por 'patient_id' y asigna un rango a cada visita
     total_features_synthethic['visit_rank'] = total_features_synthethic.groupby('id_patient')['ADMITTIME'].rank(method='first').astype(int)
-    synthetic_ehr_dataset = obtain_readmission_realdata(total_features_synthethic) 
+    v = obtain_readmission_realdata(total_features_synthethic) 
 
     return  test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset
 
@@ -763,6 +1029,7 @@ def cols_todrop(total_features_synthethic,cols):
     return total_features_synthethic
 
 if __name__=="main":
+    import wandb
     if attributes == "True":    
         path_o = "train_sp/"    
         attributes_path_train= "non_prepo/DATASET_NAME_non_preprotrain_data_attributes.pkl"
@@ -820,34 +1087,63 @@ if __name__=="main":
     file = csv_files[0]
     valid_perc = 0.5
     
+    for file in ["generated_synthcity_tabular/ctgan_100_epochs.pkl"]:
     
-    features_path = "data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl"
+    
+        if file == "generated_synthcity_tabular/ctgan_100_epochs.pkl" or file == "generated_synthcity_tabular/tvae_100_epochs_midi.pkl":    
+            trained_w = 0.5
+        else:    
+            trained = 0.2 
+        config_w = {
+            "model": "test",
+            "trained":0.2,
+            "valid_perc" :0.5
+        
+            }
+            
+        
+        wandb.init(project='SD_generation',config=config_w)
+        features_path = "data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl"
 
-    test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset = obtain_dataset_admission_visit_rank(path_to_directory,file,valid_perc,features_path)
-    #list_metric_resemblance = ["histogramas","tsne","statistics","kernel_density","mmd","ks_test","jensenshannon_dist"]
+        test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset = obtain_dataset_admission_visit_rank(path_to_directory,file,valid_perc,features_path)
+        #list_metric_resemblance = ["histogramas","tsne","statistics","kernel_density","mmd","ks_test","jensenshannon_dist"]
 
-    
-    cols = ['ADMITTIME','HADM_ID']
-    test_ehr_dataset = cols_todrop(test_ehr_dataset,cols)
-    train_ehr_dataset = cols_todrop(train_ehr_dataset,cols)
-    synthetic_ehr_dataset = cols_todrop(synthetic_ehr_dataset,cols)
-    
-    print(test_ehr_dataset.shape)
-    print(train_ehr_dataset.shape)
-    print(synthetic_ehr_dataset.shape)
-    
-    columnas_test_ehr_dataset = get_cols_diag_proc_drug(train_ehr_dataset)
+        
+        cols = ['ADMITTIME','HADM_ID']
+        test_ehr_dataset = cols_todrop(test_ehr_dataset,cols)
+        train_ehr_dataset = cols_todrop(train_ehr_dataset,cols)
+        synthetic_ehr_dataset = cols_todrop(synthetic_ehr_dataset,cols)
+        
+        print(test_ehr_dataset.shape)
+        print(train_ehr_dataset.shape)
+        print(synthetic_ehr_dataset.shape)
+        
+        columnas_test_ehr_dataset = get_cols_diag_proc_drug(train_ehr_dataset)
 
-    #obtener n mas frequent codes
-    top_300_codes = obtain_most_freuent(train_ehr_dataset,columnas_test_ehr_dataset,100)
+        #obtener n mas frequent codes
+        top_300_codes = obtain_most_freuent(train_ehr_dataset,columnas_test_ehr_dataset,100)
 
-    #obtener un syntethic datafram que considere el percentil y si es mayor a eso se considera 1 si no 0, si es false no se le agrega la columnas id_patient
-    synthetic_ehr = synthetic_ehr_dataset
-    
-    
+        #obtener un syntethic datafram que considere el percentil y si es mayor a eso se considera 1 si no 0, si es false no se le agrega la columnas id_patient
+        synthetic_ehr = synthetic_ehr_dataset
+        
+        #["statistics","mmd","ks_test","jensenshannon_dist"
+        #"visit_counts",
+        '''list_metric_resemblance = [
+        
+        "frequency_categorical_10",
+        "diference_decriptives",
+        "descriptive_statistics",
+        "distance_max",
+        "coorr_matrix_abs_dif", 
+        "statistics"]'''
+        
+        list_metric_resemblance = [
+        "corr",
+        "tsne"
+        ]
 
-    list_metric_resemblance = ["statistics","mmd","ks_test","jensenshannon_dist"]
 
-    results  =    calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance)
-    
-    print(results)
+        results  =    calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance)
+        wandb.log( results)
+        #wandb.finish()
+        print(results)
