@@ -214,6 +214,104 @@ def visitas_readmission(df):
         df['readmission'] = np.select(condiciones, valores)
     return df
 
+def filtered(real_result_admission):
+    total_counts = real_result_admission['Count'].sum()
+    # Paso 2: Calcular el porcentaje de cada grupo respecto al total
+    real_result_admission['Percentage'] = (real_result_admission['Count'] / total_counts) * 100
+    # Paso 3: Filtrar las filas donde el porcentaje sea mayor al 30%
+    filtered_result_admission = real_result_admission[real_result_admission['Percentage'] > 2]
+    print("filtered_result_admission",filtered_result_admission.shape)
+    print("real_result_admission",real_result_admission.shape)      
+    return filtered_result_admission    
+        
+def plot_hist_emp_codes(col_prod, train_ehr_dataset, synthetic_ehr, type_procedur, name):
+    # Process real and synthetic data
+    real_df = train_ehr_dataset[col_prod + ["id_patient", "visit_rank"]]
+    synthetic_df = synthetic_ehr[col_prod + ["id_patient", "visit_rank"]]
+    
+    
+    
+
+    # Prepare results for real and synthetic data
+    real_result_subject = real_df.groupby("id_patient").sum().sum(axis=1).reset_index(name='Count')
+    real_result_admission = real_df.groupby("visit_rank").sum().sum(axis=1).reset_index(name='Count')
+    synthetic_result_subject = synthetic_df.groupby("id_patient").sum().sum(axis=1).reset_index(name='Count')
+    synthetic_result_admission = synthetic_df.groupby("visit_rank").sum().sum(axis=1).reset_index(name='Count')
+    filtered_result_admission = filtered(real_result_admission)
+    filtered_synthetic_result_admission = filtered(synthetic_result_admission)
+    # Determine label based on type of procedure
+    if type_procedur in ["procedures", "diagnosis", "drugs"]:
+        label_xl = f'Count of {type_procedur}'
+    else:
+        print("Type of procedure not found")
+        return
+
+    # Create a figure with four subplots
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 8), sharey='row')
+
+    # Plotting for real data
+    sns.histplot(data=real_result_subject, x="Count", ax=ax1, color='darkblue', bins=40)
+    sns.histplot(data=filtered_result_admission, x="Count", ax=ax2, color='lightblue', bins=10)
+    ax1.set_ylim(1, max(real_result_subject["Count"]))
+    ax2.set_ylim(1, max(filtered_result_admission["Count"])) # Set y-axis limits for 'per admission' plot for real data
+
+    # Plotting for synthetic data
+    sns.histplot(data=synthetic_result_subject, x="Count", ax=ax3, color='darkgreen', bins=40)
+    sns.histplot(data=filtered_synthetic_result_admission, x="Count", ax=ax4, color='lightgreen', bins=10)
+    ax3.set_ylim(1, max(synthetic_result_subject["Count"]))
+    ax4.set_ylim(1, max(filtered_synthetic_result_admission["Count"])) # Set y-axis limits for 'per admission' plot for real data
+
+    # Set x-axis and y-axis labels for each subplot
+    ax1.set(xlabel=f'Count per patient (Real - {name})', ylabel='Frequency')
+    ax2.set(xlabel=f'{label_xl} per admission (Real)', ylabel='Frequency')
+    ax3.set(xlabel=f'Count per patient (Synthetic - {name})', ylabel='Frequency')
+    ax4.set(xlabel=f'{label_xl} per admission (Synthetic)', ylabel='Frequency')
+
+    # Set subplot titles
+    ax1.set_title('Real Data')
+    ax2.set_title('Real Data')
+    ax3.set_title('Synthetic Data')
+    ax4.set_title('Synthetic Data')
+
+    # Add subplot annotations
+    ax1.text(-0.1, 1.1, '(a)', transform=ax1.transAxes, size=12)
+    ax2.text(-0.1, 1.1, '(b)', transform=ax2.transAxes, size=12)
+    ax3.text(-0.1, 1.1, '(c)', transform=ax3.transAxes, size=12)
+    ax4.text(-0.1, 1.1, '(d)', transform=ax4.transAxes, size=12)
+
+    # Set a super title for the figure
+    fig.suptitle('Comparison of Real and Synthetic Data Counts', fontsize=16)
+
+    # Save and show the plot
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust layout to make room for the super title
+    plt.savefig(f'results_SD/hist/{type_procedur}_{name}_comparison_plot.svg')
+    plt.show()
+
+def obtain_dataset_admission_visit_rank(path_to_directory,file,valid_perc,features_path):
+    features = load_data(features_path)
+    total_features_synthethic = pd.read_csv(file) 
+    #split_dataset
+    N = features.shape[0]
+    N_train = int(N * (1 - valid_perc))
+    N_valid = N - N_train
+    total_features_train = features[:N_train]
+    total_fetura_valid = features[N_train:]   
+    total_features_synthethic = total_features_synthethic[:N_train]
+    total_features_train   = total_features_train.rename(columns={"SUBJECT_ID":"id_patient"})
+    total_features_synthethic   = total_features_synthethic.rename(columns={"SUBJECT_ID":"id_patient"})
+    total_fetura_valid   = total_fetura_valid.rename(columns={"SUBJECT_ID":"id_patient"})
+    train_ehr_dataset = obtain_readmission_realdata(total_features_train)
+    test_ehr_dataset = obtain_readmission_realdata(total_fetura_valid) 
+    #obtener readmission
+    total_features_synthethic['ADMITTIME'] = pd.to_datetime(total_features_synthethic['ADMITTIME'])
+    total_features_synthethic = total_features_synthethic.sort_values(by=['id_patient', 'ADMITTIME'])
+    # Ordena el DataFrame por 'patient_id' y 'visit_date' para garantizar el ranking correcto
+    # Agrupa por 'patient_id' y asigna un rango a cada visita
+    total_features_synthethic['visit_rank'] = total_features_synthethic.groupby('id_patient')['ADMITTIME'].rank(method='first').astype(int)
+    synthetic_ehr_dataset = obtain_readmission_realdata(total_features_synthethic) 
+    return  test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset
+
+
 def obtain_readmission_realdata(total_fetura_valid):
     # Ordenando el DataFrame por 'id_' y 'visit_rank'
     total_fetura_valid = total_fetura_valid.sort_values(by=['id_patient', 'visit_rank'])
