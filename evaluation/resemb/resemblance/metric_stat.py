@@ -419,7 +419,7 @@ def plot_hist_emp_codes(col_prod, train_ehr_dataset, synthetic_ehr, type_procedu
 # plot_hist_emp_codes(col_prod, train_ehr_dataset, synthetic_ehr, type_procedur, name)
 
 
-def plot_hist_emp_codes(col_prod, train_ehr_dataset, synthetic_ehr, type_procedur, name):
+def plot_hist_emp_codes_auz(col_prod, train_ehr_dataset, synthetic_ehr, type_procedur, name):
     # Process real and synthetic data
     real_df = train_ehr_dataset[col_prod + ["id_patient", "visit_rank"]]
     synthetic_df = synthetic_ehr[col_prod + ["id_patient", "visit_rank"]]
@@ -479,7 +479,7 @@ def plot_hist_emp_codes(col_prod, train_ehr_dataset, synthetic_ehr, type_procedu
 
     # Save and show the plot
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust layout to make room for the super title
-    plt.savefig(f'results_SD/hist/{type_procedur}_{name}_comparison_plot.svg')
+    plt.savefig(f'results_SD/hist/{type_procedur}__comparison_plot.svg')
     plt.show()
 
 
@@ -955,7 +955,7 @@ def plot_kernel_syn(real_df, synthetic_df, col, name):
     ax.set_ylim(bottom=0)  # Ensure the y-axis starts at zero
 
     # Save the plot to a file
-    plt.savefig(f'results_SD/img/{col}_{name}_kernelplot.svg')
+    plt.savefig(f'results_SD/img/{col}__kernelplot.svg')
     
     # Show the plot
     plt.show()
@@ -1336,7 +1336,7 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
         top_10_dict = {item[0]: item[1] for item in top_10_differences}
         result_resemblence.append(top_10_dict)
         
-    if "frequency_categorical_10" in lidt_metric_resemblance:
+    if "frequency_categorical_10" in list_metric_resemblance:
         cols = [ 'Age_max', 'LOSRD_sum','LOSRD_avg','id_patient','L_1s_last_p1','days_between_visits']
     
         columns_take_account = [i for i in test_ehr_dataset.columns if i not in  cols]
@@ -1344,7 +1344,7 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
         top_10_diff_proportions = dict(sorted(res.items(), key=lambda item: item[1], reverse=True)[:10])
         result_resemblence.append(top_10_diff_proportions)
   
-    if "visit_counts" in  lidt_metric_resemblance:
+    if "visit_counts" in  list_metric_resemblance:
         df =  train_ehr_dataset[columnas_test_ehr_dataset+["visit_rank"]]
         type_d = "train"
         resx = value_couts_visit(df,type_d)
@@ -1517,32 +1517,34 @@ if __name__=="main":
         
        
 
-  
+     
 
     # Definir la ruta al directorio que contiene los archivos CSV
     path_to_directory = 'generated_synthcity_tabular/*'  # Asegúrate de incluir el asterisco al final
     csv_files = glob.glob(path_to_directory + '.pkl')
     #file = csv_files[0]
-    file = 'generated_synthcity_tabular/marginal_distributionstotal_0.2_epochs.pkl'
+    #"file = 'generated_synthcity_tabular/marginal_distributionstotal_0.2_epochs.pkl'
     #valid_perc = 0.2
+    #'generated_synthcity_tabular/arftotal_0.2_epochs.pkl', 'generated_synthcity_tabular/tvaetotal_100_epochs.pkl', 'generated_synthcity_tabular/ctgantotal_0.2_epochs.pkl',  'generated_synthcity_tabular/tvae_100_epochs.pkl', 'generated_synthcity_tabular/rtvaetotal_0.2_epochs.pkl',
+    csv_files = ['generated_synthcity_tabular/arftotal_0.2_epochs.pkl', 'generated_synthcity_tabular/tvaetotal_100_epochs.pkl', 'generated_synthcity_tabular/ctgantotal_0.2_epochs.pkl',  'generated_synthcity_tabular/tvae_100_epochs.pkl', 'generated_synthcity_tabular/rtvaetotal_0.2_epochs.pkl', 'generated_synthcity_tabular/ctgan_100_epochs_.pkl', 'generated_synthcity_tabular/marginal_distributionstotal_0.2_epochs.pkl', 'generated_synthcity_tabular/ctgan_100_epochs.pkl', 'generated_synthcity_tabular/tvae_100_epochs_midi.pkl', 'generated_synthcity_tabular/marginal_distributions_100_epochs.pkl', 'generated_synthcity_tabular/nflow_100_epochs.pkl']
     valid_perc = 0.2
     
-    for file in ["generated_synthcity_tabular/ctgan_100_epochs.pkl"]:
-    
+    for file in csv_files:
+        print(file)
     
         if file == "generated_synthcity_tabular/ctgan_100_epochs.pkl" or file == "generated_synthcity_tabular/tvae_100_epochs_midi.pkl":    
             trained_w = 0.5
         else:    
             trained = 0.2 
         config_w = {
-            "model": "test",
+            "model": file,
             "trained":0.2,
             "valid_perc" :0.5
         
             }
             
         
-        wandb.init(project='SD_generation',config=config_w)
+        wandb.init(project='SD_generation2',config=config_w)
         features_path = "data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl"
 
         test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,features = obtain_dataset_admission_visit_rank(file,file,valid_perc,features_path)
@@ -1570,22 +1572,42 @@ if __name__=="main":
         
         #["statistics","mmd","ks_test","jensenshannon_dist"
         #"visit_counts",
+        ######Totales###############
         '''list_metric_resemblance = [
-        
         "frequency_categorical_10",
         "diference_decriptives",
         "descriptive_statistics",
         "distance_max",
         "coorr_matrix_abs_dif", 
-        "statistics"]'''
-        
-        list_metric_resemblance = [
-        "corr",
-        "tsne"
-        ]
-
-
+        "statistics","histogramas","tsne","statistics","kernel_density","mmd","ks_test",
+        "jensenshannon_dist","histogramas"
+        "visit_counts","proportion_demos", "hist_mixed","plot_kernel_vssyn","statistics","cols_plot_mean","plt_hist_first_visits"]'''
+        #train same lenght as test
+        list_metric_resemblance =["plt_hist_first_visits""plot_kernel_vssyn""visit_counts","proportion_demos", 
+        "hist_mixed","statistics","cols_plot_mean","visit_counts"]
         results  =    calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance)
-        wandb.log( results)
-        #wandb.finish()
-        print(results)
+       
+        list_metric_resemblance = ["frequency_categorical_10",
+        "diference_decriptives",
+        "descriptive_statistics",
+    
+        "coorr_matrix_abs_dif"
+        ,"statistics","kernel_density","mmd","ks_test",
+        "jensenshannon_dist"]
+        #list_metric_resemblance = [
+        #"corr",
+        #"tsne"
+        #]
+        synthetic_ehr = synthetic_ehr[:test_ehr_dataset.shape[0]]
+        synthetic_ehr_dataset = synthetic_ehr_dataset[:test_ehr_dataset.shape[0]]
+        train_ehr_dataset = train_ehr_dataset[:test_ehr_dataset.shape[0]]
+        print(test_ehr_dataset.shape)
+        print(train_ehr_dataset.shape)
+        print(synthetic_ehr_dataset.shape)
+       
+        results_  =    calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance)
+        results_.update(results)
+        wandb.log( results_)
+        wandb.finish()
+        print(results_)
+    #wandb.finish()    
