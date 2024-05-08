@@ -4,10 +4,11 @@ import os
 os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
 current_directory = os.getcwd()
 
+
 print(current_directory)
 import sys
 sys.path.append('preprocessing')
-sys.path.append('evaluation')
+sys.path.append('evaluation/privacy/metric_privacy')
 sys.path.append('privacy')
 sys.path.append('evaluation')
 from scipy.stats import entropy
@@ -36,9 +37,48 @@ import numpy as np
 from evaluation.privacy.metric_privacy import *
 import pandas as pd
 import glob
+
+def obtain_most_freuent(train_ehr_dataset,columnas_test_ehr_dataset,num):
+    code_sums = train_ehr_dataset[columnas_test_ehr_dataset].sum(axis=0).sort_values(ascending=False)
+    top_300_codes = code_sums.head(num).index.tolist()
+    return top_300_codes
+
+def obtain_least_frequent(train_ehr_dataset, columns, num):
+    """
+    This function calculates the least frequent categories for specified columns in a DataFrame.
+
+    Parameters:
+    - train_ehr_dataset: pandas DataFrame from which to calculate frequencies.
+    - columns: list of columns to sum frequencies across.
+    - num: number of least frequent categories to return.
+
+    Returns:
+    - List of the indices of the least frequent categories.
+    """
+    # Calculate the sum of occurrences across specified columns and sort them in ascending order
+    code_sums = train_ehr_dataset[columns].sum(axis=0).sort_values(ascending=True)
+    
+    # Get the indices of the least frequent categories up to the number specified
+    least_frequent_codes = code_sums.head(num).index.tolist()
+    
+    return least_frequent_codes
+
+
 #from evaluation.resemb.resemblance.metric_stat import *
 #from evaluation.functions import *
+def get_cols_diag_proc_drug(train_ehr_dataset):
+    keywords = ['diagnosis', 'procedures', 'drugs']
+    columnas_test_ehr_dataset = [col for col in train_ehr_dataset.columns if any(palabra in col for palabra in keywords)]
+    return columnas_test_ehr_dataset
 
+def obtain_readmission_realdata(total_fetura_valid):
+    # Ordenando el DataFrame por 'id_' y 'visit_rank'
+    total_fetura_valid = total_fetura_valid.sort_values(by=['id_patient', 'visit_rank'])
+
+    # Crear una nueva columna 'readmission'
+    # Comparamos si el siguiente 'visit_rank' es mayor que el actual para el mismo 'id_'
+    total_fetura_valid['readmission'] = total_fetura_valid.groupby('id_patient')['visit_rank'].shift(-1).notna().astype(int)  
+    return  total_fetura_valid
 
 class JensenShannonDistance:
     
@@ -257,12 +297,12 @@ def corr_plot(total_features_train,name ):
     fig, ax = plt.subplots()
 
     # Crear un mapa de calor de la matriz de correlación
-    sns.heatmap(corr_matrix, annot=True, ax=ax)
+    sns.heatmap(corr_matrix, annot=False, ax=ax)
 
     # Mostrar el gráfico
     plt.savefig('results_SD/img/'+name+'_kernelplot.svg')
     plt.show()
-
+    return corr_matrix
 
 
 
@@ -488,7 +528,7 @@ import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 import pandas as pd
 
-def plot_tsne(name,X_gt_df: pd.DataFrame, X_syn_df: pd.DataFrame) -> None:
+def plot_tsne_r(name,X_gt_df: pd.DataFrame, X_syn_df: pd.DataFrame) -> None:
     # Create the figure and axis for plotting
     fig, ax = plt.subplots(1, 1, figsize=(12, 10))
 
@@ -1079,6 +1119,11 @@ def plot_admission_date_bar_charts(features, synthetic_ehr_dataset, col):
 
 
 
+def filter_cols(categorical_cols,train_ehr_dataset):        
+    for i in categorical_cols:
+        cols_f = train_ehr_dataset.filter(like=i, axis=1).columns
+    return cols_f    
+            
 def plot_admission_date_histograms(features,synthetic_ehr_dataset,col):
     # Filter the dataset for first visits
     features = features[:synthetic_ehr_dataset.shape[0]]
@@ -1145,6 +1190,7 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
     if "cols_plot_mean" in list_metric_resemblance:
         cols = [ 'Age_max', 'LOSRD_sum','visit_rank','days_between_visits']
         # Assuming real_df and synthetic_df are your dataframes
+       
         plot_means(train_ehr_dataset, synthetic_ehr_dataset, cols)
 
     if "plot_kernel_vssyn" in list_metric_resemblance:
@@ -1154,7 +1200,7 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
         
     if "compare_ranges" in list_metric_resemblance:
         cols = [ 'Age_max', 'LOSRD_sum','LOSRD_avg','L_1s_last_p1','visit_rank','days_between_visits']
-        result = compare_data_ranges(test_ehr_dataset, synthetic_ehr_dataset,cols)
+        result = compare_data_ranges(train_ehr_dataset, synthetic_ehr_dataset,cols)
         print("Feature Ranges:\n", result)
         result_resemblence.append(result)
     if "distance_max" in list_metric_resemblance:
@@ -1194,8 +1240,19 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
     if "descriptive_statistics" in list_metric_resemblance:
         cols = ['Age_max', 'LOSRD_sum','LOSRD_avg','L_1s_last_p1','visit_rank','days_between_visits']
         result = descriptive_statistics_matrix(synthetic_ehr_dataset[cols])
+        result1 = descriptive_statistics_matrix(train_ehr_dataset[cols])
+        
         #result = descriptive_statistics_matrix(test_ehr_dataset[cols])
         result_resemblence.append(result)
+        data = pd.concat([pd.DataFrame(result,index = [0]),pd.DataFrame(result1,index = [0])])
+        x1 = data[['mean_Age_max',  'mode_Age_max', 
+        'mean_LOSRD_sum', 'median_LOSRD_sum', 'mean_visit_rank', 'median_visit_rank',
+        'mode_visit_rank', 'minimum_visit_rank', 'maximum_visit_rank',
+        'range_visit_rank', 'mean_days_between_visits',
+        'median_days_between_visits', 'mode_days_between_visits',
+        'minimum_days_between_visits', 'maximum_days_between_visits' ]].to_latex()
+        print(x1)
+
     if "diference_decriptives" in list_metric_resemblance:
         cols = ['Age_max', 'LOSRD_sum','LOSRD_avg','L_1s_last_p1','visit_rank','days_between_visits']
         dif = compare_descriptive_statistics(test_ehr_dataset[cols], synthetic_ehr_dataset[cols])
@@ -1209,8 +1266,8 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
         top_10_diff_proportions = dict(sorted(res.items(), key=lambda item: item[1], reverse=True)[:10])
         result_resemblence.append(top_10_diff_proportions)
     if "visit_counts2" in list_metric_resemblance:
-        df = test_ehr_dataset[columnas_test_ehr_dataset+["visit_rank"]]
-        type_d = "test"
+        df = train_ehr_dataset[columnas_test_ehr_dataset+["visit_rank"]]
+        type_d = "train"
         res = df.groupby(["visit_rank"]).count().iloc[:,0].head().to_dict()
         res = {f"{key} test set": value for key, value in res.items()}
 
@@ -1218,8 +1275,11 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
         type_d = "synthetic"
         res2 = df.groupby(["visit_rank"]).count().iloc[:,0].head().to_dict()
         res2 = {f"{key} synthetic set": value for key, value in res2.items()}
-
+        aux_s = pd.concat([pd.DataFrame(res,index = [0]),pd.DataFrame(res2,index = [0])],axis = 1)
+        la = aux_s.to_latex()
+        print(la)
         res.update(res2)
+         
         result_resemblence.append(res)
     if "mmd" in list_metric_resemblance:
         mmd_evaluator = MaximumMeanDiscrepancy(kernel="rbf")
@@ -1250,7 +1310,32 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
         plot_tsne("Doop",test_ehr_dataset[columnas_test_ehr_dataset], synthetic_ehr_dataset[columnas_test_ehr_dataset])
     if "corr" in list_metric_resemblance:
         corr_plot(synthetic_ehr_dataset,"Syn" )
-        corr_plot(test_ehr_dataset,"Test" )  
+        corr_plot(train_ehr_dataset,"Train" )  
+        cols = [ 'Age_max', 'LOSRD_sum','LOSRD_avg',
+        'L_1s_last_p1','visit_rank',
+        'days_between_visits']
+        corr_plot(synthetic_ehr_dataset[cols],"Syn" )
+        corr_plot(train_ehr_dataset[cols],"Train" )
+        cols_list = []
+        categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
+                        'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
+                        'MARITAL_STATUS',  'ETHNICITY','GENDER',"visit_rank","HOSPITAL_EXPIRE_FLAG"  ]
+        for i in categorical_cols:
+            cols_f = train_ehr_dataset.filter(like=i, axis=1).columns
+            cols_list.extend(list(cols_f))
+        syn = corr_plot(synthetic_ehr_dataset[cols_list],"Syn" )
+        real = corr_plot(train_ehr_dataset[cols_list],"Train" )
+        
+        keywords = ['diagnosis', 'procedures', 'drugs']
+        for i in keywords:
+            col_prod = [col for col in train_ehr_dataset.columns if any(palabra in col for palabra in [i])]
+        corr_plot(synthetic_ehr_dataset[col_prod],"Syn" )
+        corr_plot(train_ehr_dataset[col_prod],"Train" )    
+            
+        plot_tsne_r(synthetic_ehr_dataset[col_prod],train_ehr_dataset[col_prod])
+        
+            
+ 
     #for i in result_resemblence:
     #    results_final.update(i)  
     #return results_final
@@ -1316,16 +1401,7 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
             result["MaxAbsDif_test_synthethic_corr_min"] = min_diff_syn_test
             result_resemblence.append(result)
 
-    if "descriptive_statistics" in list_metric_resemblance:
-        # Example usage
-        # Creating a small example matrix for demonstration; use your actual data here
-        cols = [ 'Age_max', 'LOSRD_sum','LOSRD_avg',
-        'L_1s_last_p1','visit_rank',
-        'days_between_visits']
-        result = descriptive_statistics_matrix(synthetic_ehr_dataset[cols])
-        result = descriptive_statistics_matrix(test_ehr_dataset[cols])
-        result_resemblence.append(result)
-
+    
     if "diference_decriptives" in list_metric_resemblance:
         cols = [ 'Age_max', 'LOSRD_sum','LOSRD_avg',
         'L_1s_last_p1','visit_rank',
@@ -1368,8 +1444,16 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
     # Example usage:
     # X_gt and X_syn are two numpy arrays representing empirical distributions
     if "ks_test" in list_metric_resemblance:
-        features_1d = test_ehr_dataset.iloc[:,:synthetic_ehr.shape[1]].values.flatten()
-        synthetic_features_1d = synthetic_ehr.values.flatten()
+        cols = ['ADMITTIME','HADM_ID']
+        test_ehr_dataset_a = cols_todrop(test_ehr_dataset,cols)
+        #train_ehr_dataset_a = cols_todrop(train_ehr_dataset,cols)
+        synthetic_ehr_dataset_a = cols_todrop(synthetic_ehr_dataset,cols)
+  
+        features_1d = test_ehr_dataset_a.values.flatten()
+        synthetic_features_1d = synthetic_ehr_dataset_a[:test_ehr_dataset_a.shape[0]].values.flatten()
+        print(len(features_1d))
+        print(len(synthetic_features_1d[:len(features_1d)]))
+        synthetic_features_1d = synthetic_features_1d[:len(features_1d)]
         ks_test = KolmogorovSmirnovTest()
         result = ks_test._evaluate(features_1d, synthetic_features_1d)
         print("Kolmog orov-Smirnov Test:", result)
@@ -1413,6 +1497,7 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
                 name = file[10:]
                 type_procedur = i
                 plot_hist_emp_codes(col_prod, train_ehr_dataset, synthetic_ehr, type_procedur, name)
+                
     
     if "proportion_demos" in  list_metric_resemblance:
         prop_datafram = []
@@ -1421,7 +1506,7 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
                         'MARITAL_STATUS',  'ETHNICITY','GENDER',"visit_rank","HOSPITAL_EXPIRE_FLAG"  ]
         for i in categorical_cols:
             cols_f = train_ehr_dataset.filter(like=i, axis=1).columns
-            tabla_proporciones_final = get_proportions(test_ehr_dataset[cols_f],"train "+ i)
+            tabla_proporciones_final = get_proportions(train_ehr_dataset[cols_f],"train "+ i)
             tabla_proporciones_final_2= get_proportions(synthetic_ehr_dataset[cols_f],"synthetic"+ i)
             
             total = pd.merge(tabla_proporciones_final,tabla_proporciones_final_2,  on=["Variable","Category "], how='inner') 
@@ -1430,7 +1515,136 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
             latex_code = total.to_latex( index = "Variable")
             print(latex_code)
     
+    if "exact_match" in list_metric_resemblance:
+        df1_sorted = synthetic_ehr_dataset.sort_values(by=synthetic_ehr_dataset.columns.tolist()).reset_index(drop=True)  
+        df2_sorted = train_ehr_dataset.sort_values(by=train_ehr_dataset.columns.tolist()).reset_index(drop=True)
+        exact_matches = (df1_sorted == df2_sorted).all(axis=1).sum()
+        print("Number of exact matching rows:", exact_matches)
+        result_resemblence.append({"exact_matches" : exact_matches})               
+    if "duplicates" in list_metric_resemblance:
+        
+        combined = pd.concat([train_ehr_dataset, synthetic_ehr_dataset])
+        synthetic_ehr_dataset['is_duplicate'] = combined.duplicated(keep=False).iloc[len(train_ehr_dataset):]
 
+        print("Test data with duplicate flag:")
+        value_counts = synthetic_ehr_dataset['is_duplicate'].value_counts()
+        new_dict = {"Duplicates - " + str(key): value for key, value in value_counts.items()}
+        result_resemblence.append(new_dict)               
+        
+    if "compare_least_codes" in list_metric_resemblance:
+        
+        least_cols =  obtain_least_frequent(train_ehr_dataset, columnas_test_ehr_dataset, 50)
+        
+
+# Columns to analyze
+        columns_to_analyze =least_cols
+
+        # Function to calculate proportions for a given column in a DataFrame
+        def calculate_proportions(df, column):
+            frequency = df[column].value_counts(normalize=True)
+            return frequency
+
+        # Step 3: Create a DataFrame for plotting
+        plot_data = {}
+
+        for column in columns_to_analyze:
+            real_props = calculate_proportions(train_ehr_dataset, column)
+            synth_props = calculate_proportions(synthetic_ehr_dataset, column)
+            
+            # Prepare data for plotting
+            for category in set(real_props.index).union(set(synth_props.index)):
+                real_prop = real_props.get(category, 0)
+                synth_prop = synth_props.get(category, 0)
+                plot_data[(column, category)] = [real_prop, synth_prop]
+
+            # Convert plot data into a DataFrame
+            plot_df = pd.DataFrame.from_dict(plot_data, orient='index', columns=['Real', 'Synthetic']).reset_index()
+            plot_df_filtered = plot_df[plot_df['index'].apply(lambda x: x[1] == 1)]
+
+        # Imprime el DataFrame filtrado
+
+            latex_table = plot_df_filtered.to_latex(index=False)
+            print(latex_table)
+            
+    if "gradico_acum" in list_metric_resemblance:   
+        def fun_grafico_compa(col,train_ehr_dataset):
+            cols =    filter_cols([col],train_ehr_dataset) 
+            df = pd.DataFrame(train_ehr_dataset[cols])
+            # Obtener el nombre de la columna con valor máximo (one-hot) para cada fila
+            df['category'] = df.apply(lambda row: row.idxmax(), axis=1)
+            # Convertir nobres de categorías a etiquetas numéricas
+            mapping_dict = {value: i for i, value in enumerate(df['category'].unique())}
+            # Asigna las etiquetas a una nueva columna 'category_label'
+            # Imprime el diccionario de mapeo
+            aux_df =train_ehr_dataset
+            aux_df['category'] = df['category']
+            aux_df['visit_count'] = 1
+            # Agrupar por fecha y categoría y sumar visitas
+            grouped = aux_df.groupby(['ADMITTIME', 'category']).sum().groupby(level='category').cumsum()
+            # Calcular el total acumulado para cada categoría al final del período
+            total_per_category = grouped.groupby('category')['visit_count'].transform('max')
+            # Calcular la proporción
+            grouped['proportion'] = grouped['visit_count'] / total_per_category
+            # Resetear el índice para facilitar el plotting
+            grouped = grouped.reset_index()
+            # Asegurarse de que los colores se asignan correctamente
+            colors = plt.cm.viridis(np.linspace(0, 1, grouped['category'].nunique()))
+            categories = grouped['category'].unique()
+            # Crea un diccionario que mapee cada categoría a un color
+            color_dict = dict(zip(categories, colors))
+            # Imprime el diccionario de colores
+            print(color_dict)
+            return color_dict,grouped
+        
+        import matplotlib.pyplot as plt
+
+        def plot_admission_date_bar_charts(color_dict, color_dict_, grouped, grouped_synthetic, col, save=False):
+            # Create the figure with two subplots side by side
+            fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(20, 6), sharey=True)
+            # Unique categories in the real data
+            categories_real = grouped['category'].unique()
+            categories_synthetic = grouped_synthetic['category'].unique()
+            # Plot cumulative proportions for each category in the first subplot
+            for (category), data in grouped.groupby('category'):
+                ax1.plot(data['ADMITTIME'], data['visit_count'], label=f'Category {category}', color=color_dict.get(category, 'gray'))
+            # Configuration of the first graph
+            ax1.set_title('Cumulative Visits by Category - Real Data (' + col + ')')
+            ax1.set_xlabel('Admission Date')
+            ax1.set_ylabel('Cumulative of Visits')
+            if len(categories_real) <= 10:
+                ax1.legend(title='Category')
+            # Plot cumulative proportions for each category in the second subplot, using the synthetic DataFrame
+            for (category), data in grouped_synthetic.groupby('category'):
+                ax2.plot(data['ADMITTIME'], data['visit_count'], label=f'Category {category}', color=color_dict_.get(category, 'gray'))
+            # Configuration of the second graph
+            ax2.set_title('Cumulative Visit Proportions by Category - Synthetic Data (' + col + ')')
+            ax2.set_xlabel('Admission Date')
+            if len(categories_synthetic) <= 10:
+                ax2.legend(title='Category')
+            fig.autofmt_xdate()  # Automatically format the dates to improve visualization
+            # Show the graph
+            plt.show()
+            
+            if save:
+                plt.savefig(f'results_SD/img/{col}__cumulative_counts_each_visit.svg')
+
+               
+ 
+            
+        def categorilca_cols_fun(train_ehr_dataset,synthetic_ehr_dataset,categorical_cols,save=False):
+            for i in categorical_cols:    
+                    color_dict,grouped = fun_grafico_compa(i,train_ehr_dataset)
+                    color_dict_,grouped_synthetic = fun_grafico_compa(i,synthetic_ehr_dataset)
+                    plot_admission_date_bar_charts(color_dict,color_dict_,grouped,grouped_synthetic,i,save = False)                
+        categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
+                    'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
+                    'MARITAL_STATUS',  'ETHNICITY','GENDER',"visit_rank","HOSPITAL_EXPIRE_FLAG"  ]
+        categorilca_cols_fun(train_ehr_dataset,synthetic_ehr_dataset,categorical_cols,save=False)
+        cols = [ 'Age_max', 'LOSRD_sum','LOSRD_avg','id_patient','L_1s_last_p1','days_between_visits']
+        categorilca_cols_fun(train_ehr_dataset,synthetic_ehr_dataset,cols,save=False)
+        keywords = ['diagnosis', 'procedures', 'drugs']
+        categorilca_cols_fun(train_ehr_dataset,synthetic_ehr_dataset,keywords,save=False)
+        
     for i in result_resemblence:
         results_final.update(i)  
 
@@ -1440,6 +1654,9 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
 def obtain_dataset_admission_visit_rank(path_to_directory,file,valid_perc,features_path):
     features = load_data(features_path)
     total_features_synthethic = pd.read_csv(file) 
+    cols_unnamed = total_features_synthethic.filter(like='Unnamed', axis=1).columns
+    total_features_synthethic.drop(cols_unnamed, axis=1, inplace=True)
+   
     #split_dataset
     N = features.shape[0]
     N_train = int(N * (1 - valid_perc))
@@ -1466,8 +1683,9 @@ def cols_todrop(total_features_synthethic,cols):
     total_features_synthethic.drop(cols_to_drop, axis=1, inplace=True) 
     return total_features_synthethic
 
-if __name__=="main":
+if __name__=="__main__":
     import wandb
+    attributes = "False"
     if attributes == "True":    
         path_o = "train_sp/"    
         attributes_path_train= "non_prepo/DATASET_NAME_non_preprotrain_data_attributes.pkl"
@@ -1525,10 +1743,12 @@ if __name__=="main":
     #file = csv_files[0]
     #"file = 'generated_synthcity_tabular/marginal_distributionstotal_0.2_epochs.pkl'
     #valid_perc = 0.2
-    #'generated_synthcity_tabular/arftotal_0.2_epochs.pkl', 'generated_synthcity_tabular/tvaetotal_100_epochs.pkl', 'generated_synthcity_tabular/ctgantotal_0.2_epochs.pkl',  'generated_synthcity_tabular/tvae_100_epochs.pkl', 'generated_synthcity_tabular/rtvaetotal_0.2_epochs.pkl',
-    csv_files = ['generated_synthcity_tabular/arftotal_0.2_epochs.pkl', 'generated_synthcity_tabular/tvaetotal_100_epochs.pkl', 'generated_synthcity_tabular/ctgantotal_0.2_epochs.pkl',  'generated_synthcity_tabular/tvae_100_epochs.pkl', 'generated_synthcity_tabular/rtvaetotal_0.2_epochs.pkl', 'generated_synthcity_tabular/ctgan_100_epochs_.pkl', 'generated_synthcity_tabular/marginal_distributionstotal_0.2_epochs.pkl', 'generated_synthcity_tabular/ctgan_100_epochs.pkl', 'generated_synthcity_tabular/tvae_100_epochs_midi.pkl', 'generated_synthcity_tabular/marginal_distributions_100_epochs.pkl', 'generated_synthcity_tabular/nflow_100_epochs.pkl']
+    #'generated_synthcity_tabular/arftotal_0.2_epochs.pkl', 'generated_synthcity_tabular/tvaetotal_100_epochs.pkl', 'generated_synthcity_tabular/ctgantotal_0.2_epochs.pkl',  'generated_synthcity_tabular/tvae_100_epochs.pkl', 'generated_synthcity_tabular/rtvaetotal_0.2_epochs.pkl', 'generated_synthcity_tabular/ctgan_100_epochs_.pkl',
+    #csv_files = [ 'generated_synthcity_tabular/marginal_distributionstotal_0.2_epochs.pkl', 'generated_synthcity_tabular/ctgan_100_epochs.pkl', 'generated_synthcity_tabular/tvae_100_epochs_midi.pkl', 'generated_synthcity_tabular/marginal_distributions_100_epochs.pkl', 'generated_synthcity_tabular/nflow_100_epochs.pkl']
+    csv_files = ['generated_synthcity_tabular/adsgantotal_0.2_epochs.pkl','generated_synthcity_tabular/pategantotal_0.2_epochs.pkl']
     valid_perc = 0.2
-    
+    results_df = pd.DataFrame()
+    file = 'generated_synthcity_tabular/arftotal_0.2_epochs.pkl'
     for file in csv_files:
         print(file)
     
@@ -1544,7 +1764,7 @@ if __name__=="main":
             }
             
         
-        wandb.init(project='SD_generation2',config=config_w)
+        #wandb.init(project='SD_generation2',config=config_w)
         features_path = "data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl"
 
         test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,features = obtain_dataset_admission_visit_rank(file,file,valid_perc,features_path)
@@ -1607,7 +1827,17 @@ if __name__=="main":
        
         results_  =    calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance)
         results_.update(results)
-        wandb.log( results_)
-        wandb.finish()
-        print(results_)
+        results_["Model"] = file
+        result_df = pd.DataFrame([results_]) 
+        result_df = pd.DataFrame([results_]) 
+        results_df = pd.concat([results_df,result_df], ignore_index=True)
+        results_df.to_csv('generated_synthcity_tabular/model_tabular_results.csv', index=False)
+        #wandb.log( results_)
+        #wandb.finish()
+        #print(results_)
     #wandb.finish()    
+#import wandb
+#wandb.init(project="test_project")
+## Log a dummy variable
+#wandb.log({"dummy": 1})
+#wandb.finish()

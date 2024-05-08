@@ -290,6 +290,9 @@ def plot_hist_emp_codes(col_prod, train_ehr_dataset, synthetic_ehr, type_procedu
 def obtain_dataset_admission_visit_rank(path_to_directory,file,valid_perc,features_path):
     features = load_data(features_path)
     total_features_synthethic = pd.read_csv(file) 
+    cols_unnamed = total_features_synthethic.filter(like='Unnamed', axis=1).columns
+    total_features_synthethic.drop(cols_unnamed, axis=1, inplace=True)
+    
     #split_dataset
     N = features.shape[0]
     N_train = int(N * (1 - valid_perc))
