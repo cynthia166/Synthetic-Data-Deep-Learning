@@ -132,7 +132,7 @@ class IdentifiabilityScore:
 
 class DeltaPresence:
     """
-    Clase para calcular la probabilidad máxima de re-identificación en el conjunto
+  
     de datos real a partir del conjunto de datos sintético, utilizando arrays de numpy.
     """
     

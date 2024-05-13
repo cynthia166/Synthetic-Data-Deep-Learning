@@ -1,5 +1,11 @@
 import pandas as pd
 
+import pandas as pd
+from datetime import timedelta
+from pandas import Timedelta
+import os
+import sys
+
 print(os.getcwd())
 sys.path.append('../../')
 os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
@@ -9,9 +15,6 @@ def load_data(file_path):
         return pickle.load(f)
 
 
-import pandas as pd
-from datetime import timedelta
-from pandas import Timedelta
 
 class EHRDataConstraints:
     def __init__(self, train_ehr_dataset, test_ehr_dataset, synthetic_ehr_dataset):
@@ -90,7 +93,7 @@ if __name__ == '__main__':
     
     c = EHRDataConstraints(train_ehr_dataset, test_ehr_dataset, synthetic_ehr_dataset)
     c.print_shapes()
-    cols_accounts = c.handle_categorical_data()
+    #cols_accounts = c.handle_categorical_data()
     processed_synthetic_dataset = c.initiate_processing()
     c.print_shapes()
     
@@ -103,4 +106,4 @@ if __name__ == '__main__':
     for id_paciente in i[180:190]:
         print(processed_synthetic_dataset[processed_synthetic_dataset["id_patient"]==id_paciente][cols_accounts])
     
-    #falt rebisar que cpigo permanece constante en historia de personas-
+    #falt rebisar que cpigo permanece constante en historia de personas-ƒ

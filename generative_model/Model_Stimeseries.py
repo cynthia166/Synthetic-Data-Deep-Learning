@@ -140,3 +140,4 @@ for plugin in score:
 out = pd.concat(means, axis=1)
 out.set_axis(score.keys(), axis=1, inplace=True)
 out.to_csv("aux/timegan_output.csv")
+
