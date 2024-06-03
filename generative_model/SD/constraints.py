@@ -9,7 +9,7 @@ import sys
 print(os.getcwd())
 sys.path.append('../../')
 os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
-from evaluation.resemb.resemblance.metric_stat import *
+#from evaluation.resemb.resemblance.metric_stat import *
 def load_data(file_path):
     with gzip.open(file_path, 'rb') as f:
         return pickle.load(f)

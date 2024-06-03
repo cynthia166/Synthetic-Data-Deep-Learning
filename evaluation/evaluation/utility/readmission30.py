@@ -2,9 +2,19 @@
 import sys
 import os
 current_directory = os.getcwd()
-os.chdir("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning")
+#os.chdir("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning")
+os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
 current_directory = os.getcwd()
 
+import shap
+print(current_directory)
+import sys
+sys.path.append('preprocessing')
+sys.path.append('evaluation/privacy/metric_privacy')
+sys.path.append('privacy')
+sys.path.append('evaluation')
+current_directory = os.getcwd()
+from evaluation.privacy.metric_privacy import *
 print(current_directory)
 sys.path.append('preprocessing')
 sys.path.append('evaluation')
@@ -36,7 +46,7 @@ def load_data(file_path):
     with gzip.open(file_path, 'rb') as f:
         return pickle.load(f)
     
-def function_models_s(model,K,X,y):
+def function_models_s(model,K,X,y,X_test_v,y_test_v):
     '''function that trains the predictive model, it is able to stratifi splits the input, it 
     also take sin acounts wtih selection of variables, ussing logistic regression with penanlty l1, '''
     '''
@@ -62,8 +72,11 @@ def function_models_s(model,K,X,y):
     y_pred = []
     y_true_train   =[]
     y_pred_train =[]
-     
-    for train_index, test_index in skf.split(X, y):
+    X_train =  X
+    y_train = y
+    from sklearn.model_selection import train_test_split, KFold
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    for train_index, test_index in kf.split(X_train):
         X_train, X_test = X[train_index], X[test_index]
         y_train, y_test = y[train_index], y[test_index]
         
@@ -124,12 +137,64 @@ def function_models_s(model,K,X,y):
         rf_prec_t = 0
         rf_acc_t = 0
         f1_t = 0
+    
+    #add validation errpr
+    y_pred_valid = rf_clf.predict(X_test_v)
+    rf_conf_v = confusion_matrix(y_test_v, y_pred_valid)
+    tn_v, fp_v, fn_v, tp_v = rf_conf_v.ravel()
+    rf_sen_v = tp_v/(tp_v+fn_v)
+    rf_spe_v = tn_v/(tn_v+fp_v)
+    rf_prec_v = tp_v/(tp_v+fp_v)
+    rf_acc_v = (tp_v+tn_v )/(tp_v+tn_v+fp_v+fn_v)
+    f1_v = f1_score(y_test_v, y_pred_valid, average='macro')
+    #metrics for the training set
+
+
+            #predict with test to obtain the test set error
+    
+    shap_values = shap.TreeExplainer(rf_clf).shap_values(X_test_v)
+    shap.summary_plot(shap_values, X_test_v, plot_type="bar")
+    
+    mean_abs_shap_values = np.abs(shap_values).mean(axis=0)
+
+    # Create a DataFrame with feature names and their SHAP values
+    shap_df = pd.DataFrame({
+        'Feature': X_test_v.columns,
+        'SHAP Value': mean_abs_shap_values
+    })
+
+    # Sort the DataFrame by SHAP Value in descending order
+    shap_df = shap_df.sort_values(by='SHAP Value', ascending=False).reset_index(drop=True)
+
+    '''shap_interaction_values = shap.TreeExplainer(rf_clf).shap_interaction_values(
+        X_test_v   
+    )   
+    
+    import matplotlib.pylab as pl
+    import numpy as np
+    shap.summary_plot(shap_values, X_test_v, plot_type="bar")
+
+    #shap.dependence_plot(8, shap_values, X_test_v)
+    #shap.plots.waterfall(shap_values[0])
+    
+    tmp = np.abs(shap_interaction_values).sum(0)
+    for i in range(tmp.shape[0]):
+        tmp[i,i] = 0
+    inds = np.argsort(-tmp.sum(0))[:50]
+    tmp2 = tmp[inds,:][:,inds]
+    pl.figure(figsize=(12,12))
+    pl.imshow(tmp2)
+    pl.yticks(range(tmp2.shape[0]), X.columns[inds], rotation=50.4, horizontalalignment="right")
+    pl.xticks(range(tmp2.shape[0]), X.columns[inds], rotation=50.4, horizontalalignment="left")
+    pl.gca().xaxis.tick_top()
+    pl.show()
+    '''
+        # the waterfall_plot shows how we get from explainer.expected_value to model.predict(X)[sample_ind]
+    #shap.plots.waterfall(shap_values_ebm[sample_ind]) 
+    return rf_sen,rf_spe,rf_prec,rf_acc,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t, rf_sen_v,rf_spe_v,rf_prec_v,rf_acc_v,f1_v,shap_df
 
 
     
-    return rf_sen,rf_spe,rf_prec,rf_acc,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t
-
-
 def add_names_numpy_array(total_fetura_valid,total_cols):
     
     mapeo_nombres = {total_fetura_valid.columns[i]: total_cols[i] for i in range(len(total_cols))}
@@ -358,11 +423,14 @@ def obtain_readmission_realdata(total_fetura_valid):
     total_fetura_valid['readmission'] = total_fetura_valid.groupby('id_patient')['visit_rank'].shift(-1).notna().astype(int)  
     return  total_fetura_valid
 
-def predict_readmission(total_features_synthethic,result,type_s):
+def predict_readmission(total_features_synthethic,result,type_s,X_test_v,y_test_v,type_ss):
     try:
         X = X.drop(columns=['readmission',"visit_rank","id_patient","max_consultas"])
+        X_test_v = X_test_v[X.columns]
     except:    
-        X = total_features_synthethic.drop(columns=['readmission',"visit_rank","id_patient"]).values
+        X = total_features_synthethic.drop(columns=['readmission',"visit_rank","id_patient"])
+        X_test_v = X_test_v[X.columns]
+        X = X.values
     y = total_features_synthethic['readmission'].to_numpy()
   
     type = "Valid"
@@ -376,10 +444,10 @@ def predict_readmission(total_features_synthethic,result,type_s):
     model_name = "XGBClassifier"
         
      
-
+    
     timi_ini =time.time()
     #model = LogisticRegression(penalty='l1', solver='saga')
-    rf_sen,rf_spe,rf_prec,rf_acc,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t = function_models_s(model,K,X,y)            
+    rf_sen,rf_spe,rf_prec,rf_acc,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t , rf_sen_v,rf_spe_v,rf_prec_v,rf_acc_v,f1_v,shap_importance1= function_models_s(model,K,X,y,X_test_v,y_test_v)            
     time_model = timi_ini-time.time()  
     result['sensitivity_test '+type_s]=rf_sen
     result['specificity_test '+type_s]=rf_spe
@@ -394,21 +462,41 @@ def predict_readmission(total_features_synthethic,result,type_s):
     result['confusion matrix '+type_s]=rf_conf
     result['Classifiers '+type_s]=model_name
     result["time_model "+type_s]=time_model
-    result["type "+type_s]=type
-
+    result["type MODEL"]=type_ss
+    
+    result['sensitivity_valid '+type_s]=rf_sen_v
+    result['specificity_valid '+type_s]=rf_spe_v
+    result['precision_valid '+type_s]=rf_prec_v
+    result['accuracy_valid '+type_s]=rf_acc_v
+    result['f1_valid '+type_s]=f1_v
+  
     print(result)
-    return result
+    return result, shap_importance1
 
-def crear_pred(result,total_features_synthethic,total_fetura_valid,total_features_train):
-    result = predict_readmission(total_features_synthethic,result,"Synthetic")
+def crear_pred(result,total_features_synthethic,total_fetura_valid,total_features_train,X_test_v,y_test_v,type_s):
+    #total_features_synthethic,result,type_s,X_test_v,y_test_v,type_ss = total_features_synthethic,result,"Synthetic",X_test_v,y_test_v,type_s
+   
+    result ,shap_importance1_s= predict_readmission(total_features_synthethic,result,"Synthetic",X_test_v,y_test_v,type_s)
 
 
     #filtra aquellas que sean -1 las que no son mayores a max admissions
     # Ejemplo de DataFrame
 
-    result = predict_readmission(total_fetura_valid,result,"Valid")
-    result = predict_readmission(total_features_train,result,"Train")
+    
+    #result = predict_readmission(total_fetura_valid,result,"Valid")
+    #total_features_synthethic,result,type_s,X_test_v,y_test_v,type_ss = total_features_train,result,"Train",X_test_v,y_test_v,type_s
+    result, shap_importance_r = predict_readmission(total_features_train,result,"Train",X_test_v,y_test_v,type_s)
+    top_features1 = shap_importance1_s.sort_values(by='SHAP Value', ascending=False).head(10)
+    top_features2 = shap_importance_r.sort_values(by='SHAP Value', ascending=False).head(10)
 
+    # Extract the feature names
+    top_features1_names = set(top_features1['Feature'])
+    top_features2_names = set(top_features2['Feature'])
+
+    # Calculate the percentage of overlap
+    overlap = top_features1_names.intersection(top_features2_names)
+    percentage_overlap = (len(overlap) / 10) * 100
+    result["importance_overlap"]=percentage_overlap
     return result 
  
  
@@ -445,55 +533,136 @@ def preprocess_data(total_cols,total_features_synthethic,total_cols1,total_fetur
     
     
 if __name__=='__main__':
-    attributes_path_train= "non_prepo/DATASET_NAME_non_preprotrain_data_attributes.pkl"
-    features_path_train = "non_prepo/DATASET_NAME_non_preprotrain_data_features.pkl"
-    features_path_valid = "non_prepo/DATASET_NAME_non_preprovalid_data_features.pkl"
-    attributes_path_valid = "non_prepo/DATASET_NAME_non_preprovalid_data_attributes.pkl"
-    synthetic_path_attributes = 'non_prepo/DATASET_NAME_non_prepronon_prepo_synthetic_attributes_10.pkl'
-    synthetic_path_features = 'non_prepo/DATASET_NAME_non_prepronon_prepo_synthetic_features_10.pkl'
+    generative_type = "ARF"
+    if generative_type == "Doppleganger":
+        attributes_path_train= "non_prepo/DATASET_NAME_non_preprotrain_data_attributes.pkl"
+        features_path_train = "non_prepo/DATASET_NAME_non_preprotrain_data_features.pkl"
+        features_path_valid = "non_prepo/DATASET_NAME_non_preprovalid_data_features.pkl"
+        attributes_path_valid = "non_prepo/DATASET_NAME_non_preprovalid_data_attributes.pkl"
+        synthetic_path_attributes = 'non_prepo/DATASET_NAME_non_prepronon_prepo_synthetic_attributes_10.pkl'
+        synthetic_path_features = 'non_prepo/DATASET_NAME_non_prepronon_prepo_synthetic_features_10.pkl'
 
-    # se lee los archivos y se obtiene del la longitude de valid
-    total_features_synthethic, total_fetura_valid,total_features_train,attributes =  get_valid_train_synthetic (path_features, attributes_path_train, features_path_train, features_path_valid, attributes_path_valid)
-    # se transforma de numpy array 3 dimensiones a dataframe
-    total_features_synthethic,total_fetura_valid,total_features_train = obtener_dataframe_inicial_denumpyarrray(total_features_synthethic, total_fetura_valid,total_features_train )
+        # se lee los archivos y se obtiene del la longitude de valid
+        total_features_synthethic, total_fetura_valid,total_features_train,attributes =  get_valid_train_synthetic (path_features, attributes_path_train, features_path_train, features_path_valid, attributes_path_valid)
+        # se transforma de numpy array 3 dimensiones a dataframe
+        total_features_synthethic,total_fetura_valid,total_features_train = obtener_dataframe_inicial_denumpyarrray(total_features_synthethic, total_fetura_valid,total_features_train )
 
-    dataset_name = 'DATASET_NAME_non_prepo'
-    file_name = "train_sp/non_prepo/DATASET_NAME_non_prepo_non_preprocess.pkl"
-    aux = load_data(file_name)
-    #aux = load_data(DARTA_INTERM_intput + dataset_name + '_non_preprocess.pkl')
-    con_cols = list(aux[0].columns)
-    static = pd.read_csv("train_sp/non_prepo/static_data_non_preprocess.csv")
-    # Suponiendo que 'total_features_synthethic' es tu DataFrame
-    if 'Unnamed' in static.columns:
-        static = static.drop(columns=['Unnamed'])
-    cat = list(static.columns[1:]) +["visit_rank","id_patient" ,"max_consultas" ]
-    del aux
-    total_cols =  con_cols+cat 
-    cat1 = list(static.columns[2:]) +["visit_rank","id_patient","max_consultas"     ]
-    total_cols1 =  con_cols+cat1 
- 
-
-        
-    result = {   'f1_test':0,
-        'f1_train':0,
-
-        'sensitivity_test':0,
-        'specificity_test':0,
-        'precision_test':0,
-        'accuracy_test':0,
-        'sensitivity_train':0,
-        'specificity_train':0,
-        'precision_train':0,
-        'accuracy_train':0, 
-        'confusion matrix':0,
-        'Feature selection':0,
-        'Classifiers':0,
-        'time_model':0,
-        'type':0,
-
-        }     
-    test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset = preprocess_data(total_cols,total_features_synthethic,total_cols1,total_fetura_valid,total_features_train)
+        dataset_name = 'DATASET_NAME_non_prepo'
+        file_name = "train_sp/non_prepo/DATASET_NAME_non_prepo_non_preprocess.pkl"
+        aux = load_data(file_name)
+        #aux = load_data(DARTA_INTERM_intput + dataset_name + '_non_preprocess.pkl')
+        con_cols = list(aux[0].columns)
+        static = pd.read_csv("train_sp/non_prepo/static_data_non_preprocess.csv")
+        # Suponiendo que 'total_features_synthethic' es tu DataFrame
+        if 'Unnamed' in static.columns:
+            static = static.drop(columns=['Unnamed'])
+        cat = list(static.columns[1:]) +["visit_rank","id_patient" ,"max_consultas" ]
+        del aux
+        total_cols =  con_cols+cat 
+        cat1 = list(static.columns[2:]) +["visit_rank","id_patient","max_consultas"     ]
+        total_cols1 =  con_cols+cat1 
     
-    results  =    calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance)
-    result  = crear_pred(result,synthetic_ehr_dataset,test_ehr_dataset,train_ehr_dataset)
+
+            
+        result = {   'f1_test':0,
+            'f1_train':0,
+
+            'sensitivity_test':0,
+            'specificity_test':0,
+            'precision_test':0,
+            'accuracy_test':0,
+            'sensitivity_train':0,
+            'specificity_train':0,
+            'precision_train':0,
+            'accuracy_train':0, 
+            'confusion matrix':0,
+            'Feature selection':0,
+            'Classifiers':0,
+            'time_model':0,
+            'type':0,
+
+            }     
+        test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset = preprocess_data(total_cols,total_features_synthethic,total_cols1,total_fetura_valid,total_features_train)
+        results  =    calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance)
+
+    if generative_type == "ARF":
+        result = {'type MODEL':0,   
+                  'f1_test':0,
+            'f1_train':0,
+            
+            'sensitivity_test':0,
+            'specificity_test':0,
+            'precision_test':0,
+            'accuracy_test':0,
+            'sensitivity_train':0,
+            'specificity_train':0,
+            'precision_train':0,
+            'accuracy_train':0, 
+            'confusion matrix':0,
+            'Feature selection':0,
+            'Classifiers':0,
+            'time_model':0,
+            'type':0,
+            
+            'f1_valid':0,
+
+            'sensitivity_valid':0,
+            'specificity_valid':0,
+            'precision_valid':0,
+            'accuracy_valid':0,
+            
+            }     
+
+        file = 'generated_synthcity_tabular/arftotal_best_parans_0.2_epochs.pkl'   
+        valid_perc = 0.2
+        features_path = "data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl"
+        test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,features = obtain_dataset_admission_visit_rank(file,file,valid_perc,features_path)
+        #list_metric_resemblance = ["histogramas","tsne","statistics","kernel_density","mmd","ks_test","jensenshannon_dist"]
+        # contraints
+        from generative_model.SD.constraints import *
+        c = EHRDataConstraints(train_ehr_dataset, test_ehr_dataset, synthetic_ehr_dataset)
+        c.print_shapes()
+        #cols_accounts = c.handle_categorical_data()
+        synthetic_ehr_dataset = c.initiate_processing()
+        c.print_shapes()
+        train_ehr_dataset = train_ehr_dataset[ :synthetic_ehr_dataset.shape[0]]
+        cols = "days_between_visits_cumsum"
+        synthetic_ehr_dataset = cols_todrop(synthetic_ehr_dataset,[cols])
+        
+              
+        print(test_ehr_dataset.shape)
+        print(train_ehr_dataset.shape)
+        print(synthetic_ehr_dataset.shape)
+        
+        
+        
+        
+        #train_ehr_dataset= test_ehr_dataset 
+        #cols = ['ADMITTIME','HADM_ID']
+        #test_ehr_dataset = cols_todrop(test_ehr_dataset,cols)
+        #train_ehr_dataset = cols_todrop(train_ehr_dataset,cols)
+        #synthetic_ehr_dataset = cols_todrop(synthetic_ehr_dataset,cols)
+        
+  
+        
+        
+        columnas_test_ehr_dataset = get_cols_diag_proc_drug(train_ehr_dataset)
+
+        #obtener n mas frequent codes
+        top_300_codes = obtain_most_freuent(train_ehr_dataset,columnas_test_ehr_dataset,100)
+        y_test_v = test_ehr_dataset["readmission"]
+        synthetic_ehr_dataset = synthetic_ehr_dataset.select_dtypes(include=['number']) 
+        cols_to_drop = ["HADM_ID"]
+        synthetic_ehr_dataset.drop(columns = cols_to_drop,inplace = True)
+        
+        train_ehr_dataset = synthetic_ehr_dataset.select_dtypes(include=['number']) 
+        test_ehr_dataset = test_ehr_dataset[synthetic_ehr_dataset.columns]
+        
+        print(test_ehr_dataset.shape)
+        print(train_ehr_dataset.shape)
+        print(synthetic_ehr_dataset.shape)
+       
+        X_test_v = test_ehr_dataset[synthetic_ehr_dataset.columns].drop(columns = "readmission")
+        result,total_features_synthethic,total_fetura_valid,total_features_train,X_test_v,y_test_v = result,synthetic_ehr_dataset,test_ehr_dataset,train_ehr_dataset,X_test_v,y_test_v
+        result  = crear_pred(result,synthetic_ehr_dataset,test_ehr_dataset,train_ehr_dataset,X_test_v,y_test_v,generative_type)
    

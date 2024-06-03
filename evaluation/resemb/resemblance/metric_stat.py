@@ -37,6 +37,9 @@ import numpy as np
 from evaluation.privacy.metric_privacy import *
 import pandas as pd
 import glob
+import numpy as np
+import pandas as pd
+from scipy import stats
 
 import numpy as np
 from sklearn.manifold import TSNE
@@ -83,6 +86,81 @@ def obtain_readmission_realdata(total_fetura_valid):
     # Comparamos si el siguiente 'visit_rank' es mayor que el actual para el mismo 'id_'
     total_fetura_valid['readmission'] = total_fetura_valid.groupby('id_patient')['visit_rank'].shift(-1).notna().astype(int)  
     return  total_fetura_valid
+
+import numpy as np
+import pandas as pd
+from scipy.spatial import distance
+
+import numpy as np
+import pandas as pd
+from scipy.spatial import distance
+
+class JensenShannonDistance2:
+    
+    def __init__(self, origdst, synthdst, num):
+        self.origdst = origdst
+        self.synthdst = synthdst
+        self.num = num
+    
+    @staticmethod
+    def to_cat(df_real, df_synth):
+        df_real_cat = df_real.copy()
+        df_synth_cat = df_synth.copy()
+        
+        for col in df_real_cat.columns:
+            df_real_cat[col] = df_real_cat[col].astype('category')
+            df_synth_cat[col] = df_synth_cat[col].astype('category')
+        
+        return df_real_cat, df_synth_cat
+    
+    def jensen_shannon(self):
+        real_cat, synth_cat = self.to_cat(self.origdst, self.synthdst)
+        
+        target_columns = self.origdst.columns
+        
+        js_dict = {}
+        
+        for col in target_columns:
+            try:
+                categories = set(real_cat[col].unique()).union(set(synth_cat[col].unique()))
+                
+                col_counts_orig = real_cat[col].value_counts(normalize=True).reindex(categories, fill_value=0).sort_index()
+                col_counts_synth = synth_cat[col].value_counts(normalize=True).reindex(categories, fill_value=0).sort_index()
+                
+                js = distance.jensenshannon(col_counts_orig.values, col_counts_synth.values, base=2)
+                
+                js_dict[col] = js
+            
+            except Exception as e:
+                print(f'Error processing column {col}: {e}')
+                print(f'For the column {col}, you must generate the same unique values as the real dataset.')
+                print(f'The number of unique values you should generate for column {col} is {len(self.origdst[col].unique())}.')
+        
+        # Calculate the average Jensen-Shannon Distance
+        avg_js = np.mean(list(js_dict.values()))
+        
+        # Sort the columns by their Jensen-Shannon Distance
+        sorted_js = sorted(js_dict.items(), key=lambda item: item[1])
+        
+        # Get the 10 least and most different columns
+        least_different = sorted_js[:self.num]
+        most_different = sorted_js[-self.num:]
+        
+        # Create DataFrames
+        least_different_df = pd.DataFrame(least_different, columns=["Column", "JSD"]).reset_index(drop=True)
+        most_different_df = pd.DataFrame(most_different, columns=["Column", "JSD"]).reset_index(drop=True)
+        
+        # Combine DataFrames
+        combined_df = pd.concat([least_different_df, most_different_df], axis=1)
+        combined_df.columns = ["Least Different Column", "Least Different JSD", "Most Different Column", "Most Different JSD"]
+        
+        return combined_df, avg_js
+
+
+
+# Example usage
+# Assuming `orig_data` and `synth_data` are your real and synthetic datasets as pandas DataFrames
+
 
 class JensenShannonDistance:
     
@@ -409,6 +487,196 @@ def filtered(real_result_admission):
     print("filtered_result_admission",filtered_result_admission.shape)
     print("real_result_admission",real_result_admission.shape)      
     return filtered_result_admission    
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+def plot_visits_per_patient_histogram(train_ehr_dataset, synthetic_ehr):
+    # Group by id_patient and count the number of visits for real data
+    real_visits_per_patient = train_ehr_dataset.groupby("id_patient")["visit_rank"].count().reset_index(name='visit_count')
+
+    # Group by id_patient and count the number of visits for synthetic data
+    synthetic_visits_per_patient = synthetic_ehr.groupby("id_patient")["visit_rank"].count().reset_index(name='visit_count')
+
+    # Plot the histograms separately but in the same figure
+    plt.figure(figsize=(12, 6))
+    sns.histplot(real_visits_per_patient['visit_count'], color='blue', label='Real', kde=False, bins=50, stat='frequency',)
+    sns.histplot(synthetic_visits_per_patient['visit_count'], color='orange', label='Synthetic', kde=False, bins=50, stat='frequency',)
+    
+    plt.title('Histogram of Visit Counts per Patient - Real vs Synthetic')
+    plt.xlabel('Number of Visits per Patient')
+    plt.ylabel('Frequency')
+    plt.legend(title='Source')
+    plt.tight_layout()
+    plt.show()
+    
+def plot_patients_per_visit_rank_histogram(train_ehr_dataset, synthetic_ehr_dataset):
+    # Group by visit_rank and count the number of unique patients for real data
+    real_patients_per_visit = train_ehr_dataset.groupby("visit_rank")["id_patient"].nunique().reset_index(name='patient_count')
+
+    # Group by visit_rank and count the number of unique patients for synthetic data
+    synthetic_patients_per_visit = synthetic_ehr_dataset.groupby("visit_rank")["id_patient"].nunique().reset_index(name='patient_count')
+
+    # Plot the histograms separately but in the same figure
+    plt.figure(figsize=(12, 6))
+    sns.histplot(real_patients_per_visit['patient_count'], color='blue', label='Real',  bins=100, stat='count', )
+    sns.histplot(synthetic_patients_per_visit['patient_count'], color='orange', label='Synthetic',  bins=100, stat='count', )
+    
+    plt.title('Histogram of Patient Counts per Visit Rank - Real vs Synthetic')
+    plt.xlabel('Number of Patients per Visit Rank')
+    plt.ylabel('Frequency')
+    plt.legend(title='Source')
+    plt.tight_layout()
+    plt.show()
+
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Sample data for demonstration
+
+def plot_histograms22_(real_data, synthetic_data, title, xlabel, ylabel):
+    # Eliminar duplicados en los índices
+    real_data = real_data.reset_index(drop=True)
+    synthetic_data = synthetic_data.reset_index(drop=True)
+    
+    # Definir bins comunes
+    max_value = max(real_data.max(), synthetic_data.max())
+    bins = np.linspace(0, max_value, 31)  # 31 bins para crear 30 intervalos
+    
+    # Crear un DataFrame combinando ambos conjuntos de datos para facilitar la comparación
+    data_combined = pd.DataFrame({
+        'Number of Drugs': pd.concat([real_data, synthetic_data], axis=0),
+        'Type': ['Real'] * len(real_data) + ['Synthetic'] * len(synthetic_data)
+    })
+    
+    plt.figure(figsize=(12, 6))
+    sns.histplot(data=data_combined, x='Number of Drugs', hue='Type', element='step', stat='count', bins=bins, common_norm=False)
+    
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.legend(title='Data Type')
+    plt.show()
+
+
+def calculate_counts(train_ehr_dataset,word):
+    # Number of drugs each patient has (sum of drugs for each patient)
+    drugs_per_patient = train_ehr_dataset.groupby("id_patient").sum().reset_index()
+    drugs_per_patient[word+'_count'] = drugs_per_patient.filter(like=word).sum(axis=1)
+
+    # Number of drugs per admission
+    drugs_per_admission = train_ehr_dataset.groupby("visit_rank").sum().reset_index()
+    drugs_per_admission[word+'_count'] = drugs_per_admission.filter(like=word).sum(axis=1)
+
+    # Admissions per drug (sum of admissions where each drug is present)
+    admissions_per_drug = train_ehr_dataset.filter(like=word).sum().reset_index()
+    admissions_per_drug.columns = [word, 'admission_count']
+    
+    # Patients per drug (sum of patients where each drug is present)
+    patients_per_drug = train_ehr_dataset.groupby('id_patient').max().filter(like=word).sum().reset_index()
+    patients_per_drug.columns = [word, 'patient_count']
+
+
+    return drugs_per_patient, drugs_per_admission, admissions_per_drug,patients_per_drug
+
+# Calculate counts for real and synthetic data
+
+# Plot histograms
+def plot_histograms(real_data, synthetic_data, title, xlabel, ylabel_real, ylabel_synthetic):
+    fig, ax1 = plt.subplots(figsize=(10, 6))
+    ax2 = ax1.twinx()
+    
+    sns.histplot(real_data, color='blue', label='Real',  bins=30, ax=ax1, stat='count',alpha=0.1)
+    sns.histplot(synthetic_data, color='orange', label='Synthetic', bins=30, ax=ax2, stat='count',alpha=0.3)
+    
+    ax1.set_title(title)
+    ax1.set_xlabel(xlabel)
+    ax1.set_ylabel(ylabel_real, color='blue')
+    ax2.set_ylabel(ylabel_synthetic, color='orange')
+    
+    ax1.tick_params(axis='y', colors='blue', pad=10)
+    ax2.tick_params(axis='y', colors='orange', pad=10)
+    
+    #fig.tight_layout()
+    fig.legend(loc='upper right', )
+    plt.show()
+    
+def plot_histograms22(real_data, synthetic_data, title, xlabel, ylabel_real, ylabel_synthetic):
+    fig, ax1 = plt.subplots(figsize=(10, 6))
+    ax2 = ax1.twinx()
+    
+    # Define common bins
+    max_value = max(real_data.max(), synthetic_data.max())
+    bins = np.linspace(0, max_value, 31)  # 31 bins to create 30 intervals
+    
+    # Plot histograms with the same bins
+    sns.histplot(real_data, color='blue', label='Real', bins=bins, ax=ax1, stat='count', alpha=0.5)
+    sns.histplot(synthetic_data, color='orange', label='Synthetic', bins=bins, ax=ax2, stat='count', alpha=0.3)
+    
+    ax1.set_title(title)
+    ax1.set_xlabel(xlabel)
+    ax1.set_ylabel(ylabel_real, color='blue')
+    ax2.set_ylabel(ylabel_synthetic, color='orange')
+    
+    ax1.tick_params(axis='y', colors='blue', pad=10)
+    ax2.tick_params(axis='y', colors='orange', pad=10)
+    
+    fig.legend(loc='upper right')
+    plt.show()
+    
+# Plot histograms
+# The code snippet is iterating over a list containing strings 'diagnosis', 'procedures', 'drugs'
+# starting from the index 2 (which is 'drugs'). For each element in the list starting from 'drugs', it
+# calls the function `calculate_counts` with the respective dataset (train_ehr_dataset and
+# synthetic_ehr_dataset) and the current element from the list as an argument. The function returns
+# counts related to drugs such as real_drugs_per_patient, real_drugs_per_admission,
+# real_admissions_per_drug, real_patients_per_drug for the train_e
+
+# Supongamos que tienes dos DataFrames: df_real y df_synthetic
+
+# Función para detectar outliers usando el IQR
+def detect_outliers_iqr(series):
+    Q1 = series.quantile(0.25)
+    Q3 = series.quantile(0.75)
+    IQR = Q3 - Q1
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+    outliers = (series < lower_bound) | (series > upper_bound)
+    return outliers
+
+# Función para calcular la relación mínima de outliers sintéticos a reales
+def calculate_outlier_ratio(df_real, df_synthetic):
+
+        real_outliers = detect_outliers_iqr(df_real)
+        synthetic_outliers = detect_outliers_iqr(df_synthetic)
+        
+        # Contar outliers
+        real_outlier_count = real_outliers.sum()
+        synthetic_outlier_count = synthetic_outliers.sum()
+        
+        # Evitar división por cero
+        if real_outlier_count == 0:
+            ratio = np.inf
+        else:
+            ratio = synthetic_outlier_count / real_outlier_count
+        
+        # Encontrar la relación mínima para cada columna
+        mean_ratio = min(ratio,1)
+        return mean_ratio
+
+# Calcular la relación mínima de outliers para todas las columnas
+def calculate_outlier_ratios_tout__(df_real, df_synthetic,cols_sel):
+    min_ratios = []
+    for column in df_real[cols_sel]:
+        min_ratio = calculate_outlier_ratio(df_real[column], df_synthetic[column])
+        min_ratios.append(min_ratio)
+    return  np.mean(min_ratios)   
+
+
+#continuos_var
         
 def plot_hist_emp_codes(col_prod, train_ehr_dataset, synthetic_ehr, type_procedur, name):
     # Process and filter data
@@ -422,7 +690,7 @@ def plot_hist_emp_codes(col_prod, train_ehr_dataset, synthetic_ehr, type_procedu
     filtered_synthetic_result_admission = synthetic_df[[i for i in synthetic_df.columns if i != "id_patient"]].groupby("visit_rank").sum().sum(axis=1).reset_index(name='Count')
 
     fig1, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6), sharey=True)
-    sns.histplot(data=real_result_subject, x="Count", ax=ax1, color='darkblue', bins=20)
+    sns.histplot(data=real_result_subject, x="Count", ax=ax1, color='darkblue', bins=30)
     sns.histplot(data=synthetic_result_subject, x="Count", ax=ax2, color='lightblue', bins=20)
     ax1.set_title('Real Data - Patient Count '+type_procedur)
     ax2.set_title('Synthetic Data - Patient Count '+type_procedur)
@@ -959,9 +1227,6 @@ def plot_kernel_syn(real_df, synthetic_df, col, name):
 # Assuming `real_df` and `synthetic_df` are your dataframes and 'Age' is the column of interest
 # plot_age(real_df, synthetic_df, 'Age', 'comparison')
 
-import numpy as np
-import pandas as pd
-from scipy import stats
 
 def calculate_means(data, columns):
     # Check if the DataFrame is empty
@@ -1123,12 +1388,287 @@ def plot_admission_date_histograms(features,synthetic_ehr_dataset,col):
 
 
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+import numpy as np
+
+
+from scipy.stats import wasserstein_distance
+
+def plot_histograms_separate_axes2(real_data, synthetic_data, title, xlabel, ylabel):
+    # Definir bins comunes
+    max_value = max(real_data.max(), synthetic_data.max())
+    bins = np.linspace(0, max_value, 31)  # 31 bins para crear 30 intervalos
+    
+    plt.figure(figsize=(12, 6))
+    
+    # Histograma para datos reales
+    sns.histplot(real_data, color='blue', label='Real', bins=bins, stat='count', alpha=0.5)
+    real_counts, real_bins = np.histogram(real_data, bins=bins)
+    
+    # Histograma para datos sintéticos
+    sns.histplot(synthetic_data, color='orange', label='Synthetic', bins=bins, stat='count', alpha=0.5)
+    synthetic_counts, synthetic_bins = np.histogram(synthetic_data, bins=bins)
+    
+    # Calcular la distancia de Wasserstein
+    wd = wasserstein_distance(real_bins[:-1], synthetic_bins[:-1], u_weights=real_counts, v_weights=synthetic_counts)
+    
+    # Añadir el título y las etiquetas
+    plt.title(f'{title}\nWasserstein Distance: {wd:.4f}')
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.legend(title='Data Type')
+    
+    # Mostrar el gráfico
+    plt.show()
+
+
+def plot_histograms_separate_axes3(real_data, synthetic_data, title, xlabel, ylabel):
+    # Definir bins comunes
+    max_value = max(real_data.max(), synthetic_data.max())
+    bins = np.linspace(0, max_value, 31)  # 31 bins para crear 30 intervalos
+    
+    plt.figure(figsize=(12, 6))
+    
+    # Histograma para datos reales
+    sns.histplot(real_data, color='blue', label='Test', bins=bins, stat='count', alpha=0.5)
+    real_counts, real_bins = np.histogram(real_data, bins=bins)
+    
+    # Histograma para datos sintéticos
+    sns.histplot(synthetic_data, color='orange', label='Train', bins=bins, stat='count', alpha=0.5)
+    synthetic_counts, synthetic_bins = np.histogram(synthetic_data, bins=bins)
+    
+    # Calcular la distancia de Wasserstein
+    wd = wasserstein_distance(real_bins[:-1], synthetic_bins[:-1], u_weights=real_counts, v_weights=synthetic_counts)
+    
+    # Añadir el título y las etiquetas
+    plt.title(f'{title}\nWasserstein Distance: {wd:.4f}')
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.legend(title='Data Type')
+    
+    # Mostrar el gráfico
+    plt.show()
 
 
 
+
+def plot_boxplots(real_data, synthetic_data, title, xlabel, ylabel):
+    # Eliminar duplicados en los índices
+    real_data = real_data.loc[~real_data.index.duplicated(keep='first')]
+    synthetic_data = synthetic_data.loc[~synthetic_data.index.duplicated(keep='first')]
+    
+    # Crear un DataFrame combinando ambos conjuntos de datos para facilitar la comparación
+    data_combined = pd.DataFrame({
+        'Number of Drugs': pd.concat([real_data, synthetic_data], axis=0).reset_index(drop=True),
+        'Type': ['Real'] * len(real_data) + ['Synthetic'] * len(synthetic_data)
+    })
+    
+    plt.figure(figsize=(12, 6))
+    sns.boxplot(x='Type', y='Number of Drugs', data=data_combined)
+    
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.show()
+    
+    
+def plot_outliers(real_data, synthetic_data, column_name, title, xlabel, ylabel,label):
+    # Calcular outliers para ambos conjuntos de datos
+    real_outliers = calculate_outlier_ratios_tout2(real_data, column_name)
+    synthetic_outliers = calculate_outlier_ratios_tout2(synthetic_data, column_name)
+    
+    plt.figure(figsize=(12, 6))
+    
+    # Plotear datos reales y sintéticos
+    #sns.boxplot(data=[real_data[column_name + '_count'], synthetic_data[column_name + '_count']], palette=["blue", "orange"])
+    
+    # Plotear outliers reales
+    plt.scatter(real_outliers.index, real_outliers[column_name + '_count'], color='red', label='Real Outliers', marker='o', alpha=0.6)
+    
+    # Plotear outliers sintéticos
+    plt.scatter(synthetic_outliers.index, synthetic_outliers[column_name + '_count'], color='purple', label=label+' Outliers', marker='x', alpha=0.6)
+    
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.legend()
+    plt.show()
+
+# Ejemplo de uso (asegúrate de tener los datos `real_data` y `synthetic_data` preparados):
+# plot_histograms_with_same_axis(real_data['number_of_drugs'], synthetic_data['number_of_drugs'], 'Histogram of Number of Drugs per Patient', 'Number of Drugs', 'Patient Count')
+
+def calculate_outlier_ratios_tout2(real_drugs_per_patient,i):
+    sorted_df = real_drugs_per_patient.sort_values(by=i+'_count')
+    Q1 = sorted_df[i+'_count'].quantile(0.25)
+    Q3 = sorted_df[i+'_count'].quantile(0.75)
+    IQR = Q3 - Q1
+    outliers = sorted_df[(sorted_df[i+'_count'] < (Q1 - 1.5 * IQR)) | (sorted_df[i+'_count'] > (Q3 + 1.5 * IQR))]
+    return outliers
 def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance):
     result_resemblence = []
     results_final={}
+    
+    if "hist_admi_patient_drug" in ["hist_admi_patient_drug"]:
+        def plot_histograms_separate_axes22(real_data, synthetic_data, title, xlabel, ylabel,label_s):
+            # Definir bins comunes con más intervalos para hacer los bins más pequeños
+            max_value = max(real_data.max(), synthetic_data.max())
+            bins = np.linspace(0, max_value, 101)  # 101 bins para crear 100 intervalos más pequeños
+            
+            plt.figure(figsize=(12, 6))
+            
+            # Histograma para datos reales
+            sns.histplot(real_data, color='blue', label='Real', bins=bins, stat='count', alpha=0.5)
+            real_counts, real_bins = np.histogram(real_data, bins=bins)
+            
+            # Histograma para datos sintéticos
+            sns.histplot(synthetic_data, color='orange', label=label_s, bins=bins, stat='count', alpha=0.5)
+            synthetic_counts, synthetic_bins = np.histogram(synthetic_data, bins=bins)
+            
+            # Calcular la distancia de Wasserstein
+            wd = wasserstein_distance(real_bins[:-1], synthetic_bins[:-1], u_weights=real_counts, v_weights=synthetic_counts)
+            
+            # Añadir el título y las etiquetas
+            plt.title(f'{title}\nWasserstein Distance: {wd:.4f}')
+            plt.xlabel(xlabel)
+            plt.ylabel(ylabel)
+            plt.legend(title='Data Type')
+            
+            # Mostrar el gráfico
+            plt.show()
+
+        for i in ['diagnosis', 'procedures', 'drugs'][:1]:
+                # Shynthetic/train
+                
+                test_ehr_dataset_t = train_ehr_dataset[:test_ehr_dataset.shape[0]]
+                real_drugs_per_patient_t, real_drugs_per_admission_t, real_admissions_per_drug_t,real_patients_per_drug_t = calculate_counts(train_ehr_dataset,i)
+                synthetic_drugs_per_patient_t, synthetic_drugs_per_admission_t, synthetic_admissions_per_drug_t,synthetic_patients_per_drug = calculate_counts(test_ehr_dataset_t,i)
+                #, 'Patient Count (Synthetic)'
+                real_out_t = calculate_outlier_ratios_tout2(real_drugs_per_patient_t,i)
+                syn_out_t = calculate_outlier_ratios_tout2(synthetic_drugs_per_patient_t,i)
+                plot_outliers(real_drugs_per_patient_t, synthetic_drugs_per_patient_t, i,
+                                'Outliers of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test')
+                plot_histograms_separate_axes22(real_out_t[i+'_count'], syn_out_t[i+'_count'], 
+                                'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test')
+                
+                plot_histograms_separate_axes22(real_drugs_per_patient_t[i+'_count'], synthetic_drugs_per_patient_t[i+'_count'], 
+                                'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test')
+      
+                plot_boxplots(real_drugs_per_patient_t[i+'_count'], synthetic_drugs_per_patient_t[i+'_count'], 
+                                'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Real)')
+                #, 'Patient Count (Synthetic)'
+                 #, 'ADmission Count (Synthetic)'
+                real_out_a_t = calculate_outlier_ratios_tout2(real_drugs_per_admission_t,i)
+                syn_out_a_t = calculate_outlier_ratios_tout2(synthetic_drugs_per_admission_t,i)
+                plot_outliers(real_drugs_per_admission_t, synthetic_drugs_per_admission_t, i,
+                                'Outliers of ' +i+ ' per Admission', 'Number of ' + i, 'Patient Count (Real)','Test')
+                plot_histograms_separate_axes22(real_out_a_t[i+'_count'], syn_out_a_t[i+'_count'], 
+                                'Histogram of ' +i+ ' per Admission', 'Number of' + i, 'Patient Count (Real)','Test')
+              
+          
+                plot_boxplots(real_drugs_per_admission_t[i+'_count'], synthetic_drugs_per_admission_t[i+'_count'], 
+                                'Histogram of ' +i+ ' per Admission', 'Number of ' + i, 'Patient Count (Real)')
+
+                plot_histograms_separate_axes22(real_drugs_per_admission_t[i+'_count'], synthetic_drugs_per_admission_t[i+ '_count'], 
+                                'Histogram of ' +i+ ' per Admission', 'Number of ' + i, 'Admission Count (Real)'
+                            ,'Test')
+                #, 'ADmission Count per drug(train, test)'
+                
+                real_out_a_a_t = calculate_outlier_ratios_tout2(real_admissions_per_drug_t,"admission")
+                syn_out_a_a_t = calculate_outlier_ratios_tout2(synthetic_admissions_per_drug_t,"admission")
+                       
+                plot_outliers(real_admissions_per_drug_t, synthetic_admissions_per_drug_t, "admission",
+                                'Outliers of   Admission per ' + i, 'Number of ' + i, 'Patient Count (Real)','Test')
+                plot_histograms_separate_axes22(real_out_a_a_t["admission"+'_count'], syn_out_a_a_t["admission"+'_count'], 
+                                'Histogram of otliers ' + 'Admission per ' + i, 'Number of ' + i, 'Patient Count (Real)','Test')
+                   
+
+                plot_histograms_separate_axes22(real_admissions_per_drug_t['admission_count'], synthetic_admissions_per_drug_t['admission_count'], 
+                                'Histogram of Admissions per ' + i, 'Number of Admissions ',  i+ ' Count (Real)','Test' )
+                
+                plot_boxplots(real_admissions_per_drug_t['admission_count'], synthetic_admissions_per_drug_t['admission_count'], 
+                                 'Histogram of Admissions per ' +i, 'Number of Admissions ',  i+ ' Count (Real)', )
+
+                
+                #, 'Patient Count (Synthetic/train)'
+                real_drugs_per_patient, real_drugs_per_admission, real_admissions_per_drug,real_patients_per_drug = calculate_counts(train_ehr_dataset,i)
+                synthetic_drugs_per_patient, synthetic_drugs_per_admission, synthetic_admissions_per_drug,synthetic_patients_per_drug = calculate_counts(synthetic_ehr_dataset,i)
+                #, 'Patient Count (Synthetic)'
+                real_out = calculate_outlier_ratios_tout2(real_drugs_per_patient,i)
+                syn_out = calculate_outlier_ratios_tout2(synthetic_drugs_per_patient,i)
+                plot_outliers(real_drugs_per_patient, synthetic_drugs_per_patient, i,
+                                'Outliers of ' +i+ ' per Patient', 'Number of '+ i, 'Patient Count (Real)','Synthetic')
+                plot_histograms_separate_axes22(real_out[i+'_count'], syn_out[i+'_count'], 
+                                'Histogram of ' +i+ ' per Patient', 'Number of '+ i, 'Patient Count (Real)','Synthetic')
+              
+               
+                plot_histograms_separate_axes22(real_drugs_per_patient[i+'_count'], synthetic_drugs_per_patient[i+'_count'], 
+                                'Histogram of ' +i+ ' per Patient', 'Number of '+ i, 'Patient Count (Real)','Synthetic')
+                
+                plot_histograms_separate_axes22(real_drugs_per_patient[i+'_count'], synthetic_drugs_per_patient[i+'_count'], 
+                                'Histogram of ' +i+ ' per Patient', 'Number of '+ i, 'Patient Count (Real)','Synthetic')
+                
+                
+                plot_boxplots(real_drugs_per_patient[i+'_count'], synthetic_drugs_per_patient[i+'_count'], 
+                                'Histogram of ' +i+ ' per Patient', 'Number of '+ i, 'Patient Count (Real)')
+
+                #, 'ADmission Count (Synthetic)'
+                real_out_a = calculate_outlier_ratios_tout2(real_drugs_per_admission,i)
+                syn_out_a = calculate_outlier_ratios_tout2(synthetic_drugs_per_admission,i)
+                plot_outliers(real_drugs_per_admission, synthetic_drugs_per_admission, i,
+                                'Outliers of ' +i+ ' per Admission', 'Number of ' + i, 'Patient Count (Real)','Synthetic')
+                plot_histograms_separate_axes22(real_out_a[i+'_count'], syn_out_a[i+'_count'], 
+                                'Histogram of ' +i+ ' per Admission', 'Number of ' + i, 'Patient Count (Real)','Synthetic')
+              
+          
+                plot_boxplots(real_drugs_per_admission[i+'_count'], synthetic_drugs_per_admission[i+'_count'], 
+                                'Histogram of ' +i+ ' per Admission', 'Number of ' + i, 'Patient Count (Real)')
+
+                plot_histograms_separate_axes22(real_drugs_per_admission[i+'_count'], synthetic_drugs_per_admission[i+ '_count'], 
+                                'Histogram of ' +i+ ' per Admission', 'Number of ' + i, 'Admission Count (Real)','Synthetic'
+                            )
+                
+                        #ADmission per drug #, 
+                real_out_a_a = calculate_outlier_ratios_tout2(real_admissions_per_drug,"admission")
+                syn_out_a_a = calculate_outlier_ratios_tout2(synthetic_admissions_per_drug,"admission")
+                       
+                plot_outliers(real_admissions_per_drug, synthetic_admissions_per_drug, "admission",
+                                'Outliers of   Admission per ' + i, 'Number of ' + i, 'Patient Count (Real)','Synthetic')
+                plot_histograms_separate_axes22(real_out_a_a["admission"+'_count'], syn_out_a_a["admission"+'_count'], 
+                                'Histogram of otliers ' + 'Admission per ' + i, 'Number of ' + i, 'Patient Count (Real)','Synthetic')
+                   
+
+                plot_histograms_separate_axes22(real_admissions_per_drug['admission_count'], synthetic_admissions_per_drug['admission_count'], 
+                                'Histogram of Admissions per ' + i, 'Number of Admissions ',  i+ ' Count (Real)','Synthetic' )
+                
+                plot_boxplots(real_admissions_per_drug['admission_count'], synthetic_admissions_per_drug['admission_count'], 
+                                'Histogram of Admissions per ' +i, 'Number of Admissions ',  i+ ' Count (Real)', )
+                
+              
+                #plot_histograms(real_patients_per_drug['patient_count'], synthetic_patients_per_drug['patient_count'], 
+                #                'Histogram of Patients per '+i, 'Number of Patients', i +' Count (Real)', i +' Count (Synthetic)')
+    if "outliers" in list_metric_resemblance:
+        res_ratio = {}
+        #diagnosis
+        for word in ['diagnosis', 'procedures', 'drugs']:
+            cols_sel = train_ehr_dataset.filter(like=word).columns
+            res_ratio["Ratio_outlierrs_"+word] =calculate_outlier_ratios_tout(train_ehr_dataset, synthetic_ehr_dataset,cols_sel)
+            
+        #categorical var
+        categorical_cols = ['ADMITTIME',  'RELIGION',
+                                'MARITAL_STATUS',  'ETHNICITY','GENDER'] 
+        cols_accounts=[]
+        for i in categorical_cols:
+            cols_f = train_ehr_dataset.filter(like=i, axis=1).columns
+            cols_accounts.extend(list(cols_f))
+            
+        res_ratio["Ratio_outlierrs_categorical"] =calculate_outlier_ratios_tout(train_ehr_dataset, synthetic_ehr_dataset,cols_accounts)
+        
+        cols = [ 'Age_max', 'LOSRD_avg','visit_rank','days_between_visits']
+        res_ratio["Ratio_outlierrs_numerical"] =calculate_outlier_ratios_tout(train_ehr_dataset, synthetic_ehr_dataset,cols)
+
+
     
     if "Record_lengh" in list_metric_resemblance:
         statistics = get_statistics(train_ehr_dataset,columnas_test_ehr_dataset,test_ehr_dataset,synthetic_ehr,synthetic_ehr_dataset)
@@ -1236,32 +1776,63 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
          
         result_resemblence.append(res)
     if "corr" in list_metric_resemblance:
-        corr_plot(synthetic_ehr_dataset,"Syn" )
-        corr_plot(train_ehr_dataset,"Train" )  
-        cols = [ 'Age_max' ,'LOSRD_avg',
-        'visit_rank',
-        'days_between_visits']
-        syn_c = corr_plot(synthetic_ehr_dataset[cols],"Syn" )
-        real_c = corr_plot(train_ehr_dataset[cols],"Train" )
-        cols_list = []
-        categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
-                        'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
-                        'MARITAL_STATUS',  'ETHNICITY','GENDER',"visit_rank","HOSPITAL_EXPIRE_FLAG"  ]
-        for i in categorical_cols:
-            cols_f = train_ehr_dataset.filter(like=i, axis=1).columns
-            cols_list.extend(list(cols_f))
-        syn = corr_plot(synthetic_ehr_dataset[cols_list],"Syn" )
-        cols_with_high_corr = correlacion_otra_col(synthetic_ehr_dataset[cols_list])
-        real = corr_plot(train_ehr_dataset[cols_list],"Train" )
-        correlacion_otra_col(synthetic_ehr_dataset[cols_list])
-        keywords = ['diagnosis', 'procedures', 'drugs']
-        for i in keywords[2:]:
-            col_prod = [col for col in train_ehr_dataset.columns if any(palabra in col for palabra in [i])]
-            corr_plot(synthetic_ehr_dataset[col_prod],"Syn" )
-            cols_with_high_corr, cols_with_all_nan =correlacion_total(synthetic_ehr_dataset[col_prod])
-            corr_plot(train_ehr_dataset[col_prod],"Train" )    
-            cols_with_high_corr, cols_with_all_nan = correlacion_total(train_ehr_dataset[col_prod])
+
+        def heatmap_diff_corr(df1, df2):
+            # Calculate correlation matrices
+            corr_matrix1 = df1.corr()
+            corr_matrix2 = df2.corr()
+
+            # Calculate the absolute difference of the correlation matrices
+            diff_corr_matrix = corr_matrix1 - corr_matrix2
+            abs_diff_corr_matrix = np.abs(diff_corr_matrix)
+
+            # Create a mask to find the top 10 differences
+            # Flatten the matrix, sort the absolute values, and get the top 10
+            k = 10  # Number of top elements to highlight
+            indices = np.unravel_index(np.argsort(-abs_diff_corr_matrix.values, axis=None)[:k], abs_diff_corr_matrix.shape)
+            top_diff_mask = np.zeros_like(diff_corr_matrix, dtype=bool)
+            top_diff_mask[indices] = True
+
+            # Names of the columns (assuming they are the same for both matrices)
+            column_names = list(df1.columns)
+
+            # Create the figure and axis
+            fig, ax = plt.subplots(figsize=(10, 8))
+
+            # Create a heatmap for the matrix of differences
+            sns.heatmap(diff_corr_matrix, cmap='coolwarm', center=0, ax=ax)
+
+            # Configure the axis labels
+           
+                # Only show labels for the rows with top 10 highest differences
+            #y_labels = [column_names[i] if top_diff_mask[i].any() else '' for i in range(len(column_names))]
+            
+            #ax.set_yticks(np.arange(len(column_names)))  # Set y-tick positions
+            #ax.set_yticklabels(y_labels, rotation=45)  # Set y-tick labels
+            
+            
+            fontdict = {'fontsize': 8, 'fontweight': 'bold', 'fontname': 'Arial'}
+
+            # Configure the axis labels
+            y_labels = [column_names[i] if top_diff_mask[i].any() else '' for i in range(len(column_names))]
+            ax.set_yticks(np.arange(len(column_names)))  # Set y-tick positions
+            ax.set_yticklabels(y_labels, rotation=45, fontdict=fontdict)  # Set y-tick labels with font properties
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
+            #ax.set_xticklabels(column_names, rotation=45, horizontalalignment='right')
         
+
+            # Show and save the graph
+            plt.title('Heatmap of Correlation Matrix Differences')
+            plt.savefig('difference_heatmap.svg')
+            plt.show()
+            y_labels = [item for item in y_labels if item != '']
+
+            return y_labels
+    # Example usage:
+    # heatmap_diff_corr(df1, df2)
+
+            
         def correlacion_total(synthetic_ehr_dataset):
             # Supongamos que 'df' es tu DataFrame y que 'corr_matrix' es tu matriz de correlación
             # Supongamos que 'df' es tu DataFrame
@@ -1292,7 +1863,40 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
             for col in cols_with_all_nan:
                 print(col)
                 print(synthetic_ehr_dataset[col].sum())   
+                
             return cols_with_high_corr, cols_with_all_nan   # Ahora 'cols_with_high_corr' contiene las columnas que tienen una correlación mayor a 0.97 con al menos una otra columna
+        
+        corr_plot(synthetic_ehr_dataset,"Syn" )
+        corr_plot(train_ehr_dataset,"Train" )  
+        cols = [ 'Age_max' ,'LOSRD_avg',
+        'visit_rank',
+        'days_between_visits']
+        syn_c = corr_plot(synthetic_ehr_dataset[cols],"Syn" )
+        real_c = corr_plot(train_ehr_dataset[cols],"Train" )
+        heatmap_digbet_corr(syn_c,real_c)
+        cols_list = []
+        categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
+                        'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
+                        'MARITAL_STATUS',  'ETHNICITY','GENDER',"visit_rank","HOSPITAL_EXPIRE_FLAG"  ]
+        for i in categorical_cols:
+            cols_f = train_ehr_dataset.filter(like=i, axis=1).columns
+            cols_list.extend(list(cols_f))
+        syn = corr_plot(synthetic_ehr_dataset[cols_list],"Syn" )
+        cols_with_high_corr = correlacion_otra_col(synthetic_ehr_dataset[cols_list])
+        real = corr_plot(train_ehr_dataset[cols_list],"Train" )
+        #diferencia de correlationes
+        heatmap_diff_corr(syn,real)
+        correlacion_otra_col(synthetic_ehr_dataset[cols_list])
+        keywords = ['diagnosis', 'procedures', 'drugs']
+        for i in keywords:
+            col_prod = [col for col in train_ehr_dataset.columns if any(palabra in col for palabra in [i])]
+            syn1 = corr_plot(synthetic_ehr_dataset[col_prod],"Syn" )
+            #cols_with_high_corr, cols_with_all_nan =correlacion_total(synthetic_ehr_dataset[col_prod])
+            real1 =corr_plot(train_ehr_dataset[col_prod],"Train" )    
+            #cols_with_high_corr, cols_with_all_nan = correlacion_total(train_ehr_dataset[col_prod])
+            y_labels = heatmap_diff_corr(syn1,real1)
+            print(y_labels)
+        
         
     if "pacampa" in list_metric_resemblance:
         import numpy as np
@@ -1349,34 +1953,94 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
     if "temporal_time_line" in list_metric_resemblance:
                 
         #synthetic_ehr_dataset['days_between_visits_bins'] = pd.qcut(synthetic_ehr_dataset['days_between_visits'], q=10)
-        
-        def plot_heatmap_(synthetic_ehr_dataset, name,col, cols_num=1,cols_prod="None",type_c="Synthetic"):
-            synthetic_ehr_dataset["ADMITTIME"] = pd.to_datetime(synthetic_ehr_dataset["ADMITTIME"])
-            synthetic_ehr_dataset['year'] = synthetic_ehr_dataset['ADMITTIME'].dt.year
-            synthetic_ehr_dataset.sort_values(by = 'year', ascending=True, inplace=True)  # Sort by year
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        import pandas as pd
+        import numpy as np
+
+        def plot_heatmap(synthetic_ehr_dataset, name, col, cols_num=1, cols_prod="None", type_c="Synthetic"):
+            # Assuming synthetic_ehr_dataset is preloaded and contains 'visit_rank'
+            
+            synthetic_ehr_dataset.sort_values(by='visit_rank', ascending=True, inplace=True)
+            
+            # Aggregate data to count occurrences per 'visit_rank'
+            if cols_num == 1:
+                # Create categories if specified column is 'Age_max' or 'days_between_visits'
+                if col in ['Age_max', 'days_between_visits']:
+                    age_intervals = synthetic_ehr_dataset[col].unique()
+                    synthetic_ehr_dataset[col] = pd.Categorical(synthetic_ehr_dataset[col], categories=age_intervals, ordered=True)
+
+                # Generate heatmap data
+                heatmap_data = synthetic_ehr_dataset.groupby(['visit_rank', col]).size().unstack(fill_value=0)
+
+                # Configuring the heatmap
+                plt.figure(figsize=(12, 8))
+                ax = sns.heatmap(heatmap_data, cmap='viridis', annot=False)
+                
+                ax.set_title(f'{name} by visit ({type_c})')
+                ax.set_xlabel(name)
+                ax.set_ylabel('Visit rank')
+
+                # Adjusting the color scale dynamically
+                vmin = heatmap_data.min().min()  # find the minimum value in the dataframe
+                vmax = heatmap_data.max().max()  # find the maximum value in the dataframe
+                ax = sns.heatmap(heatmap_data, cmap='viridis', annot=False, vmin=vmin, vmax=vmax)
+
+                # Set labels
+                ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
+                plt.xticks(rotation=45)
+                plt.show()
+
+            else:
+                # For multiple columns, sum data and sort
+                heatmap_data = synthetic_ehr_dataset[cols_prod + ["visit_rank"]].groupby('visit_rank').sum()
+                top_drugs = heatmap_data.head(10).index.tolist()
+                heatmap_data.sort_values(by='visit_rank', ascending=False, inplace=True)
+                
+                plt.figure(figsize=(12, 8))
+                ax = sns.heatmap(heatmap_data, cmap='viridis', annot=False)
+                ax.set_title(f'{name} by Year ({type_c})')
+                ax.set_xlabel(name)
+                ax.set_ylabel('Year')
+                
+                # Generate labels, showing only the top items
+                labels = [label if label in top_drugs else '' for label in heatmap_data.columns]
+                ax.set_xticks(np.arange(len(labels)))
+                ax.set_xticklabels(labels, rotation=45)
+                plt.show()
+
+# Example usage:
+# plot_heatmap_(dataframe, 'Example Name', 'Age_max')
+
+        def plot_heatmap(synthetic_ehr_dataset, name,col, cols_num=1,cols_prod="None",type_c="Synthetic"):
+            #synthetic_ehr_dataset["visit_rank"] = pd.to_datetime(synthetic_ehr_dataset["visit_rank"])
+            #synthetic_ehr_dataset['year'] = synthetic_ehr_dataset['visit_rank'].dt.year
+            synthetic_ehr_dataset.sort_values(by = 'visit_rank', ascending=True, inplace=True)  # Sort by year
             # Aggregate data to count ICD-9 codes occurrences per year  
             if cols_num == 1:
                 if col == 'Age_max' or col == 'days_between_visits':
                     age_intervals  = synthetic_ehr_dataset[col].unique()
                     synthetic_ehr_dataset[col]= pd.Categorical(synthetic_ehr_dataset[col], categories=age_intervals, ordered=True)
-                heatmap_data = synthetic_ehr_dataset.groupby(['year', col]).size().unstack(fill_value=0)
-                heatmap_data.sort_values(by = 'year', ascending=False, inplace=True)  # Sort by year
+                heatmap_data = synthetic_ehr_dataset.groupby(['visit_rank', col]).size().unstack(fill_value=0)
+                heatmap_data.sort_values(by = 'visit_rank', ascending=False, inplace=True)  # Sort by year
                 plt.figure(figsize=(12, 8))
                 ax = sns.heatmap(heatmap_data, cmap='viridis', annot=False)
-                ax.set_title(name +' by Year (' + type_c+')')
+                ax.set_title(name +' by visit (' + type_c+')')
                 ax.set_xlabel(name)
-                ax.set_ylabel('Year')
+                ax.set_ylabel('Visit rank')
                 ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
                 plt.xticks(rotation=0)
                 plt.show()
 
             else:
-                heatmap_data = synthetic_ehr_dataset[cols_prod+["year"]].groupby('year').sum()   
-                heatmap_data.sort_values('year',ascending=False, inplace=True) 
+                heatmap_data = synthetic_ehr_dataset[cols_prod+["visit_rank"]].groupby(col).sum()   
+                heatmap_data.sort_values('visit_rank',ascending=False, inplace=True) 
                 top_drugs = heatmap_data.head(10).index.tolist()
-                heatmap_data.sort_values(by ='year', ascending=False, inplace=True)  # Sort by year
+                heatmap_data.sort_values(by ='visit_rank', ascending=False, inplace=True)  # Sort by year
                 plt.figure(figsize=(12, 8))
                 ax = sns.heatmap(heatmap_data, cmap='viridis', annot=False)
+                ax = sns.heatmap(heatmap_data, cmap='viridis', annot=False, vmin=your_data_min, vmax=your_data_max)
+
                 ax.set_title(name +' by Year (' + type_c+')')
                 ax.set_xlabel(name)
                 ax.set_ylabel('Year')
@@ -1391,7 +2055,48 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
             print(synthetic_ehr_dataset[col].describe())
             ax = synthetic_ehr_dataset[col].hist(bins=30)
             ax.set_xlabel(col)
-            plt.show()    
+            plt.show()
+            
+   
+        def plot_heatmap_(synthetic_ehr_dataset, name, col,name2):
+            # Calculate the correlation or any necessary transformation
+            # Example: We assume synthetic_ehr_dataset is already loaded and filtered appropriately
+            
+            # Check the range of the data
+            heatmap_data = synthetic_ehr_dataset.groupby(['visit_rank', col]).size().unstack(fill_value=0)
+            heatmap_data.sort_values('visit_rank',ascending=False, inplace=True) 
+            plt.figure(figsize=(10, 8))
+            sns.heatmap(heatmap_data, annot=True, cmap='viridis')
+            plt.title('Heatmap of '+name+' by Visit Rank '+  name2+' data')
+            plt.xlabel(name)
+            plt.ylabel('Visit Rank')
+            plt.show()
+# Adjust parameters according to your specific dataset structure and requirements
+    
+            
+        def hist_betw_a(original_data,synthetic_data,col):
+            #original_data = pd.read_csv('original_data.csv')  # Adjust the file path as necessary
+            #synthetic_data = pd.read_csv('synthetic_data.csv')  # Adjust the file path as necessary
+
+            # Assume 'days_between_visits' column exists, otherwise calculate it
+            # Plotting the histograms
+            plt.figure(figsize=(12, 6))
+
+            # Histogram for original data
+            plt.hist(original_data[col], bins=50, alpha=0.3, label='Original', color='blue')
+
+            # Histogram for synthetic data
+            plt.hist(synthetic_data[col], bins=50, alpha=0.3, label='Synthetic', color='red')
+
+            # Adding titles and labels
+            plt.title('Comparison of Days '+col+' Original vs Synthetic Data')
+            plt.xlabel(col)
+            plt.ylabel('Frequency')
+            plt.legend()
+
+            # Show the plot
+            plt.show()
+       
             
         def box_pltos(df,df_syn,col):
             fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
@@ -1408,18 +2113,21 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
         col =   'days_between_visits_bins'
         synthetic_ehr_dataset['days_between_visits_bins'] = pd.qcut(synthetic_ehr_dataset['days_between_visits'], q=10, duplicates='drop')
         hist_d("days_between_visits",synthetic_ehr_dataset) 
-        plot_heatmap_(synthetic_ehr_dataset, name,col, cols_num=1,type_c="Synthetic")
+        plot_heatmap_(synthetic_ehr_dataset, name,col,"Synthetic")
         train_ehr_dataset['days_between_visits_bins'] = pd.qcut(train_ehr_dataset['days_between_visits'], q=10, duplicates='drop')
         hist_d("days_between_visits",train_ehr_dataset) 
-        plot_heatmap_(train_ehr_dataset, name,col, cols_num=1,type_c="Real")
+        hist_betw_a(train_ehr_dataset,synthetic_ehr_dataset,"days_between_visits")
+        hist_betw_a(train_ehr_dataset,synthetic_ehr_dataset,"id_patient")
+        
+        plot_heatmap_(train_ehr_dataset, name,col, "Real")
         # age
         name = "Age interval"
         col =   'Age_max_bins'
         synthetic_ehr_dataset['Age_max_bins'] = pd.qcut(synthetic_ehr_dataset['Age_max'], q=5, duplicates='drop')
         hist_d("Age_max",synthetic_ehr_dataset) 
-        plot_heatmap_(synthetic_ehr_dataset, name,col, cols_num=1,type_c="Synthetic")
+        plot_heatmap_(synthetic_ehr_dataset, name,col, "Synthetic")
         train_ehr_dataset['Age_max_bins'] = pd.qcut(train_ehr_dataset['Age_max'], q=5, duplicates='drop')
-        plot_heatmap_(train_ehr_dataset, name,col, cols_num=1,type_c="Real")
+        plot_heatmap_(train_ehr_dataset, name,col,"Real")
         hist_d("days_between_visits",train_ehr_dataset) 
         
         
@@ -1429,8 +2137,8 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
         keywords = ['diagnosis', 'procedures', 'drugs']
         for i in keywords:
             col_prod = [col for col in train_ehr_dataset.columns if any(palabra in col for palabra in [i])]
-            plot_heatmap_(train_ehr_dataset, i,i, 2,col_prod,type_c="Real")
-            plot_heatmap_(synthetic_ehr_dataset, i,i, 2,col_prod,type_c="Synthetic")
+            plot_heatmap(train_ehr_dataset, i,i, 2,col_prod,type_c="Real")
+            plot_heatmap(synthetic_ehr_dataset, i,i, 2,col_prod,type_c="Synthetic")
         
 
     
@@ -1444,8 +2152,135 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
 
         print("Feature Ranges:\n", result)
         result_resemblence.append(result        )
+    if "dimension_wise":
+        def dimensio_wise(real_samples,gen_samples):
+            #gen_samples = np.load(os.path.join(opt.expPATH, "synthetic.npy"), allow_pickle=False)
+
+            # Load real data
+            #real_samples = dataset_train_object.return_data()[0:gen_samples.shape[0], :]
+
+            # Dimenstion wise probability
+            # It appears that the code `prob_real` is a variable name in Python. The code itself does
+            # not provide enough information to determine what it is doing. If you provide more
+            # context or code, I can help you understand its purpose.
+            prob_real = np.mean(real_samples, axis=0)
+            prob_syn = np.mean(gen_samples, axis=0)
+
+            p1 = plt.scatter(prob_real, prob_syn, c="b", alpha=0.5, label="ARF")
+            x_max = max(np.max(prob_real), np.max(prob_syn))
+            x = np.linspace(0, x_max + 0.1, 1000)
+            p2 = plt.plot(x, x, linestyle='-', color='k', label="Ideal")  # solid
+            plt.tick_params(labelsize=12)
+            plt.legend(loc=2, prop={'size': 15})
+            # plt.title('Scatter plot p')
+            # plt.xlabel('x')
+            # plt.ylabel('y')
+            plt.show()
+        gen_samples = synthetic_ehr_dataset.select_dtypes(include=['number'])    
+        real_samples = train_ehr_dataset.select_dtypes(include=['number']) 
+        cols_to_drop = ["id_patient","HADM_ID","days_between_visits","Age_max","LOSRD_avg"]
+        gen_samples.drop(columns = cols_to_drop,inplace = True)
+        real_samples.drop(columns = cols_to_drop, inplace = True)
+        dimensio_wise(real_samples,gen_samples)
         
-    
+        import matplotlib.pyplot as plt
+        from scipy.stats import wasserstein_distance
+    if "prevalence_wise":
+        # Función para calcular la prevalencia de características binarias
+        def calculate_binary_prevalence(df):
+            binary_df = (df > 0).astype(int)
+            prevalences = binary_df.mean()
+            return prevalences
+
+        # Función para calcular la diferencia media absoluta para variables de conteo
+        def calculate_relative_frequencies(df):
+            frequencies = df.sum() / df.sum().sum()
+            return frequencies
+
+        def calculate_mean_absolute_difference(real_frequencies, synthetic_frequencies):
+            mad = np.mean(abs(real_frequencies - synthetic_frequencies))
+            return mad
+
+        # Función para normalizar características continuas al rango [0,1]
+        def normalize_features(df):
+            normalized_df = (df - df.min()) / (df.max() - df.min())
+            return normalized_df
+
+        # Función para calcular AWD para características continuas
+        def calculate_awd(real_df, synthetic_df):
+            awd = np.mean([wasserstein_distance(real_df[col], synthetic_df[col]) for col in real_df.columns])
+            return awd
+
+        def remove_outliers(df, column):
+            Q1 = df[column].quantile(0.25)
+            Q3 = df[column].quantile(0.75)
+            IQR = Q3 - Q1
+            filter = (df[column] >= Q1 - 1.5 * IQR) & (df[column] <= Q3 + 1.5 * IQR)
+            return df.loc[filter]
+        # Calcular APD para características binarias
+        binary_features = cols_categorical +['readmission','HOSPITAL_EXPIRE_FLAG']
+        real_binary_prevalences = calculate_binary_prevalence(train_ehr_dataset[binary_features])
+        synthetic_binary_prevalences = calculate_binary_prevalence(synthetic_ehr_dataset[binary_features])
+        apd_binary = calculate_mean_absolute_difference(real_binary_prevalences, synthetic_binary_prevalences)
+
+        # Calcular MAD para variables de conteo
+        count_features = cols_diagnosis.to_list() +cols_drugs.to_list()+cols_procedures.to_list() +['visit_rank']
+        real_count_frequencies = calculate_relative_frequencies(train_ehr_dataset[count_features])
+        synthetic_count_frequencies = calculate_relative_frequencies(synthetic_ehr_dataset[count_features])
+        mad_count = calculate_mean_absolute_difference(real_count_frequencies, synthetic_count_frequencies)
+
+        # Calcular AWD para variables continuas
+        continuous_features = cols_continuous
+        normalized_real_data = normalize_features(train_ehr_dataset[continuous_features])
+        normalized_synthetic_data = normalize_features(synthetic_ehr_dataset[continuous_features])
+        awd_continuous = calculate_awd(normalized_real_data, normalized_synthetic_data)
+
+        # Crear DataFrame combinado para el gráfico
+        plot_data = pd.DataFrame({
+            'Real': pd.concat([real_binary_prevalences, real_count_frequencies, normalized_real_data.mean()]),
+            'Synthetic': pd.concat([synthetic_binary_prevalences, synthetic_count_frequencies, normalized_synthetic_data.mean()]),
+            'Feature': ['Binary'] * len(real_binary_prevalences) + ['Count'] * len(real_count_frequencies) + ['Continuous'] * len(normalized_real_data.columns)
+        })
+
+        plot_data = remove_outliers(plot_data, 'Real')
+        plot_data = remove_outliers(plot_data, 'Synthetic')
+        index_to_drop = ["id_patient","HADM_ID","days_between_visits","Age_max","LOSRD_avg"]
+        
+        plot_data = plot_data.drop(["days_between_visits", "Age_max", "LOSRD_avg"])
+
+        
+        
+        # Encontrar los límites máximos para ajustar los ejes
+        max_real = plot_data['Real'].max()
+        max_synthetic = plot_data['Synthetic'].max()
+        axis_limit = max(max_real, max_synthetic) * 1.1  # añadir un 10% de margen
+
+        # Crear el gráfico de dispersión combinado
+        plt.figure(figsize=(10, 10))
+        sns.scatterplot(data=plot_data, x='Real', y='Synthetic', hue='Feature', style='Feature', s=100)
+
+        # Añadir línea de referencia diagonal
+        plt.plot([0, 1], [0, 1], ls="--", c=".3")
+
+        # Añadir los valores de APD, MAD y AWD al gráfico
+        plt.text(0.05, axis_limit * 0.95, f'APD (Binary) = {apd_binary:.2f}', horizontalalignment='left', size='medium', color='black', weight='semibold')
+        plt.text(0.05, axis_limit * 0.90, f'MAD (Count) = {mad_count:.2f}', horizontalalignment='left', size='medium', color='black', weight='semibold')
+        plt.text(0.05, axis_limit * 0.85, f'AWD (Continuous) = {awd_continuous:.2f}', horizontalalignment='left', size='medium', color='black', weight='semibold')
+
+        # Ajustar los límites de los ejes
+        plt.xlim(0, axis_limit)
+        plt.ylim(0, axis_limit)
+
+        # Añadir títulos y etiquetas
+        plt.title('Comparison of Feature Prevalence in Real and Synthetic Data')
+        plt.xlabel('Real Prevalence')
+        plt.ylabel('Synthetic Prevalence')
+        plt.legend(title='Feature', bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.show()
+        
+        
+        import numpy as np
+
     if "diference_decriptives" in list_metric_resemblance:
         cols = [ 'Age_max', 'LOSRD_sum','LOSRD_avg',
         'L_1s_last_p1','visit_rank',
@@ -1472,33 +2307,107 @@ def calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_da
     # Example usage:
     # X_gt and X_syn are two numpy arrays representing empirical distributions
     if "ks_test" in list_metric_resemblance:
-        cols = ['ADMITTIME','HADM_ID']
-        #cols = "days_between_visits_cumsum"
-        test_ehr_dataset_a = cols_todrop(train_ehr_dataset,cols)
-        #train_ehr_dataset_a = cols_todrop(train_ehr_dataset,cols)
-        synthetic_ehr_dataset_a = cols_todrop(synthetic_ehr_dataset,cols)
-  
-        features_1d = test_ehr_dataset_a.values.flatten()
-        synthetic_features_1d = synthetic_ehr_dataset_a[:test_ehr_dataset_a.shape[0]].values.flatten()
-        print(len(features_1d))
-        print(len(synthetic_features_1d[:len(features_1d)]))
-        synthetic_features_1d = synthetic_features_1d[:len(features_1d)]
-        ks_test = KolmogorovSmirnovTest()
-        result = ks_test._evaluate(features_1d, synthetic_features_1d)
-        print("Kolmog orov-Smirnov Train:", result)
-        result_resemblence.append(result)
+        
+        continuous_cols = ['Age_max', 'LOSRD_avg','days_between_visits']        
+        ks_results = {'column': [], 'ks_statistic': [], 'p_value': []}
+
+        for col in continuous_cols:
+            ks_stat, p_value = ks_2samp(train_ehr_dataset[col], synthetic_ehr_dataset[col])
+            ks_results['column'].append(col)
+            ks_results['ks_statistic'].append(ks_stat)
+            ks_results['p_value'].append(p_value)
+
+        # Convert results to DataFrame
+        ks_df = pd.DataFrame(ks_results)
+
+        # Calculate summary statistics
+        summary_stats = {
+            'mean_ks_statistic': ks_df['ks_statistic'].mean(),
+            'median_ks_statistic': ks_df['ks_statistic'].median(),
+            'std_ks_statistic': ks_df['ks_statistic'].std(),
+            'mean_p_value': ks_df['p_value'].mean(),
+            'median_p_value': ks_df['p_value'].median(),
+            'std_p_value': ks_df['p_value'].std(),
+            'proportion_significant': (ks_df['p_value'] < 0.05).mean()
+        }
+
+        summary_df = pd.DataFrame([summary_stats])
+
+        print(ks_df.to_latex())
+        from scipy.stats import chi2_contingency
+        cols_not_con = [i for i in train_ehr_dataset.columns if i not in continuous_cols+['id_patient','ADMITTIME']]
+        real_data = train_ehr_dataset
+        synthetic_data = synthetic_ehr_dataset
+        # Generate example one-hot encoded data for illustration purposes
+
+        # Perform Chi-Square test for each column and calculate Total Variation Distance
+        chi_results = {'column': [], 'chi2_statistic': [], 'p_value': [], 'tv_distance': []}
+
+        for col in cols_not_con:
+            contingency_table = pd.crosstab(real_data[col], synthetic_data[col])
+            chi2_stat, p_value, _, _ = chi2_contingency(contingency_table)
+            
+            # Calculate Total Variation Distance
+            real_prob = real_data[col].value_counts(normalize=True)
+            synthetic_prob = synthetic_data[col].value_counts(normalize=True)
+            tv_distance = np.sum(np.abs(real_prob - synthetic_prob)) / 2
+            
+            chi_results['column'].append(col)
+            chi_results['chi2_statistic'].append(chi2_stat)
+            chi_results['p_value'].append(p_value)
+            chi_results['tv_distance'].append(tv_distance)
+
+        # Convert results to DataFrame
+        chi_df = pd.DataFrame(chi_results)
+        # Identify the top 10 most different and least different columns by p-value
+
+
+        most_different_cols = chi_df.nsmallest(10, 'p_value')
+        least_different_cols = chi_df.nlargest(10, 'p_value')
+        most_different_cols_tv = chi_df.nlargest(10, 'tv_distance')
+        least_different_cols_tv = chi_df.nsmallest(10, 'tv_distance')
+
+
+        # Create the final DataFrame
+        final_df = pd.DataFrame({
+            'Most Different by p-value': most_different_cols['column'].tolist() + [''] * (10 - len(most_different_cols)),
+            'Least Different by p-value': least_different_cols['column'].tolist() + [''] * (10 - len(least_different_cols)),
+            'Most Different by TV Distance': most_different_cols_tv['column'].tolist() + [''] * (10 - len(most_different_cols_tv)),
+            'Least Different by TV Distance': least_different_cols_tv['column'].tolist() + [''] * (10 - len(least_different_cols_tv)),
+        })
+
+        # Display the DataFrame
+        print(final_df.to_latex())
+        # Combine the results
+            
 
     if "jensenshannon_dist" in list_metric_resemblance:
-        cols = ['ADMITTIME','HADM_ID']
+        cols = ['ADMITTIME','Age_max', 'LOSRD_avg','days_between_visits']
         #cols = "days_between_visits_cumsum"
         test_ehr_dataset_a = cols_todrop(train_ehr_dataset,cols)
         #train_ehr_dataset_a = cols_todrop(train_ehr_dataset,cols)
         synthetic_ehr_dataset_a = cols_todrop(synthetic_ehr_dataset,cols)
-  
-        score = JensenShannonDistance()._evaluate(test_ehr_dataset_a.values, synthetic_ehr_dataset_a.values)
+        test_ehr_dataset_a2 = cols_todrop(test_ehr_dataset,cols)
+        train_ehr_dataset_a2 = test_ehr_dataset_a[:test_ehr_dataset_a.shape[0]]
+        jsd_calculator = JensenShannonDistance2(test_ehr_dataset_a, synthetic_ehr_dataset_a,10)
+        jsd_results, avg_js = jsd_calculator.jensen_shannon()
+        #print(jsd_results.to_latex())
+        #print(avg_js)
+        #jsd_calculator_test = JensenShannonDistance2(test_ehr_dataset_a2, train_ehr_dataset_a2,10)
+        #jsd_results_test, avg_js_test = jsd_calculator_test.jensen_shannon()
+        #data_fram_train = pd.DataFrame()
+        #data_fram_train["Jensen Shannon avg train /synthetic"] = avg_js
+        #data_fram_train["Jensen Shannon avg train /test"] = avg_js_test
+        #print(data_fram_train.to_latex())
+       
         #score = JensenShannonDistance()._evaluate(features_2d, synthetic_features_2d)synthetic_ehr
         print("Jensen-Shannon Distance:", score)
-        result_resemblence.append(score)
+        
+        
+        jsd_calculator = JensenShannonDistance2(test_ehr_dataset_a, synthetic_ehr_dataset_a,10)
+        jsd_results, avg_js = jsd_calculator.jensen_shannon()
+
+        
 
 
 
@@ -1791,12 +2700,23 @@ if __name__=="__main__":
         test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,features = obtain_dataset_admission_visit_rank(file,file,valid_perc,features_path)
         #list_metric_resemblance = ["histogramas","tsne","statistics","kernel_density","mmd","ks_test","jensenshannon_dist"]
         # contraints
+        #from # The code you provided is a comment in Python. Comments in Python start with a hash
+        # symbol (#) and are used to provide explanations or notes within the code. In this case,
+        # the comment "generative_model" is likely indicating the purpose or description of the
+        # code that follows.
         from generative_model.SD.constraints import *
         c = EHRDataConstraints(train_ehr_dataset, test_ehr_dataset, synthetic_ehr_dataset)
         c.print_shapes()
         #cols_accounts = c.handle_categorical_data()
         synthetic_ehr_dataset = c.initiate_processing()
         c.print_shapes()
+        
+        
+        unique_synthetic_patients = synthetic_ehr_dataset['id_patient'].nunique()
+        unique_train_patients = train_ehr_dataset['id_patient'].unique()
+        selected_train_patients = np.random.choice(unique_train_patients, size=unique_synthetic_patients, replace=False)
+        train_ehr_dataset = train_ehr_dataset[train_ehr_dataset['id_patient'].isin(selected_train_patients)]
+        
         train_ehr_dataset = train_ehr_dataset[ :synthetic_ehr_dataset.shape[0]]
         cols = "days_between_visits_cumsum"
         synthetic_ehr_dataset = cols_todrop(synthetic_ehr_dataset,[cols])
@@ -1805,8 +2725,8 @@ if __name__=="__main__":
         print(test_ehr_dataset.shape)
         print(train_ehr_dataset.shape)
         print(synthetic_ehr_dataset.shape)
-        
-        
+        print(train_ehr_dataset['id_patient'].nunique())
+        print(synthetic_ehr_dataset['id_patient'].nunique())
         
         
         #train_ehr_dataset= test_ehr_dataset 
@@ -1825,12 +2745,30 @@ if __name__=="__main__":
 
         #obtener un syntethic datafram que considere el percentil y si es mayor a eso se considera 1 si no 0, si es false no se le agrega la columnas id_patient
         
-        columns_to_drop = ['LOSRD_sum', 'L_1s_last_p1']
+        columns_to_drop = ['LOSRD_sum', 'L_1s_last_p1','HADM_ID']
 
         if all(column in synthetic_ehr_dataset.columns for column in columns_to_drop):
             synthetic_ehr_dataset.drop(columns_to_drop, axis=1, inplace=True)
             train_ehr_dataset.drop(columns_to_drop, axis=1, inplace=True)
-            test_ehr_dataset.drop(columns_to_drop, axis=1, inplace=True)  
+            test_ehr_dataset.drop(columns_to_drop, axis=1, inplace=True) 
+            
+        print(test_ehr_dataset.shape)
+        print(train_ehr_dataset.shape)
+        print(synthetic_ehr_dataset.shape)
+        
+        #obtener cols para demosgraphics, contnious, procedures, diagnosis, drugs
+        cols_continuous = ['Age_max', 'LOSRD_avg','days_between_visits'] 
+
+        categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
+                                'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
+                                'MARITAL_STATUS',  'ETHNICITY','GENDER',"visit_rank","HOSPITAL_EXPIRE_FLAG"  ]
+        for i in categorical_cols:
+            cols_categorical = train_ehr_dataset.filter(like=i, axis=1).columns
+        keywords = ['diagnosis', 'procedures', 'drugs']
+        cols_diagnosis = train_ehr_dataset.filter(like= 'diagnosis', axis=1).columns
+        cols_procedures = train_ehr_dataset.filter(like= 'procedures', axis=1).columns
+        cols_drugs = train_ehr_dataset.filter(like= 'drugs', axis=1).columns
+        
         #train and yn
         list_metric_resemblance =["plt_hist_first_visits","cols_plot_mean","plot_kernel_vssyn",
         "descriptive_statistics","frequency_categorical_10","visit_counts2","corr","pacampa","temporal_time_line","ks_test",
@@ -1839,7 +2777,7 @@ if __name__=="__main__":
         results_  =    calcular_remblencemetric(test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance)
        
         #same value_matrix test,train and syn
-        
+        synthetic_ehr = synthetic_ehr_dataset
         list_metric_resemblance =["distance_max","coorr_matrix_abs_dif","compare_ranges","mmd"]
         synthetic_ehr = synthetic_ehr[:test_ehr_dataset.shape[0]]
         synthetic_ehr_dataset = synthetic_ehr_dataset[:test_ehr_dataset.shape[0]]
