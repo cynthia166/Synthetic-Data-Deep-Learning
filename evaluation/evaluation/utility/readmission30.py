@@ -20,7 +20,7 @@ sys.path.append('preprocessing')
 sys.path.append('evaluation')
 import config
 from evaluation.privacy.metric_privacy import *
-from evaluation.resemb.resemblance.metric_stat import *
+from evaluation.resemb.resemblance.main_stat import *
 from sklearn.decomposition import PCA
 import numpy as np
 from sklearn.model_selection import StratifiedKFold

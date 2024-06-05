@@ -1,6 +1,8 @@
 import gzip 
 import pickle
 import numpy as np
+import pandas as pd
+import shap
 
 def load_data(file_path):
     with gzip.open(file_path, 'rb') as f:
@@ -41,17 +43,15 @@ def convertir_categoricas(df,categorical_cols):
     return df                   
 
 
-def shap_values(rf_clf, X_test_v):
-    explainer = shap.TreeExplainer(rf_clf)
+def shap_values(clf, X_test_v):
+    explainer = shap.TreeExplainer(clf)
     shap_values = explainer.shap_values(X_test_v)
 
     # Plot the SHAP summary plot
-    shap.summary_plot(shap_values, X_test_v, plot_type="bar")
+    #shap.summary_plot(shap_values, X_test_v, plot_type="bar")
 
     # If your classifier is binary, shap_values will be a list with two elements.
     # Use the first element if you're interested in the positive class.
-    if isinstance(shap_values, list):
-        shap_values = shap_values[1]  # For binary classification, you might want shap_values[1]
 
     # Calculate mean absolute SHAP values
     mean_abs_shap_values = np.abs(shap_values).mean(axis=0)

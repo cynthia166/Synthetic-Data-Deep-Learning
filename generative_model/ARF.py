@@ -15,6 +15,8 @@ import shap
 remote = False
 path_arf = "generative_model/ARF/"
 percentage_to_sample = 0.03
+train = False
+coverage_vars = False
 
 if remote:
     
@@ -49,16 +51,20 @@ sample_df, sample_patients_r = sample_patients(train_data_features,percentage_to
 #guardar la muestra de pacientes
 save_load_numpy(sample_patients_r,save=True,load=False,name=path_arf +'sample_patients.npy')
 
-# train random adversarial forest
-my_arf = arf.arf(x = sample_df) 
+if train:
+    # train random adversarial forest
+    my_arf = arf.arf(x = sample_df) 
 
 
 
-#se obtiene parametro por hoja y por arbol
-FORDE = my_arf.forde()
-
-# guradar FRODE
-save_pkl(FORDE,path_arf+"FORED")
+    #se obtiene parametro por hoja y por arbol
+    FORDE = my_arf.forde()
+    # guradar FRODE
+    save_pkl(FORDE,path_arf+"FORED")
+else:
+   #load model
+    FORDE = load_pkl(path_arf+"FORED")
+#
 
 #obtener 0 coverage variables
 categorical_columns = sample_df.select_dtypes(include=['object', 'category']).columns.tolist()
@@ -72,19 +78,26 @@ clf = FORDE['forest']
 # Create factor_cols: Boolean array indicating categorical columns
 factor_cols = sample_df.columns.isin(categorical_columns)
 #obetener variables con coverage = 0
-zero_coverage_vars = identify_zero_coverage_variables(clf, x_real, orig_colnames, factor_cols, clf.n_estimators)
-print("Zero Coverage Variables:", zero_coverage_vars)
-save_pkl(zero_coverage_vars,path_arf+"zero_coverage_vars")
+if coverage_vars:
+    zero_coverage_vars = identify_zero_coverage_variables(clf, x_real, orig_colnames, factor_cols, clf.n_estimators)
+    print("Zero Coverage Variables:", zero_coverage_vars)
+    save_pkl(zero_coverage_vars,path_arf+"zero_coverage_vars")
 
 
 #obtener importancia shap_values del modelo
 #filtrar el test set 
 X_test_v = train_data_features[~train_data_features['SUBJECT_ID'].isin(sample_patients_r)]
 #obtener los shap values
-df_shap_values = shap_values(clf, X_test_v[:300])
+num_columns = clf.n_features_in_
+print(f'El modelo fue entrenado con {num_columns} columnas.')
+assert len(X_test_v.columns) == num_columns
+X_test_v = X_test_v[sample_df.columns]
+df_shap_values = shap_values(clf, X_test_v[:sample_df.shape[0]])
+
+
 save_pkl(df_shap_values,path_arf+"shap_values")
 
 #generate synthetic data
-df_syn = my_arf.forge(n = df_sample.shape[0])
+df_syn = my_arf.forge(n = sample_df.shape[0])
 # save synthetic data
 save_pkl(df_syn,path_arf+"synthetic_data_generative_model_arf_per_"+percentage_to_sample)
