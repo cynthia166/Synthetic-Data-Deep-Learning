@@ -46,11 +46,11 @@ categorical_cols =[col for col in train_data_features.columns if col not in cols
 train_data_features = convertir_categoricas(train_data_features,categorical_cols)
 print(train_data_features.dtypes)
 # samplear 3# fre los pacientes
-sample_df, sample_patients_r = sample_patients(train_data_features,percentage_to_sample)
+sample_df, sample_patients = sample_patients(train_data_features,percentage_to_sample)
 
 #guardar la muestra de pacientes
-save_load_numpy(sample_patients_r,save=True,load=False,name=path_arf +'sample_patients.npy')
-
+#save_load_numpy(sample_patients_r,save=True,load=False,name=path_arf +'sample_patients.npy')
+save_pkl(sample_patients,path_arf +'sample_patients')
 if train:
     # train random adversarial forest
     my_arf = arf.arf(x = sample_df) 

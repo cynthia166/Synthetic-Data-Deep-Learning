@@ -1,11 +1,14 @@
 import pandas as pd
+
 # save ehr en la primera corrida
 save_ehr = True
 # en la segunda solo se leen
-read_ehr = False
+read_ehr = True
 #si se tiene dopplegange con attraibutes y features
 attributes = False
 
+make_contrains = False
+save_constrains = False
 
 if attributes:
     path_o = "train_sp/"    
@@ -24,7 +27,7 @@ if attributes:
 columns_to_drop = ['LOSRD_sum', 'L_1s_last_p1','HADM_ID']   
 cols_to_drop_syn = "days_between_visits_cumsum"
 #cols continous
-cols_continuous = [ 'Age_max', 'LOSRD_sum','visit_rank','days_between_visits']
+cols_continuous = [ 'Age_max', 'LOSRD_avg','visit_rank','days_between_visits']
 #categorical cols
 categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
                         'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
@@ -47,3 +50,5 @@ file = '/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-De
 features_path = "data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl"
 
 file_path_dataset =     "generated_synthcity_tabular/ARF/"
+sample_patients_path ="generated_synthcity_tabular/ARF/sample_patients"
+path_img="generated_synthcity_tabular/ARF/img/"

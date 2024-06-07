@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.pyplot as plt
 from pacmap import PaCMAP
-
+import logging
 from scipy.stats import wasserstein_distance
 #os.chdir("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning")
 os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
@@ -28,7 +28,11 @@ class EHRResemblanceMetrics:
                  cols,
                  keywords,
                  categorical_cols,
-                 dependant_fist_visit):
+                 dependant_fist_visit,
+                 cols_diagnosis,
+                 cols_procedures,
+                    cols_drugs,
+                    path_img):
         
         self.test_ehr_dataset = test_ehr_dataset
         self.train_ehr_dataset = train_ehr_dataset
@@ -40,138 +44,177 @@ class EHRResemblanceMetrics:
         self.result_resemblance = []
         self.results_final = {}
         self.cols = cols
+        self.cols_continuous = cols
         self.keywords = keywords
         self.categorical_cols = categorical_cols
         self.dependant_fist_visit = dependant_fist_visit
-        if "outliers" in self.list_metric_resemblance:
-            self.outliers_and_histograms_patients_admissions()
+        logging.basicConfig(level=logging.INFO)
+        self.cols_diagnosis = cols_diagnosis
+        self.cols_procedures = cols_procedures
+        self.cols_drugs = cols_drugs
+        self.path_img  = path_img
+    def evaluate(self):    
+        results = {}
 
-        if "descriptive_statistics" in self.list_metric_resemblance:
-            self.get_descriptive_statistics()
+        if "outliers_and_histograms_patients_admissions" in self.list_metric_resemblance:
+            logging.info("Executing method: outliers_and_histograms_patients_admissions")
+            self.outliers_and_histograms_patients_admissions(self.test_ehr_dataset, self.train_ehr_dataset, self.synthetic_ehr_dataset,self.path_img)
 
-        if "Record_lengh" in self.list_metric_resemblance:
-            self.compare_average_trends_recordlen()
+        if "metric_outliers" in self.list_metric_resemblance:
+            logging.info("Executing method: metric_outliers")
+            results.update(self.metric_outliers(self.train_ehr_dataset, self.synthetic_ehr_dataset, self.cols))
 
-        if "plt_hist_first_visits" in self.list_metric_resemblance:
-            self.plot_first_visit()
+        if "get_descriptive_statistics" in self.list_metric_resemblance:
+            logging.info("Executing method: get_descriptive_statistics")
+            results.update(self.get_descriptive_statistics(self.synthetic_ehr_dataset, self.train_ehr_dataset, self.cols))
 
-        if "cols_plot_mean" in self.list_metric_resemblance:
-            self.plot_means_continuos_variables()
+        if "compare_average_trends_recordlen" in self.list_metric_resemblance:
+            logging.info("Executing method: compare_average_trends_recordlen")
+            results.update(self.compare_average_trends_recordlen(self.train_ehr_dataset, self.columnas_test_ehr_dataset, self.test_ehr_dataset, self.synthetic_ehr_dataset))
 
-        if "plot_kernel_vssyn" in self.list_metric_resemblance:
-            self.plot_kerneldis()
+        if "plot_first_visit" in self.list_metric_resemblance:
+            logging.info("Executing method: plot_first_visit")
+            self.plot_first_visit(self.train_ehr_dataset, self.synthetic_ehr_dataset, self.dependant_fist_visit,self.path_img)
 
-        if "frequency_categorical_10" in self.list_metric_resemblance:
-            self.get_top10_different_proportion()
+        if "plot_means_continuos_variables" in self.list_metric_resemblance:
+            logging.info("Executing method: plot_means_continuos_variables")
+            self.plot_means_continuos_variables(self.train_ehr_dataset, self.synthetic_ehr_dataset, self.cols,self.path_img)
 
-        if "visit_counts2" in self.list_metric_resemblance:
-            self.get_visit_value_counts()
+        if "plot_kerneldis" in self.list_metric_resemblance:
+            logging.info("Executing method: plot_kerneldis")
+            self.plot_kerneldis(self.train_ehr_dataset, self.synthetic_ehr_dataset, self.cols,self.path_img)
 
-        if "corr" in self.list_metric_resemblance:
-            self.plot_differen_correlation()
+        if "get_top10_different_proportion" in self.list_metric_resemblance:
+            logging.info("Executing method: get_top10_different_proportion")
+            results.update(self.get_top10_different_proportion(self.train_ehr_dataset, self.synthetic_ehr_dataset, self.cols))
 
-        if "pacmap" in self.list_metric_resemblance:
-            self.plot_pacmap()
+        if "get_visit_value_counts" in self.list_metric_resemblance:
+            logging.info("Executing method: get_visit_value_counts")
+            results.update(self.get_visit_value_counts(self.train_ehr_dataset, self.synthetic_ehr_dataset, self.columnas_test_ehr_dataset))
 
-        if "temporal_time_line" in self.list_metric_resemblance:
-            self.temporal_histogram_heatmap()
+        if "plot_differen_correlation" in self.list_metric_resemblance:
+            logging.info("Executing method: plot_differen_correlation")
+            self.plot_differen_correlation(self.synthetic_ehr_dataset, self.train_ehr_dataset, self.cols, self.categorical_cols, self.keywords,self.path_img)
 
-        if "compare_ranges" in self.list_metric_resemblance:
-            self.compare_maximum_range()
+        if "plot_pacmap" in self.list_metric_resemblance:
+            logging.info("Executing method: plot_pacmap")
+            self.plot_pacmap(self.synthetic_ehr_dataset, self.train_ehr_dataset, self.keywords, self.categorical_cols,self.path_img)
 
-        if "dimension_wise" in self.list_metric_resemblance:
-            self.plot_dimension_wise()
+        if "temporal_histogram_heatmap" in self.list_metric_resemblance:
+            logging.info("Executing method: temporal_histogram_heatmap")
+            self.temporal_histogram_heatmap(self.synthetic_ehr_dataset, self.train_ehr_dataset,self.path_img)
 
-        if "prevalence_wise" in self.list_metric_resemblance:
-            self.plot_prevalence_wise()
+        if "compare_maximum_range" in self.list_metric_resemblance:
+            logging.info("Executing method: compare_maximum_range")
+            results.update(self.compare_maximum_range(self.test_ehr_dataset, self.synthetic_ehr_dataset, self.cols))
 
-        if "diference_decriptives" in self.list_metric_resemblance:
-            self.top_10diference_absbalute()
+        if "plot_dimension_wise" in self.list_metric_resemblance:
+            logging.info("Executing method: plot_dimension_wise")
+            self.plot_dimension_wise(self.synthetic_ehr_dataset, self.train_ehr_dataset, self.cols_continuous, self.categorical_cols, self.cols_diagnosis, self.cols_drugs, self.cols_procedures,self.path_img)
 
-        if "mmd" in self.list_metric_resemblance:
-            self.get_MaximumMeanDiscrepancy()
+        if "plot_prevalence_wise" in self.list_metric_resemblance:
+            logging.info("Executing method: plot_prevalence_wise")
+            self.plot_prevalence_wise(self.synthetic_ehr_dataset, self.train_ehr_dataset, self.cols_continuous, self.categorical_cols, self.cols_diagnosis, self.cols_drugs, self.cols_procedures,self.path_img)
 
-        if "ks_test" in self.list_metric_resemblance:
-            self.kolmogorov_smirnof_test_chissquare()
+        if "top_10diference_absbalute" in self.list_metric_resemblance:
+            logging.info("Executing method: top_10diference_absbalute")
+            results.update(self.top_10diference_absbalute(self.test_ehr_dataset, self.synthetic_ehr_dataset, self.cols))
 
-        if "jensenshannon_dist" in self.list_metric_resemblance:
-            self.get_jensenshannon_dist()
+        if "get_MaximumMeanDiscrepancy" in self.list_metric_resemblance:
+            logging.info("Executing method: get_MaximumMeanDiscrepancy")
+            results.update(self.get_MaximumMeanDiscrepancy(self.train_ehr_dataset, self.synthetic_ehr_dataset))
 
-        if "proportion_demos" in self.list_metric_resemblance:
-            self.get_proportion_demos()
+        if "kolmogorov_smirnof_test_chissquare" in self.list_metric_resemblance:
+            logging.info("Executing method: kolmogorov_smirnof_test_chissquare")
+            results.update(self.kolmogorov_smirnof_test_chissquare(self.train_ehr_dataset, self.synthetic_ehr_dataset, self.cols_continuous))
 
-        if "exact_match" in self.list_metric_resemblance:
-            self.get_excat_match()
+        if "get_jensenshannon_dist" in self.list_metric_resemblance:
+            logging.info("Executing method: get_jensenshannon_dist")
+            results.update(self.get_jensenshannon_dist(self.train_ehr_dataset, self.synthetic_ehr_dataset, self.test_ehr_dataset, self.cols_continuous))
 
-        if "duplicates" in self.list_metric_resemblance:
-            self.get_dupplicates()
+        if "get_proportion_demos" in self.list_metric_resemblance:
+            logging.info("Executing method: get_proportion_demos")
+            results.update(self.get_proportion_demos(self.train_ehr_dataset, self.synthetic_ehr_dataset, self.categorical_cols))
 
-        if "compare_least_codes" in self.list_metric_resemblance:
-            self.obtain_least_frequent()
+        if "get_excat_match" in self.list_metric_resemblance:
+            logging.info("Executing method: get_excat_match")
+            results.update(self.get_excat_match(self.train_ehr_dataset, self.synthetic_ehr_dataset))
 
-        if "gradico_acum" in self.list_metric_resemblance:
-            self.plot_acumulated()
+        if "get_dupplicates" in self.list_metric_resemblance:
+            logging.info("Executing method: get_dupplicates")
+            results.update(self.get_dupplicates(self.train_ehr_dataset, self.synthetic_ehr_dataset))
 
-        if "common_proportoins" in self.list_metric_resemblance:
-            self.get_common_proportions()
+        if "obtain_least_frequent" in self.list_metric_resemblance:
+            logging.info("Executing method: obtain_least_frequent")
+            results.update(self.obtain_least_frequent(self.train_ehr_dataset, self.synthetic_ehr_dataset, self.columnas_test_ehr_dataset, 10))
 
+        if "plot_acumulated" in self.list_metric_resemblance:
+            logging.info("Executing method: plot_acumulated")
+            self.plot_acumulated(self.train_ehr_dataset, self.synthetic_ehr_dataset, self.cols_continuous, self.categorical_cols,self.path_img)
+
+        if "get_common_proportions" in self.list_metric_resemblance:
+            logging.info("Executing method: get_common_proportions")
+            results.update(self.get_common_proportions(self.train_ehr_dataset, self.synthetic_ehr_dataset))
+
+        return results
 
         
         #outliers
         
         
 
-    def outliers_and_histograms_patients_admissions(self,test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ,columnas_test_ehr_dataset,top_300_codes,synthetic_ehr,list_metric_resemblance):
-        for i in keywords[:1]:
+    def outliers_and_histograms_patients_admissions(self,test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset ):
+        for i in keywords:
                 # Shynthetic/train
                 
                 test_ehr_dataset_t = train_ehr_dataset[:test_ehr_dataset.shape[0]]
                 real_drugs_per_patient_t, real_drugs_per_admission_t, real_admissions_per_drug_t,real_patients_per_drug_t = calculate_counts(train_ehr_dataset,i)
-                synthetic_drugs_per_patient_t, synthetic_drugs_per_admission_t, synthetic_admissions_per_drug_t,synthetic_patients_per_drug = calculate_counts(test_ehr_dataset_t,i)
+                test_drugs_per_patient_t, test_drugs_per_admission_t, test_admissions_per_drug_t,synthetic_patients_per_drug = calculate_counts(test_ehr_dataset_t,i)
                 #, 'Patient Count (Synthetic)'
                 real_out_t = calculate_outlier_ratios_tout2(real_drugs_per_patient_t,i)
-                syn_out_t = calculate_outlier_ratios_tout2(synthetic_drugs_per_patient_t,i)
-                plot_outliers(real_drugs_per_patient_t, synthetic_drugs_per_patient_t, i,
-                                'Outliers of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test')
-                plot_histograms_separate_axes22(real_out_t[i+'_count'], syn_out_t[i+'_count'], 
+                test_out_t = calculate_outlier_ratios_tout2(test_drugs_per_patient_t,i)
+                #real_data, synthetic_data, column_name, title, xlabel, ylabel_real, ylabel_synthetic=real_out_t, test_out_t, i, 'Outliers of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test'
+                #plot_outliers(real_out_t, test_out_t, i,
+                #                'Outliers of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test')
+                plot_histograms_separate_axes22(real_out_t[i+'_count'], test_out_t[i+'_count'], 
                                 'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test')
                 
-                plot_histograms_separate_axes22(real_drugs_per_patient_t[i+'_count'], synthetic_drugs_per_patient_t[i+'_count'], 
+                plot_histograms_separate_axes22(real_drugs_per_patient_t[i+'_count'], test_drugs_per_patient_t[i+'_count'], 
                                 'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test')
     
-                plot_boxplots(real_drugs_per_patient_t[i+'_count'], synthetic_drugs_per_patient_t[i+'_count'], 
+                plot_boxplots(real_drugs_per_patient_t[i+'_count'], test_drugs_per_patient_t[i+'_count'], 
                                 'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Real)')
                 #, 'Patient Count (Synthetic)'
                 #, 'ADmission Count (Synthetic)'
                 real_out_a_t = calculate_outlier_ratios_tout2(real_drugs_per_admission_t,i)
-                syn_out_a_t = calculate_outlier_ratios_tout2(synthetic_drugs_per_admission_t,i)
-                plot_outliers(real_drugs_per_admission_t, synthetic_drugs_per_admission_t, i,
-                                'Outliers of ' +i+ ' per Admission', 'Number of ' + i, 'Patient Count (Real)','Test')
+                syn_out_a_t = calculate_outlier_ratios_tout2(test_drugs_per_admission_t,i)
+                #plot_outliers(real_out_a_t, syn_out_a_t, i,
+                #                'Outliers of ' +i+ ' per Admission', 'Number of ' + i, 'Patient Count (Real)','Test')
                 plot_histograms_separate_axes22(real_out_a_t[i+'_count'], syn_out_a_t[i+'_count'], 
                                 'Histogram of ' +i+ ' per Admission', 'Number of' + i, 'Patient Count (Real)','Test')
             
         
-                plot_boxplots(real_drugs_per_admission_t[i+'_count'], synthetic_drugs_per_admission_t[i+'_count'], 
+                plot_boxplots(real_drugs_per_admission_t[i+'_count'], test_drugs_per_admission_t[i+'_count'], 
                                 'Histogram of ' +i+ ' per Admission', 'Number of ' + i, 'Patient Count (Real)')
 
-                plot_histograms_separate_axes22(real_drugs_per_admission_t[i+'_count'], synthetic_drugs_per_admission_t[i+ '_count'], 
+                plot_histograms_separate_axes22(real_drugs_per_admission_t[i+'_count'], test_drugs_per_admission_t[i+ '_count'], 
                                 'Histogram of ' +i+ ' per Admission', 'Number of ' + i, 'Admission Count (Real)'
                             ,'Test')
                 #, 'ADmission Count per drug(train, test)'
                 
                 real_out_a_a_t = calculate_outlier_ratios_tout2(real_admissions_per_drug_t,"admission")
-                syn_out_a_a_t = calculate_outlier_ratios_tout2(synthetic_admissions_per_drug_t,"admission")
+                test_out_a_a_t = calculate_outlier_ratios_tout2(test_admissions_per_drug_t,"admission")
                     
-                plot_outliers(real_admissions_per_drug_t, synthetic_admissions_per_drug_t, "admission",
-                                'Outliers of   Admission per ' + i, 'Number of ' + i, 'Patient Count (Real)','Test')
-                plot_histograms_separate_axes22(real_out_a_a_t["admission"+'_count'], syn_out_a_a_t["admission"+'_count'], 
+                #plot_outliers(real_out_a_a_t, test_out_a_a_t, "admission",
+                #                'Outliers of   Admission per ' + i, 'Number of ' + i, 'Patient Count (Real)','Test')
+                plot_histograms_separate_axes22(real_out_a_a_t["admission"+'_count'], test_out_a_a_t["admission"+'_count'], 
                                 'Histogram of otliers ' + 'Admission per ' + i, 'Number of ' + i, 'Patient Count (Real)','Test')
                 
 
-                plot_histograms_separate_axes22(real_admissions_per_drug_t['admission_count'], synthetic_admissions_per_drug_t['admission_count'], 
+                plot_histograms_separate_axes22(real_admissions_per_drug_t['admission_count'], test_admissions_per_drug_t['admission_count'], 
                                 'Histogram of Admissions per ' + i, 'Number of Admissions ',  i+ ' Count (Real)','Test' )
                 
-                plot_boxplots(real_admissions_per_drug_t['admission_count'], synthetic_admissions_per_drug_t['admission_count'], 
+                plot_boxplots(real_admissions_per_drug_t['admission_count'], test_admissions_per_drug_t['admission_count'], 
                                 'Histogram of Admissions per ' +i, 'Number of Admissions ',  i+ ' Count (Real)', )
 
                 
@@ -181,8 +224,8 @@ class EHRResemblanceMetrics:
                 #, 'Patient Count (Synthetic)'
                 real_out = calculate_outlier_ratios_tout2(real_drugs_per_patient,i)
                 syn_out = calculate_outlier_ratios_tout2(synthetic_drugs_per_patient,i)
-                plot_outliers(real_drugs_per_patient, synthetic_drugs_per_patient, i,
-                                'Outliers of ' +i+ ' per Patient', 'Number of '+ i, 'Patient Count (Real)','Synthetic')
+                #plot_outliers(real_drugs_per_patient, synthetic_drugs_per_patient, i,
+                #                'Outliers of ' +i+ ' per Patient', 'Number of '+ i, 'Patient Count (Real)','Synthetic')
                 plot_histograms_separate_axes22(real_out[i+'_count'], syn_out[i+'_count'], 
                                 'Histogram of ' +i+ ' per Patient', 'Number of '+ i, 'Patient Count (Real)','Synthetic')
             
@@ -200,8 +243,8 @@ class EHRResemblanceMetrics:
                 #, 'ADmission Count (Synthetic)'
                 real_out_a = calculate_outlier_ratios_tout2(real_drugs_per_admission,i)
                 syn_out_a = calculate_outlier_ratios_tout2(synthetic_drugs_per_admission,i)
-                plot_outliers(real_drugs_per_admission, synthetic_drugs_per_admission, i,
-                                'Outliers of ' +i+ ' per Admission', 'Number of ' + i, 'Patient Count (Real)','Synthetic')
+                #plot_outliers(real_drugs_per_admission, synthetic_drugs_per_admission, i,
+                #                'Outliers of ' +i+ ' per Admission', 'Number of ' + i, 'Patient Count (Real)','Synthetic')
                 plot_histograms_separate_axes22(real_out_a[i+'_count'], syn_out_a[i+'_count'], 
                                 'Histogram of ' +i+ ' per Admission', 'Number of ' + i, 'Patient Count (Real)','Synthetic')
             
@@ -217,8 +260,8 @@ class EHRResemblanceMetrics:
                 real_out_a_a = calculate_outlier_ratios_tout2(real_admissions_per_drug,"admission")
                 syn_out_a_a = calculate_outlier_ratios_tout2(synthetic_admissions_per_drug,"admission")
                     
-                plot_outliers(real_admissions_per_drug, synthetic_admissions_per_drug, "admission",
-                                'Outliers of   Admission per ' + i, 'Number of ' + i, 'Patient Count (Real)','Synthetic')
+                #plot_outliers(real_admissions_per_drug, synthetic_admissions_per_drug, "admission",
+                #                'Outliers of   Admission per ' + i, 'Number of ' + i, 'Patient Count (Real)','Synthetic')
                 plot_histograms_separate_axes22(real_out_a_a["admission"+'_count'], syn_out_a_a["admission"+'_count'], 
                                 'Histogram of otliers ' + 'Admission per ' + i, 'Number of ' + i, 'Patient Count (Real)','Synthetic')
                 
@@ -234,63 +277,71 @@ class EHRResemblanceMetrics:
         #diagnosis
         for word in keywords:
             cols_sel = train_ehr_dataset.filter(like=word).columns
-            res_ratio["Ratio_outlierrs_"+word] =calculate_outlier_ratios_tout(train_ehr_dataset, synthetic_ehr_dataset,cols_sel)
-            
-        #categorical var
-        categorical_cols = self.dependant_fist_visit
+            res_ratio["Ratio outliers "+word] =calculate_outlier_ratios_tout__(train_ehr_dataset, synthetic_ehr_dataset,cols_sel)    
+                #categorical var
+        
         cols_accounts=[]
-        for i in categorical_cols:
+        for i in self.categorical_cols:
             cols_f = train_ehr_dataset.filter(like=i, axis=1).columns
             cols_accounts.extend(list(cols_f))
-            
-        res_ratio["Ratio_outlierrs_categorical"] =calculate_outlier_ratios_tout(train_ehr_dataset, synthetic_ehr_dataset,cols_accounts)
+        res_ratio["Ratio outlierrs categorical"] =calculate_outlier_ratios_tout__(train_ehr_dataset, synthetic_ehr_dataset,cols_accounts)    
         
-        cols = [ 'Age_max', 'LOSRD_avg','visit_rank','days_between_visits']
-        res_ratio["Ratio_outlierrs_numerical"] =calculate_outlier_ratios_tout(train_ehr_dataset, synthetic_ehr_dataset,cols)
-
+        cols_continuous = self.cols
+        res_ratio["Ratio outliers numerica"] =calculate_outlier_ratios_tout__(train_ehr_dataset, synthetic_ehr_dataset,cols_continuous)    
+        
+        print_latex(res_ratio)
+        return res_ratio.to_dict()
+    
         if "outliers" in self.list_metric_resemblance:
             outliers_and_histograms_patients_admissions(self.test_ehr_dataset,self.train_ehr_dataset,self.synthetic_ehr_dataset ,self.columnas_test_ehr_dataset,self.top_300_codes,self.synthetic_ehr,self.list_metric_resemblance)
     
     def get_descriptive_statistics(self,synthetic_ehr_dataset,train_ehr_dataset,cols):        
           
-        result = descriptive_statistics_matrix(synthetic_ehr_dataset[cols])
-        result1 = descriptive_statistics_matrix(train_ehr_dataset[cols])
-        
+        result_syn = descriptive_statistics_matrix(synthetic_ehr_dataset[cols],"")
+        result_train = descriptive_statistics_matrix(train_ehr_dataset[cols],"")
+        result_concat_dict = result.update(result1)
+        print_latex(result_syn)
+        print_latex(result_train)
         #result = descriptive_statistics_matrix(test_ehr_dataset[cols])
-        result_resemblence.append(result)
-        data = pd.concat([pd.DataFrame(result,index = [0]),pd.DataFrame(result1,index = [0])])
-        x1 = data[[ 'mean_visit_rank', 
-        'mode_visit_rank', 'minimum_visit_rank', 'maximum_visit_rank',
-        'range_visit_rank', 'mean_days_between_visits',
-        'mode_days_between_visits',
-        'minimum_days_between_visits', 'maximum_days_between_visits' ]].to_latex()
-        print(x1)
+        result_syn = pd.DataFrame(result_syn,index = [0]) #syntehti
+        result_train = pd.DataFrame(result_train,index = [0])
+        #result.columns = result1.columns
+        result_syn['Source'] = 'Synthetic'
+        result_train['Source'] = 'Train'
+        data = pd.concat([result_syn, result_train], ignore_index=True)
+        # Reemplaza los subrayados en los nombres de las columnas con un espacio vacío
+        data.columns = data.columns.str.replace('_', ' ')
+        data.set_index('Source', inplace=True) 
+        #data = pd.concat([result.reset_index(drop=True), result1.reset_index(drop=True)], axis=1)
+        data = data.transpose()
+        data.to_latex()
+        return data.to_dict()
 
     
-    def compare_average_trends_recordlen(self,train_ehr_dataset,columnas_test_ehr_dataset,test_ehr_dataset,synthetic_ehr,synthetic_ehr_dataset):
+    def compare_average_trends_recordlen(self,train_ehr_dataset,columnas_test_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset):
     
-        statistics = get_statistics(train_ehr_dataset,columnas_test_ehr_dataset,test_ehr_dataset,synthetic_ehr,synthetic_ehr_dataset)
+        statistics = get_statistics(train_ehr_dataset,columnas_test_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset)
         print_latex(statistics)
         return statistics
     
-    def plot_first_visit(self,train_ehr_dataset,synthetic_ehr_dataset,dependant_fist_visit):
+    def plot_first_visit(self,train_ehr_dataset,synthetic_ehr_dataset,dependant_fist_visit,path_img = None):
         cols_accounts = []
         
         for i in dependant_fist_visit:
             cols_f = train_ehr_dataset.filter(like=i, axis=1).columns
             cols_accounts.extend(list(cols_f))
         for i in   cols_accounts:  
-             plot_admission_date_histograms(train_ehr_dataset,synthetic_ehr_dataset,i)
-             plot_admission_date_bar_charts(train_ehr_dataset,synthetic_ehr_dataset,i)
+             plot_admission_date_histograms(train_ehr_dataset,synthetic_ehr_dataset,i,path_img)
+             plot_admission_date_bar_charts2(train_ehr_dataset,synthetic_ehr_dataset,i,path_img)
              
 
-    def plot_means_continuos_variables(self,train_ehr_dataset,synthetic_ehr_dataset,cols):
+    def plot_means_continuos_variables(self,train_ehr_dataset,synthetic_ehr_dataset,cols,path_img):
         # Assuming real_df and synthetic_df are your dataframes    
-        plot_means(train_ehr_dataset, synthetic_ehr_dataset, cols)
+        plot_means(train_ehr_dataset, synthetic_ehr_dataset, cols,path_img)
 
-    def plot_kerneldis(self,train_ehr_dataset,synthetic_ehr_dataset,cols):
+    def plot_kerneldis(self,train_ehr_dataset,synthetic_ehr_dataset,cols,path_img):
             for i in cols: 
-                plot_kernel_syn(train_ehr_dataset, synthetic_ehr_dataset, i, "Marginal_distribution")
+                plot_kernel_syn(train_ehr_dataset, synthetic_ehr_dataset, i, "Marginal_distribution",path_img)
      
     
     
@@ -300,7 +351,7 @@ class EHRResemblanceMetrics:
         train_ehr_dataset_auz = cols_todrop(train_ehr_dataset,cols_)
         synthetic_ehr_dataset_auz = cols_todrop(synthetic_ehr_dataset,cols_)
   
-        columns_take_account = [i for i in train_ehr_dataset_auz.columns if i not in cols]
+        columns_take_account = [i for i in synthetic_ehr_dataset.columns if i not in cols+['year', 'month', 'ADMITTIME']]
         res = compare_proportions_and_return_dictionary(train_ehr_dataset_auz[columns_take_account], synthetic_ehr_dataset_auz[columns_take_account])    
         top_10_diff_proportions = dict(sorted(res.items(), key=lambda item: item[1], reverse=True)[:10])
         df_top = pd.DataFrame(top_10_diff_proportions,index = [0])
@@ -312,75 +363,86 @@ class EHRResemblanceMetrics:
   
         df = train_ehr_dataset[columnas_test_ehr_dataset+["visit_rank"]]
         type_d = "train"
-        res = df.groupby(["visit_rank"]).count().iloc[:,0].head().to_dict()
-        res = {f"{key} test set": value for key, value in res.items()}
-
+        res_train = df.groupby(["visit_rank"]).count().iloc[:,0].to_dict()
+        res_train = {f"{key} set": value for key, value in res_train.items()}
+         
         df = synthetic_ehr_dataset[columnas_test_ehr_dataset+["visit_rank"]]
         type_d = "synthetic"
-        res2 = df.groupby(["visit_rank"]).count().iloc[:,0].head().to_dict()
-        res2 = {f"{key} synthetic set": value for key, value in res2.items()}
-        aux_s = pd.concat([pd.DataFrame(res,index = [0]),pd.DataFrame(res2,index = [0])],axis = 1)
-        la = aux_s.to_latex()
+        res2_synthetic = df.groupby(["visit_rank"]).count().iloc[:,0].to_dict()
+        res2_synthetic = {f"{key} set": value for key, value in res2_synthetic.items()}
+        
+        result_syn = pd.DataFrame(res2_synthetic,index = [0]) #syntehti
+        result_train = pd.DataFrame(res_train,index = [0])
+        #esult_syn.columns = result_train.columns
+        result_syn['Source'] = 'Synthetic'
+        result_train['Source'] = 'Train'
+        data = pd.concat([result_syn, result_train], axis=0)
+        # Reemplaza los subrayados en los nombres de las columnas con un espacio vacío
+        #data.columns = data.columns.str.replace('_', ' ')
+        data.set_index('Source', inplace=True) 
+  
+        data = data.transpose()
+        la = data.to_latex()
         print(la)
-        res.update(res2)
-        return res  
-    def plot_differen_correlation(self,synthetic_ehr_dataset,train_ehr_dataset,cols,categorical_cols,keywords):
+        res_train.update(res2_synthetic)
+        return res_train  
+    def plot_differen_correlation(self,synthetic_ehr_dataset,train_ehr_dataset,cols,categorical_cols,keywords,path_img):
 
         # Example usage:
-        heatmap_diff_corr(df1, df2)
+        heatmap_diff_corr(synthetic_ehr_dataset, train_ehr_dataset,path_img)
 
-        corr_plot(synthetic_ehr_dataset,"Syn" )
-        corr_plot(train_ehr_dataset,"Train" )  
-     
-        syn_c = corr_plot(synthetic_ehr_dataset[cols],"Syn" )
-        real_c = corr_plot(train_ehr_dataset[cols],"Train" )
-        heatmap_digbet_corr(syn_c,real_c)
+        corr_plot(synthetic_ehr_dataset,"Syn" ,path_img)
+        corr_plot(train_ehr_dataset,"Train" ,path_img)  
+        #continous cols
+        syn_c = corr_plot(synthetic_ehr_dataset[cols],"Syn" ,path_img)
+        real_c = corr_plot(train_ehr_dataset[cols],"Train" ,path_img)
+        heatmap_diff_corr(syn_c,real_c,path_img)
         cols_list = []
         categorical_cols = categorical_cols
         for i in categorical_cols:
             cols_f = train_ehr_dataset.filter(like=i, axis=1).columns
             cols_list.extend(list(cols_f))
-        syn = corr_plot(synthetic_ehr_dataset[cols_list],"Syn" )
+        syn = corr_plot(synthetic_ehr_dataset[cols_list],"Syn" ,path_img)
         cols_with_high_corr = correlacion_otra_col(synthetic_ehr_dataset[cols_list])
-        real = corr_plot(train_ehr_dataset[cols_list],"Train" )
+        real = corr_plot(train_ehr_dataset[cols_list],"Train" ,path_img   )
         #diferencia de correlationes
-        heatmap_diff_corr(syn,real)
-        correlacion_otra_col(synthetic_ehr_dataset[cols_list])
+        heatmap_diff_corr(syn,real,self.path_img,path_img)
+        #correlacion_otra_col(synthetic_ehr_dataset[cols_list])
         keywords = keywords
         for i in keywords:
             col_prod = [col for col in train_ehr_dataset.columns if any(palabra in col for palabra in [i])]
-            syn1 = corr_plot(synthetic_ehr_dataset[col_prod],"Syn" )
+            syn1 = corr_plot(synthetic_ehr_dataset[col_prod],"Syn" ,path_img )
             #cols_with_high_corr, cols_with_all_nan =correlacion_total(synthetic_ehr_dataset[col_prod])
-            real1 =corr_plot(train_ehr_dataset[col_prod],"Train" )    
+            real1 =corr_plot(train_ehr_dataset[col_prod],"Train" ,path_img )    
             #cols_with_high_corr, cols_with_all_nan = correlacion_total(train_ehr_dataset[col_prod])
-            y_labels = heatmap_diff_corr(syn1,real1)
+            y_labels = heatmap_diff_corr(syn1,real1,path_img )
             print(y_labels)
         
-    def plot_pacmap(self,synthetic_ehr_dataset,train_ehr_dataset,keywords,categorical_cols):    
+    def plot_pacmap(self,synthetic_ehr_dataset,train_ehr_dataset,keywords,categorical_cols,path_img ):    
 
                    
         keywords = keywords
         for i in keywords:
             col_prod = [col for col in train_ehr_dataset.columns if any(palabra in col for palabra in [i])]
-            PACMAP_PLOT(col_prod,synthetic_ehr_dataset,train_ehr_dataset,i,save=False)
+            PACMAP_PLOT(col_prod,synthetic_ehr_dataset,train_ehr_dataset,i,False,path_img )
         cols_list = []
         
         for i in categorical_cols:
             cols_f = train_ehr_dataset.filter(like=i, axis=1).columns
             cols_list.extend(list(cols_f))
-        PACMAP_PLOT(cols_list,synthetic_ehr_dataset,train_ehr_dataset,"Demographic and admission",save=False)    
+        PACMAP_PLOT(cols_list,synthetic_ehr_dataset,train_ehr_dataset,"Demographic and admission",path_img )    
 
         cols = [ 'Age_max', 'LOSRD_sum','LOSRD_avg',
         'visit_rank',
         'days_between_visits']
-        PACMAP_PLOT(cols_list,synthetic_ehr_dataset,train_ehr_dataset,"Continuos variables",save=False)    
+        PACMAP_PLOT(cols_list,synthetic_ehr_dataset,train_ehr_dataset,"Continuos variables",path_img )    
     
-    def temporal_histogram_heatmap(self,synthetic_ehr_dataset,train_ehr_dataset):    
+    def temporal_histogram_heatmap(self,synthetic_ehr_dataset,train_ehr_dataset,path_img ):    
                 
         name = "Days between visits"
         col =   'days_between_visits_bins'
         synthetic_ehr_dataset['days_between_visits_bins'] = pd.qcut(synthetic_ehr_dataset['days_between_visits'], q=10, duplicates='drop')
-        hist_d("days_between_visits",synthetic_ehr_dataset) 
+        hist_d("days_between_visits",synthetic_ehr_dataset,path_img ) 
         plot_heatmap_(synthetic_ehr_dataset, name,col,"Synthetic")
         train_ehr_dataset['days_between_visits_bins'] = pd.qcut(train_ehr_dataset['days_between_visits'], q=10, duplicates='drop')
         hist_d("days_between_visits",train_ehr_dataset) 
@@ -402,7 +464,7 @@ class EHRResemblanceMetrics:
         # Histograms
         box_pltos(train_ehr_dataset,synthetic_ehr_dataset,'days_between_visits')
         box_pltos(train_ehr_dataset,synthetic_ehr_dataset,'Age_max')
-        keywords = keywords
+        keywords = self.keywords
         for i in keywords:
             col_prod = [col for col in train_ehr_dataset.columns if any(palabra in col for palabra in [i])]
             plot_heatmap(train_ehr_dataset, i,i, 2,col_prod,type_c="Real")
@@ -420,20 +482,43 @@ class EHRResemblanceMetrics:
       
         return result
 
-    def plot_dimension_wise(self,synthetic_ehr_dataset,train_ehr_dataset,cols_continuous,cols_categorical,cols_diagnosis,cols_drugs,cols_procedures):    
-        gen_samples = synthetic_ehr_dataset.select_dtypes(include=['number'])    
+    def plot_dimension_wise(self,synthetic_ehr_dataset,train_ehr_dataset,cols_continuous,categorical_cols,cols_diagnosis,cols_drugs,cols_procedures,path_img = None):    
+        gen_samples = synthetic_ehr_dataset.select_dtypes(include=['number'])  
         real_samples = train_ehr_dataset.select_dtypes(include=['number']) 
-        dimensio_wise(real_samples,gen_samples)
-        cols_to_drop = ["id_patient","HADM_ID","days_between_visits","Age_max","LOSRD_avg"]
-        gen_samples.drop(columns = cols_to_drop,inplace = True)
-        real_samples.drop(columns = cols_to_drop, inplace = True)
-        dimensio_wise(real_samples,gen_samples)
+        gen_columns = set(gen_samples.columns)
+        real_columns = set(real_samples.columns)
+
+        # Encuentra la intersección de las dos listas de columnas
+        common_columns = gen_columns & real_columns
+
+        # Crea nuevos DataFrames que solo contienen las columnas comunes
+        gen_samples_common = gen_samples[common_columns]
+        real_samples_common = real_samples[common_columns]
+        if gen_samples_common.shape[0] > real_samples_common.shape[0]:
+            gen_samples_common = gen_samples_common[:real_samples_common.shape[0]]
+        else:
+            real_samples_common = real_samples_common[:gen_samples_common.shape[0]]
+        #categorical
+        cols_cat = filter_cols(categorical_cols,real_samples_common)        
+        dimensio_wise(gen_samples_common[cols_cat],real_samples_common[cols_cat], " categorical columns",path_img)
+        #numerical
+               
+        dimensio_wise(gen_samples_common[cols_continuous],real_samples_common[cols_continuous], " continous columns",path_img)
+       
+       #count codes
+        cols_s =cols_diagnosis.to_list()+cols_drugs.to_list()+cols_procedures.to_list()
+        dimensio_wise(gen_samples_common[cols_s],real_samples_common[cols_s]," all IC9-codes and drugs",path_img)
+        dimensio_wise(gen_samples_common[cols_diagnosis],real_samples_common[cols_diagnosis]," diagnosis",path_img)
+        dimensio_wise(gen_samples_common[cols_drugs],real_samples_common[cols_drugs]," drugs",path_img)
+        dimensio_wise(gen_samples_common[cols_procedures],real_samples_common[cols_procedures]," procedures",path_img)
+
         
        
-    def plot_prevalence_wise(self,synthetic_ehr_dataset,train_ehr_dataset,cols_continuous,cols_categorical,cols_diagnosis,cols_drugs,cols_procedures):
+    def plot_prevalence_wise(self,synthetic_ehr_dataset,train_ehr_dataset,cols_continuous,categorical_cols,cols_diagnosis,cols_drugs,cols_procedures):
         # Función para calcular la prevalencia de características binarias
         # Calcular APD para características binarias
-        binary_features = cols_categorical +['readmission','HOSPITAL_EXPIRE_FLAG']
+        cols_to_filter = categorical_cols +['readmission','HOSPITAL_EXPIRE_FLAG']
+        binary_features = filter_cols(cols_to_filter,train_ehr_dataset)
         real_binary_prevalences = calculate_binary_prevalence(train_ehr_dataset[binary_features])
         synthetic_binary_prevalences = calculate_binary_prevalence(synthetic_ehr_dataset[binary_features])
         apd_binary = calculate_mean_absolute_difference(real_binary_prevalences, synthetic_binary_prevalences)
@@ -461,7 +546,7 @@ class EHRResemblanceMetrics:
         plot_data = remove_outliers(plot_data, 'Synthetic')
         index_to_drop = ["id_patient","HADM_ID","days_between_visits","Age_max","LOSRD_avg"]
         
-        plot_data = plot_data.drop(["days_between_visits", "Age_max", "LOSRD_avg"])
+        #plot_data = plot_data.drop(["days_between_visits", "Age_max", "LOSRD_avg"])
 
         
         
@@ -504,23 +589,24 @@ class EHRResemblanceMetrics:
         print_latex(top_10_dict)
         return top_10_dict
     
-    def get_MaximumMeanDiscrepancy(self):
+    def get_MaximumMeanDiscrepancy(self,train_ehr_dataset,synthetic_ehr_dataset):
         
         mmd_evaluator = MaximumMeanDiscrepancy(kernel="rbf")
         train_test = "test"
         cols = ['ADMITTIME','HADM_ID']
         #cols = "days_between_visits_cumsum"
-        train_ehr_dataset_a = cols_todrop(train_ehr_dataset,cols)
+        train_ehr_dataset, synthetic_ehr_dataset = filter_and_equalize_datasets(train_ehr_dataset, synthetic_ehr_dataset)
+          
         #train_ehr_dataset_a = cols_todrop(train_ehr_dataset,cols)
-        synthetic_ehr_a = cols_todrop(synthetic_ehr_dataset,cols)
-        result =   mmd_evaluator._evaluate(train_ehr_dataset_a.iloc[:,:synthetic_ehr_a.shape[1]], synthetic_ehr_a)
+        
+        result =   mmd_evaluator._evaluate(train_ehr_dataset, synthetic_ehr_dataset)
         print("MaximumMeanDiscrepancy (flattened):", result)
         print_latex(result)
-            
+        return result    
 
     # Example usage:
     # X_gt and X_syn are two numpy arrays representing empirical distributions
-    def kolmogorov_smirnof_test_chissquare(self,train_ehr_dataset,synthetic_ehr_dataset,cols_continuous,cols_not_con):
+    def kolmogorov_smirnof_test_chissquare(self,train_ehr_dataset,synthetic_ehr_dataset,cols_continuous):
 
         
         continuous_cols = cols_continuous     
@@ -550,9 +636,11 @@ class EHRResemblanceMetrics:
 
         print(ks_df.to_latex())
         from scipy.stats import chi2_contingency
-        cols_not_con = [i for i in train_ehr_dataset.columns if i not in continuous_cols+['id_patient','ADMITTIME']]
         real_data = train_ehr_dataset
         synthetic_data = synthetic_ehr_dataset
+        real_data,synthetic_data=filter_and_equalize_datasets(real_data,synthetic_data)
+        cols_not_con = [i for i in synthetic_data.columns if i not in continuous_cols+['id_patient','ADMITTIME']]
+        
         # Generate example one-hot encoded data for illustration purposes
 
         # Perform Chi-Square test for each column and calculate Total Variation Distance
@@ -582,36 +670,52 @@ class EHRResemblanceMetrics:
         most_different_cols_tv = chi_df.nlargest(10, 'tv_distance')
         least_different_cols_tv = chi_df.nsmallest(10, 'tv_distance')
 
-
-        # Create the final DataFrame
-        final_df = pd.DataFrame({
+        dic_results = {
             'Most Different by p-value': most_different_cols['column'].tolist() + [''] * (10 - len(most_different_cols)),
             'Least Different by p-value': least_different_cols['column'].tolist() + [''] * (10 - len(least_different_cols)),
             'Most Different by TV Distance': most_different_cols_tv['column'].tolist() + [''] * (10 - len(most_different_cols_tv)),
             'Least Different by TV Distance': least_different_cols_tv['column'].tolist() + [''] * (10 - len(least_different_cols_tv)),
-        })
+        }
+        # Create the final DataFrame
+        final_df = pd.DataFrame(dic_results)
 
         # Display the DataFrame
         print(final_df.to_latex())
         # Combine the results
-            
+        return  dic_results
     def get_jensenshannon_dist( self,train_ehr_dataset,synthetic_ehr_dataset,test_ehr_dataset,cols_continuous):
-        cols = cols_continuous
-        #cols = "days_between_visits_cumsum"
-        test_ehr_dataset_a = cols_todrop(train_ehr_dataset,cols)
-        #train_ehr_dataset_a = cols_todrop(train_ehr_dataset,cols)
-        synthetic_ehr_dataset_a = cols_todrop(synthetic_ehr_dataset,cols)
-        test_ehr_dataset_a2 = cols_todrop(test_ehr_dataset,cols)
-        train_ehr_dataset_a2 = test_ehr_dataset_a[:test_ehr_dataset_a.shape[0]]
-        jsd_calculator = JensenShannonDistance2(test_ehr_dataset_a, synthetic_ehr_dataset_a,10)
-        jsd_results, avg_js = jsd_calculator.jensen_shannon()
-        print("Jensen-Shannon Distance:", score)
+       
+        #Train/Syn
+        train_ehr_dataset, synthetic_ehr_dataset = filter_and_equalize_datasets(train_ehr_dataset, synthetic_ehr_dataset)
+        jsd_calculator = JensenShannonDistance2(train_ehr_dataset, synthetic_ehr_dataset, 10)
+        jsd_results_train_syn, avg_js_train_syn = jsd_calculator.jensen_shannon()
         
+        results["train_syn"] = jsd_results_train_syn
+        print_latex(jsd_results_train_syn)
+        jsd_results_train_syn.columns = [f"{col} Train/Syn" for col in jsd_results_train_syn.columns]
+
+
+        # Test/Syn
+        test_ehr_dataset, synthetic_ehr_dataset = filter_and_equalize_datasets(test_ehr_dataset, synthetic_ehr_dataset)
+        jsd_calculator = JensenShannonDistance2(test_ehr_dataset, synthetic_ehr_dataset, 10)
+        jsd_results_test_syn, avg_js_test_syn = jsd_calculator.jensen_shannon()
         
-        jsd_calculator = JensenShannonDistance2(test_ehr_dataset_a, synthetic_ehr_dataset_a,10)
-        jsd_results, avg_js = jsd_calculator.jensen_shannon()
-        print_latex(jsd_results)
+        results["test_syn"] = jsd_results_test_syn
+        print_latex(jsd_results_test_syn)
+        jsd_results_test_syn.columns = [f"{col} Test/Syn" for col in jsd_results_test_syn.columns]
+
+        # Test/Train
+        test_ehr_dataset, train_ehr_dataset = filter_and_equalize_datasets(test_ehr_dataset, train_ehr_dataset)
+        jsd_calculator = JensenShannonDistance2(test_ehr_dataset, train_ehr_dataset, 10)
+        jsd_results_test_train, avg_js_test_train = jsd_calculator.jensen_shannon()
         
+        results["train_test"] = jsd_results_test_train
+        print_latex(jsd_results_test_train)
+        jsd_results_test_train.columns = [f"{col} Test / Train" for col in jsd_results_test_train.columns]
+
+        df_final = pd.concat([jsd_results_train_syn, jsd_results_test_syn, jsd_results_test_train], axis=1)
+        print_latex(df_final)
+        return df_final.to_dict()
         
         
 
@@ -635,12 +739,14 @@ class EHRResemblanceMetrics:
             prop_datafram.append(total)
             latex_code = total.to_latex( index = "Variable")
             print(latex_code)
-    def  get_excat_match(self,train_ehr_dataset,synthetic_ehr_dataset):
+        return total.to_dict()  
+    def get_excat_match(self,train_ehr_dataset,synthetic_ehr_dataset):
+        train_ehr_dataset, synthetic_ehr_dataset =filter_and_equalize_datasets(train_ehr_dataset, synthetic_ehr_dataset)
         df1_sorted = synthetic_ehr_dataset.sort_values(by=synthetic_ehr_dataset.columns.tolist()).reset_index(drop=True)  
         df2_sorted = train_ehr_dataset.sort_values(by=train_ehr_dataset.columns.tolist()).reset_index(drop=True)
         exact_matches = (df1_sorted == df2_sorted).all(axis=1).sum()
         print("Number of exact matching rows:", exact_matches)
-        print_latex(exact_matches)
+        print_latex({"exact_matches" : exact_matches} )
         return {"exact_matches" : exact_matches} 
     
     def get_dupplicates(self,   train_ehr_dataset,synthetic_ehr_dataset):    
@@ -650,11 +756,11 @@ class EHRResemblanceMetrics:
         print("Test data with duplicate flag:")
         value_counts = synthetic_ehr_dataset['is_duplicate'].value_counts()
         new_dict = {"Duplicates - " + str(key): value for key, value in value_counts.items()}
-        result_resemblence.append(new_dict)               
+                     
         print_latex(new_dict)
-        
+        return new_dict
 
-    def obtain_least_frequent(self,train_ehr_dataset, columnas_test_ehr_dataset, n):    
+    def obtain_least_frequent_m(self,train_ehr_dataset,synthetic_ehr_dataset, columnas_test_ehr_dataset, n):    
         least_cols =  obtain_least_frequent(train_ehr_dataset, columnas_test_ehr_dataset, 10)
         
 
@@ -684,19 +790,14 @@ class EHRResemblanceMetrics:
 
             latex_table = plot_df_filtered.to_latex(index=False)
             print(latex_table)
-   
     
     ### TODO debugerar col     
-    def plot_acumulated(self,   train_ehr_dataset,synthetic_ehr_dataset,cols):    
+    def plot_acumulated(self,   train_ehr_dataset,synthetic_ehr_dataset,cols_continuous,categorical_cols):    
         import matplotlib.pyplot as plt
 
-        categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
-                    'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
-                    'MARITAL_STATUS',  'ETHNICITY','GENDER',"visit_rank","HOSPITAL_EXPIRE_FLAG"  ]
         categorilca_cols_fun(train_ehr_dataset,synthetic_ehr_dataset,categorical_cols,save=False)
-        cols = [ 'Age_max', 'LOSRD_sum','LOSRD_avg','id_patient','L_1s_last_p1','days_between_visits']
-        categorilca_cols_fun(train_ehr_dataset,synthetic_ehr_dataset,cols,save=False)
-        keywords = keywords
+        categorilca_cols_fun(train_ehr_dataset,synthetic_ehr_dataset,cols_continuous,save=False)
+        keywords = self.keywords
         categorilca_cols_fun(train_ehr_dataset,synthetic_ehr_dataset,keywords,save=False)
         
     def get_common_proportions(self,train_ehr_dataset,synthetic_ehr_dataset):

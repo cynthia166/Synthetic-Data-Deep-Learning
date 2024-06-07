@@ -5,11 +5,18 @@ from datetime import timedelta
 from pandas import Timedelta
 import os
 import sys
-
+import logging
 print(os.getcwd())
 sys.path.append('../../')
 os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
+
+import sys
+sys.path.append('/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/')
+import evaluation.resemb.resemblance.config
 from evaluation.resemb.resemblance.utilsstats import *
+from evaluation.resemb.resemblance.utilsstats import obtain_dataset_admission_visit_rank
+
+
 def load_data(file_path):
     with gzip.open(file_path, 'rb') as f:
         return pickle.load(f)
@@ -40,10 +47,11 @@ class EHRDataConstraints:
         handle_hospital_expire_flag(): Handles the hospital expire flag in the synthetic EHR dataset.
     """
 
-    def __init__(self, train_ehr_dataset, test_ehr_dataset, synthetic_ehr_dataset):
+    def __init__(self, train_ehr_dataset, test_ehr_dataset, synthetic_ehr_dataset,eliminate_negatives_var = False):
         self.train_ehr_dataset = train_ehr_dataset
         self.test_ehr_dataset = test_ehr_dataset
         self.synthetic_ehr_dataset = synthetic_ehr_dataset
+        self.eliminate_negatives_var = eliminate_negatives_var
 
     def print_shapes(self):
         """
@@ -66,14 +74,50 @@ class EHRDataConstraints:
         Returns:
             pandas.DataFrame: The processed synthetic EHR dataset.
         """
+        self.log_negative_values()
         self.sort_datasets()
+        if self.eliminate_negatives_var == True:
+            
+            self.eliminate_negative_values()
         self.handle_categorical_data()
         self.propagate_first_visit_values()
         self.adjust_age_and_dates()
         self.remove_duplicates()
         self.handle_hospital_expire_flag()
         return self.synthetic_ehr_dataset
+    
+    def log_negative_values(self):
+        """
+        Logs the presence of negative values in a DataFrame.
 
+        Args:
+            df (pandas.DataFrame): The DataFrame to check for negative values.
+        """
+        # Configura el logging
+        logging.basicConfig(level=logging.INFO)
+
+        # Verifica si hay valores negativos en el DataFrame
+        non_datetime_cols = self.synthetic_ehr_dataset.select_dtypes(exclude=['datetime64']).columns
+        for col in non_datetime_cols:
+            self.synthetic_ehr_dataset[col] = self.synthetic_ehr_dataset[col].astype(int)
+            
+     
+        num_valores_negativos = self.synthetic_ehr_dataset[non_datetime_cols][self.synthetic_ehr_dataset[non_datetime_cols] < 0].count().sum()
+
+        if num_valores_negativos > 0:
+            logging.info(f'Hay {num_valores_negativos} valores negativos en el DataFrame.')
+        else:
+            logging.info('No hay valores negativos en el DataFrame.')
+    
+    def eliminate_negative_values(self):
+
+        # Convertir las columnas de tipo 'category' a numérico
+        non_datetime_cols = self.synthetic_ehr_dataset.select_dtypes(exclude=['datetime64']).columns
+
+        # Reemplaza los valores negativos por 0 solo en las columnas que no son de tipo datetime
+        for col in non_datetime_cols:
+            self.synthetic_ehr_dataset[col] = self.synthetic_ehr_dataset[col].clip(lower=0)
+    
     def sort_datasets(self):
         """
         Sorts the train and synthetic EHR datasets.
@@ -191,12 +235,16 @@ if __name__ == '__main__':
     
     features_path = "data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl"
 
-    file = 'generated_synthcity_tabular/arftotal_0.2_epochs.pkl'
-
-    test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,features = obtain_dataset_admission_visit_rank(file,file,valid_perc,features_path)
-            
+    #file = 'generated_synthcity_tabular/arftotal_0.2_epochs.pkl'
+    file = '/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/synthetic_data_generative_model_arf_per_0.7.pkl'
+    valid_perc=.3
+    test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,features = obtain_dataset_admission_visit_rank(sample_patients_path,file,valid_perc,features_path,'ARFpkl')
+    ###DRAFT
+    #remplazar valores negativos con ero
     
-    c = EHRDataConstraints(train_ehr_dataset, test_ehr_dataset, synthetic_ehr_dataset)
+    #synthetic_ehr_dataset = load_pickle(file)     
+    
+    c = EHRDataConstraints(train_ehr_dataset, test_ehr_dataset, synthetic_ehr_dataset,True)
     c.print_shapes()
     #cols_accounts = c.handle_categorical_data()
     processed_synthetic_dataset = c.initiate_processing()
