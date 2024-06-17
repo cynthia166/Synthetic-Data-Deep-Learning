@@ -34,7 +34,7 @@ from tensorflow.keras.layers import Conv1D,  Flatten, Dense, Conv1DTranspose, Re
 from tensorflow.keras.models import Model
 from tensorflow.keras.backend import random_normal
 from tensorflow.keras.optimizers import Adam
-import utils
+import generative_model.utils_arf as utils_arf
 
 def get_mnist_data():
     (x_train, _), (x_test, _) = tf.keras.datasets.mnist.load_data()

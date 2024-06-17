@@ -106,7 +106,7 @@ def cols_not_consideres(aux):
     print(int_index_columns)
     return int_index_columns
 
-def concat_input(df_procedures,df_diagnosis,df_drugs,name_df):
+def concat_input(df_procedures,df_diagnosis,df_drugs,name_df,columns_to_drop_final):
     '''Function to concatenate the three inputs and the demographic and admission variables
     input: df_procedures,df_diagnosis,df_drugs,name_df
     output: res'''
@@ -144,8 +144,8 @@ def concat_input(df_procedures,df_diagnosis,df_drugs,name_df):
 
     result = pd.merge(df_diagnosis, df_drugs, on=["SUBJECT_ID","HADM_ID"], how='outer')
     result_final = pd.merge(result, df_procedures, on=["SUBJECT_ID","HADM_ID"], how='outer')
-    cols_to_drop = result_final.filter(like='Unnamed', axis=1).columns
-
+    cols_to_drop_unnamed = result_final.filter(like='Unnamed', axis=1).columns
+    cols_to_drop = cols_to_drop_unnamed + columns_to_drop_final
     # Drop these columns
     result_final.drop(cols_to_drop, axis=1, inplace=True)
     res = result_final.fillna(0)
@@ -335,19 +335,19 @@ def main(task,preprocessing):
        name_df = "raw_input.csv"
     else:
        name_df = "raw_input_non_preprocess.csv"
-           
+    columns_to_drop_final = ['LOSRD_sum', 'L_1s_last_p1','HADM_ID']          
     
     if task =="concat":
         if preprocessing=="True":
             df_procedures = DARTA_INTERM_intput+"CCS CODES_procedures.csv"
             df_diagnosis =DARTA_INTERM_intput+"CCS CODES_diagnosis.csv"
             df_drugs = DARTA_INTERM_intput+"ATC3_drug2.csv"
-            df =  concat_input(df_procedures,df_diagnosis,df_drugs,name_df)
+            df =  concat_input(df_procedures,df_diagnosis,df_drugs,name_df,columns_to_drop_final)
         else:
             df_procedures = DARTA_INTERM_intput+"CCS CODES_procedures_non_prep.csv"
             df_diagnosis =DARTA_INTERM_intput+"CCS CODES_diagnosis_non_prepo.csv"
             df_drugs = DARTA_INTERM_intput+"ATC3_drug2_non_prepo.csv"
-            df =  concat_input(df_procedures,df_diagnosis,df_drugs,name_df)
+            df =  concat_input(df_procedures,df_diagnosis,df_drugs,name_df,columns_to_drop_final)
 
                 
        

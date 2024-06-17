@@ -12,9 +12,9 @@ os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-
 
 import sys
 sys.path.append('/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/')
-import evaluation.resemb.resemblance.config
+
 from evaluation.resemb.resemblance.utilsstats import *
-from evaluation.resemb.resemblance.utilsstats import obtain_dataset_admission_visit_rank
+#from evaluation.resemb.resemblance.utilsstats import obtain_dataset_admission_visit_rank, obtain_readmission_ehrs
 
 
 def load_data(file_path):
@@ -47,11 +47,22 @@ class EHRDataConstraints:
         handle_hospital_expire_flag(): Handles the hospital expire flag in the synthetic EHR dataset.
     """
 
-    def __init__(self, train_ehr_dataset, test_ehr_dataset, synthetic_ehr_dataset,eliminate_negatives_var = False):
+    def __init__(self, train_ehr_dataset, 
+                 test_ehr_dataset,
+                 synthetic_ehr_dataset,
+                 columns_to_drop,
+                 columns_to_drop_syn
+                 ,eliminate_negatives_var = False,
+                 type_archivo = 'ARFpkl',
+                 
+                 ):
         self.train_ehr_dataset = train_ehr_dataset
         self.test_ehr_dataset = test_ehr_dataset
         self.synthetic_ehr_dataset = synthetic_ehr_dataset
         self.eliminate_negatives_var = eliminate_negatives_var
+        self.columns_to_drop = columns_to_drop 
+        self.type_archivo = type_archivo 
+        self.columns_to_drop_syn = columns_to_drop_syn
 
     def print_shapes(self):
         """
@@ -74,18 +85,47 @@ class EHRDataConstraints:
         Returns:
             pandas.DataFrame: The processed synthetic EHR dataset.
         """
+        self.change_subject_id()
+        self.get_admitted_time_datetime()
+        self.obtain_readmission_ehrs()
         self.log_negative_values()
         self.sort_datasets()
         if self.eliminate_negatives_var == True:
             
-            self.eliminate_negative_values()
+            self.clip_0_negative_value()
         self.handle_categorical_data()
         self.propagate_first_visit_values()
         self.adjust_age_and_dates()
         self.remove_duplicates()
         self.handle_hospital_expire_flag()
-        return self.synthetic_ehr_dataset
+        self.eliminate_columns()
+        return self.synthetic_ehr_dataset, self.train_ehr_dataset, self.test_ehr_dataset
     
+    def change_subject_id(self):
+        self.synthetic_ehr_dataset   = self.synthetic_ehr_dataset.rename(columns={"SUBJECT_ID":"id_patient"})
+        self.train_ehr_dataset   = self.train_ehr_dataset.rename(columns={"SUBJECT_ID":"id_patient"})
+        self.test_ehr_dataset   = self.test_ehr_dataset.rename(columns={"SUBJECT_ID":"id_patient"})
+        
+        
+    def get_admitted_time_datetime(self):
+        if self.type_archivo=='ARFpkl':
+            #total_features_synthethic['ADMITTIME'] = total_features_synthethic['year'].astype(str) +"-"+ total_features_synthethic['month'].astype(str) +"-"+ '01'
+            self.synthetic_ehr_dataset['ADMITTIME'] = self.synthetic_ehr_dataset['year'].astype(int).astype(str) +"-"+ self.synthetic_ehr_dataset['month'].astype(int).astype(str) +"-"+ '01'
+            
+        self.synthetic_ehr_dataset['ADMITTIME'] = pd.to_datetime(self.synthetic_ehr_dataset['ADMITTIME'])
+        self.synthetic_ehr_dataset = self.synthetic_ehr_dataset.sort_values(by=['id_patient', 'ADMITTIME'])
+  
+    def obtain_readmission_ehrs(self): 
+        self.train_ehr_dataset = obtain_readmission_realdata(self.train_ehr_dataset)
+        self.test_ehr_dataset = obtain_readmission_realdata(self.test_ehr_dataset) 
+        #obtener readmission
+        # este es el caso porque e arf se crearon dos columnas de dmitted time para que pudieran ser categorivas
+            
+            # Ordena el DataFrame por 'patient_id' y 'visit_date' para garantizar el ranking correcto
+        # Agrupa por 'patient_id' y asigna un rango a cada visita
+        self.synthetic_ehr_dataset['visit_rank'] = self.synthetic_ehr_dataset.groupby('id_patient')['ADMITTIME'].rank(method='first').astype(int)
+        self.synthetic_ehr_dataset = obtain_readmission_realdata(self.synthetic_ehr_dataset) 
+   
     def log_negative_values(self):
         """
         Logs the presence of negative values in a DataFrame.
@@ -109,7 +149,7 @@ class EHRDataConstraints:
         else:
             logging.info('No hay valores negativos en el DataFrame.')
     
-    def eliminate_negative_values(self):
+    def clip_0_negative_value(self):
 
         # Convertir las columnas de tipo 'category' a numérico
         non_datetime_cols = self.synthetic_ehr_dataset.select_dtypes(exclude=['datetime64']).columns
@@ -143,7 +183,7 @@ class EHRDataConstraints:
         categorical_cols = ['ADMITTIME', 'RELIGION', 'MARITAL_STATUS', 'ETHNICITY', 'GENDER']
         cols_accounts = []
         for col in categorical_cols:
-            cols_f = self.train_ehr_dataset.filter(like=col, axis=1).columns
+            cols_f = self.synthetic_ehr_dataset.filter(like=col, axis=1).columns
             cols_accounts.extend(list(cols_f))
         return cols_accounts
 
@@ -192,7 +232,7 @@ class EHRDataConstraints:
         self.synthetic_ehr_dataset.loc[self.synthetic_ehr_dataset['visit_rank'] == 1, 'Age_max'] = self.synthetic_ehr_dataset['Age_max']
 
         # Truncate 'Age_max' values above 100 to 89
-        self.synthetic_ehr_dataset.loc[self.synthetic_ehr_dataset['Age_max'] > 100, 'Age_max'] = 89
+        self.synthetic_ehr_dataset.loc[self.synthetic_ehr_dataset['Age_max'] > 89, 'Age_max'] = 89
 
         self.synthetic_ehr_dataset.loc[self.synthetic_ehr_dataset['visit_rank'] > 1, 'ADMITTIME'] = self.synthetic_ehr_dataset['id_patient'].map(first_admission) + self.synthetic_ehr_dataset['days_between_visits_cumsum'].shift().apply(lambda x: Timedelta(x, unit='D'))
         self.synthetic_ehr_dataset.loc[self.synthetic_ehr_dataset['visit_rank'] == 1, 'ADMITTIME'] = self.synthetic_ehr_dataset['ADMITTIME']
@@ -229,8 +269,12 @@ class EHRDataConstraints:
 
         self.synthetic_ehr_dataset.loc[(self.synthetic_ehr_dataset['HOSPITAL_EXPIRE_FLAG'] == 1) & (self.synthetic_ehr_dataset['ADMITTIME'] != last_admission), 'HOSPITAL_EXPIRE_FLAG'] = 0
         self.synthetic_ehr_dataset.loc[(self.synthetic_ehr_dataset['HOSPITAL_EXPIRE_FLAG'] == 1) & (self.synthetic_ehr_dataset['days_between_visits'] != max_days_between_visits), 'HOSPITAL_EXPIRE_FLAG'] = 0
-
-
+    
+    def eliminate_columns(self):
+        self.synthetic_ehr_dataset.drop(columns=self.columns_to_drop_syn, inplace=True)
+        self.train_ehr_dataset.drop(columns=self.columns_to_drop, inplace=True)
+        self.test_ehr_dataset.drop(columns=self.columns_to_drop, inplace=True)
+ 
 if __name__ == '__main__':
     
     features_path = "data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl"

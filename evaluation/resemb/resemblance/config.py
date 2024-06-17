@@ -3,13 +3,14 @@ import pandas as pd
 # save ehr en la primera corrida
 save_ehr = True
 # en la segunda solo se leen
-read_ehr = True
+read_ehr = False
 #si se tiene dopplegange con attraibutes y features
 attributes = False
-
-make_contrains = False
-save_constrains = False
-
+# to  make post-processing
+make_contrains = True
+#save contrains
+save_constrains = True
+# this is only for Dopplganger
 if attributes:
     path_o = "train_sp/"    
     attributes_path_train= "non_prepo/DATASET_NAME_non_preprotrain_data_attributes.pkl"
@@ -22,10 +23,10 @@ if attributes:
     # esta es para agregar la columnas
     dataset_name = 'DATASET_NAME_non_prepo'
     file_name = "train_sp/non_prepo/DATASET_NAME_non_prepo_non_preprocess.pkl"
-
+## columns
 #cols to drop        
 columns_to_drop = ['LOSRD_sum', 'L_1s_last_p1','HADM_ID']   
-cols_to_drop_syn = "days_between_visits_cumsum"
+columns_to_drop_syn = ['days_between_visits_cumsum']
 #cols continous
 cols_continuous = [ 'Age_max', 'LOSRD_avg','visit_rank','days_between_visits']
 #categorical cols
@@ -38,17 +39,37 @@ dependant_fist_visit = ['ADMITTIME',  'RELIGION',
 # codes icd9 and drugs
 keywords = ['diagnosis', 'procedures', 'drugs']
 #path to synthetic data
+#paths
 path_to_directory = 'generated_synthcity_tabular/*'  # Asegúrate de incluir el asterisco al final
 valid_perc = 0.3 # 30 por ciento de los clientes
 results_df = pd.DataFrame()
     
 #csv_files = ['generated_synthcity_tabular/adsgantotal_0.2_epochs.pkl','generated_synthcity_tabular/pategantotal_0.2_epochs.pkl']
 #file = 'generated_synthcity_tabular/arftotal_0.2_epochs.pkl'
-#diel to analys
-file = '/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/synthetic_data_generative_model_arf_per_0.7.pkl'
-#features path
+#name of synthetic data
+#file = '/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/synthetic_data_generative_model_arf_per_0.7.pkl'
+#file = '/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/prueba_synthetic_data_generative_model_arf_per_fixed0.7.pkl'
+#file = '/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/ARF_tnorm/synthetic_data_generative_model_arf_adjs_per_0.7.pkl'
+#file = '/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/ARF_norm/synthetic_data_generative_model_arf_per_norm0.7.pkl'
+file = '/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/ARF_modi_up_lp/synthetic_data_generative_model_arf_per_modi0.7.pkl'
+#name  of constraints file
+#make_read_constraints_name = 'synthetic_ehr_dataset_contrainst.pkl'
+#make_read_constraints_name = 'synthetic_ehr_dataset_contrainst_tnorm.pkl'
+#make_read_constraints_name = 'synthetic_ehr_dataset_contrainst_normal_dist.pkl'
+make_read_constraints_name = 'synthetic_ehr_dataset_contrainst_modi_up_lp.pkl'
+#ame of file to be save ehr
+#name_file_ehr = '' # originsl model
+#name_file_ehr = 'trunorm_adj' #truncate limites changes to real data
+#name_file_ehr = 'normal_distrib' #distribution to normal changed 
+ame_file_ehr = 'modi_up_lp' # distribution limits initially modified before the desition tree
+#type of model
+type_archivo = 'ARFpkl'
+#features path/ original data path
 features_path = "data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl"
-
-file_path_dataset =     "generated_synthcity_tabular/ARF/"
-sample_patients_path ="generated_synthcity_tabular/ARF/sample_patients"
-path_img="generated_synthcity_tabular/ARF/img/"
+#file of the models
+file_path_dataset =     "generated_synthcity_tabular/ARF/ARF_modi_up_lp/"
+#path of the patients
+sample_patients_path ="generated_synthcity_tabular/ARF/sample_patients_modi"
+#image of path
+#path_img="generated_synthcity_tabular/ARF/img/fixed/"
+path_img = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/ARF_modi_up_lp/img/"

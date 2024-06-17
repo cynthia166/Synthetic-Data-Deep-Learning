@@ -42,7 +42,7 @@ import glob
 import numpy as np
 import pandas as pd
 from scipy import stats
-
+from scipy.stats import gaussian_kde
 import numpy as np
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
@@ -59,9 +59,59 @@ from scipy.spatial import distance
 
 import matplotlib.pyplot as plt
 import math
-import cairosvg
+#import cairosvg
 from io import BytesIO
 import svgutils.transform as sg
+import svgutils.transform as sg
+
+
+import pandas as pd
+import numpy as np
+from scipy.stats import wasserstein_distance
+#equalize_length_dataframe
+
+import logging
+
+# Configura el logging
+logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
+
+
+import svgutils.transform as sg
+
+def convert_to_pixels(value):
+    if value.endswith('px'):
+        return float(value.replace('px', ''))
+    elif value.endswith('pt'):
+        return float(value.replace('pt', '')) * 1.333
+    else:
+        return float(value)
+
+def concatenate_svgs(path_img, list_img, output_path):
+    # Load the SVG files
+    svgs = [sg.fromfile(path_img + img) for img in list_img]
+    # Get dimensions of the SVG files
+    widths = [convert_to_pixels(svg.root.get('width')) for svg in svgs]
+    heights = [convert_to_pixels(svg.root.get('height')) for svg in svgs]
+    # Calculate the total width and maximum height
+    total_width = sum(widths)
+    max_height = max(heights)
+    # Create a new SVGFigure to hold the combined image
+    combined_svg = sg.SVGFigure(f"{total_width}px", f"{max_height}px")
+    # Set the initial x position
+    x_offset = 0
+    # Append each SVG to the combined SVG, adjusting the x position
+    for svg, width in zip(svgs, widths):
+        svg_element = svg.getroot()
+        svg_element.moveto(x_offset, 0)
+        combined_svg.append(svg_element)
+        x_offset += width
+    # Save the combined SVG to the output path
+    combined_svg.save(output_path)
+#
+
+# list_img = ["admission_date_histagram_8851.svg", "admission_date_bar_9228.svg"]
+# output_path = "combined_image.svg"
+# concatenate_svgs(path_img, list_img, output_path)
 
 def combine_svgs(svg_paths, path_img):
     # Crea una nueva figura de matplotlib
@@ -124,44 +174,59 @@ def get_columns_codes_commun(train_ehr_dataset,keywords):
         top_300_codes = obtain_most_freuent(train_ehr_dataset,columnas_test_ehr_dataset,100)
         return columnas_test_ehr_dataset,cols_categorical,cols_diagnosis,cols_procedures,cols_drugs,top_300_codes 
     
-def load_create_ehr(read_ehr,save_ehr,file_path_dataset,sample_patients_path,file,valid_perc,features_path,type_file = 'ARFpkl'):
+def load_create_ehr(read_ehr,save_ehr,file_path_dataset,sample_patients_path,file,valid_perc,features_path,name_file_ehr,type_file = 'ARFpkl'):
     #obtain dataset admission
     if read_ehr:
-        test_ehr_dataset = load_pickle(file_path_dataset + 'test_ehr_dataset.pkl')
-        train_ehr_dataset = load_pickle(file_path_dataset + 'train_ehr_dataset.pkl')
-        synthetic_ehr_dataset = load_pickle(file_path_dataset + 'synthetic_ehr_dataset.pkl')
-        features = load_pickle(file_path_dataset + 'features.pkl')
+        test_ehr_dataset = load_pickle(file_path_dataset + 'test_ehr_dataset'+name_file_ehr+'.pkl')
+        train_ehr_dataset = load_pickle(file_path_dataset + 'train_ehr_dataset'+name_file_ehr+'.pkl')
+        synthetic_ehr_dataset = load_pickle(file_path_dataset + 'synthetic_ehr_dataset'+name_file_ehr+'.pkl')
+        features = load_pickle(file_path_dataset + 'features'+name_file_ehr+'.pkl')
     else:    
         test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,features = obtain_dataset_admission_visit_rank(sample_patients_path,file,valid_perc,features_path,type_file)
         if save_ehr:
-            save_pickle(test_ehr_dataset, file_path_dataset + 'test_ehr_dataset.pkl')
-            save_pickle(train_ehr_dataset, file_path_dataset + 'train_ehr_dataset.pkl')
-            save_pickle(synthetic_ehr_dataset, file_path_dataset + 'synthetic_ehr_dataset.pkl')
-            save_pickle(features, file_path_dataset + 'features.pkl')
+            save_pickle(test_ehr_dataset, file_path_dataset + 'test_ehr_dataset'+name_file_ehr+'.pkl')
+            save_pickle(train_ehr_dataset, file_path_dataset + 'train_ehr_dataset'+name_file_ehr+'.pkl')
+            save_pickle(synthetic_ehr_dataset, file_path_dataset + 'synthetic_ehr_dataset'+name_file_ehr+'.pkl')
+            save_pickle(features, file_path_dataset + 'features'+name_file_ehr+'.pkl')
     return test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,features    
 
-def make_read_constraints(make_contrains,save_constrains,train_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset):
+def make_read_constraints(make_contrains,save_constrains,train_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset,columns_to_drop,columns_to_drop_syn,type_archivo,make_read_constraints_name='synthetic_ehr_dataset_contrainst.pkl'):
     if make_contrains:
-        c = EHRDataConstraints(train_ehr_dataset, test_ehr_dataset, synthetic_ehr_dataset,True)
+        c = EHRDataConstraints(train_ehr_dataset, test_ehr_dataset, synthetic_ehr_dataset,columns_to_drop,columns_to_drop_syn,True,type_archivo)
         c.print_shapes()
         #cols_accounts = c.handle_categorical_data()
-        synthetic_ehr_dataset = c.initiate_processing()
+        synthetic_ehr_dataset, train_ehr_dataset, test_ehr_dataset = c.initiate_processing()
         c.print_shapes()
         #drop column between_cum sum made from constrains       
-        synthetic_ehr_dataset = cols_todrop(synthetic_ehr_dataset,[cols_to_drop_syn])
+        
+        #synthetic_ehr_dataset = cols_todrop(synthetic_ehr_dataset,+)
         if save_constrains: 
-            save_pickle(synthetic_ehr_dataset, file_path_dataset + 'synthetic_ehr_dataset_contrainst.pkl')
+            save_pickle(synthetic_ehr_dataset, file_path_dataset +make_read_constraints_name )
     else: 
-        synthetic_ehr_dataset = load_pickle(file_path_dataset + 'synthetic_ehr_dataset_contrainst.pkl')       
+        synthetic_ehr_dataset = load_pickle(file_path_dataset + make_read_constraints_name)       
     #   get sam num patient in train set as synthetic
     train_ehr_dataset = get_same_numpatient_as_synthetic(   train_ehr_dataset, synthetic_ehr_dataset)      
-    print(test_ehr_dataset.shape)
-    print(train_ehr_dataset.shape)
-    print(synthetic_ehr_dataset.shape)
-    print(train_ehr_dataset['id_patient'].nunique())
-    print(synthetic_ehr_dataset['id_patient'].nunique())
+    # same shape_ synthetic train
+    #train_ehr_dataset,synthetic_ehr_dataset = equalize_length_dataframe(train_ehr_dataset,synthetic_ehr_dataset)
+    logging.info(f'test_ehr_dataset shape: {test_ehr_dataset.shape}')
+    logging.info(f'train_ehr_dataset shape: {train_ehr_dataset.shape}')
+    logging.info(f'synthetic_ehr_dataset shape: {synthetic_ehr_dataset.shape}')
+    logging.info(f'itrain_unicos: {train_ehr_dataset["id_patient"].nunique()}')
+    logging.info(f'synthetic unique patients: {synthetic_ehr_dataset["id_patient"].nunique()}')  
     return train_ehr_dataset,synthetic_ehr_dataset,test_ehr_dataset
-    
+def equalize_length_dataframe(df1, df2):
+    # Obtiene la longitud de cada DataFrame
+    len_df1 = len(df1)
+    len_df2 = len(df2)
+
+    # Encuentra la longitud mínima
+    min_len = min(len_df1, len_df2)
+
+    # Recorta los DataFrames a la longitud mínima
+    df1 = df1.iloc[:min_len]
+    df2 = df2.iloc[:min_len]
+
+    return df1, df2    
 def cols_filter_codes_drugs(train_ehr_dataset):
     cols_diagnosis = train_ehr_dataset.filter(like= 'diagnosis', axis=1).columns
     cols_procedures = train_ehr_dataset.filter(like= 'procedures', axis=1).columns
@@ -180,7 +245,21 @@ def cols_to_filter(     train_ehr_dataset,keywords,categorical_cols,):
         cols_procedures = train_ehr_dataset.filter(like= 'procedures', axis=1).columns
         cols_drugs = train_ehr_dataset.filter(like= 'drugs', axis=1).columns
         return cols_categorical,cols_diagnosis,cols_procedures,cols_drugs
-    
+import pandas as pd
+
+def concat_to_dict_tolatex_syn_vs_real(result_syn, result_train):
+    result_syn = pd.DataFrame(result_syn, index=[0])  # syntehti
+    result_train = pd.DataFrame(result_train, index=[0])
+    result_syn['Source'] = 'Synthetic'
+    result_train['Source'] = 'Train'
+    data = pd.concat([result_syn, result_train], ignore_index=True)
+    # Reemplaza los subrayados en los nombres de las columnas con un espacio vacío
+    data.columns = data.columns.str.replace('_', ' ')
+    data.set_index('Source', inplace=True)
+    data = data.transpose()
+    print(data.to_latex())
+    return data.to_dict()    
+
     
 def same_size_synthetic(    train_ehr_dataset,synthetic_ehr_dataset):  
         if synthetic_ehr_dataset.shape[0] > train_ehr_dataset.shape[0]:
@@ -238,6 +317,83 @@ def print_latex(result):
     aux_s =pd.DataFrame(result,index = [0])
     la = aux_s.to_latex()
     print(la)
+
+
+
+def calculate_wasserstein_distances(real_data, synthetic_data, columns):
+    """
+    Calculate Wasserstein distances between real and synthetic data for specified columns.
+
+    Parameters:
+        real_data (pd.DataFrame): The real dataset.
+        synthetic_data (pd.DataFrame): The synthetic dataset.
+        columns (list): List of column names to compare.
+
+    Returns:
+        pd.DataFrame: A DataFrame with Wasserstein distances for each specified column.
+    """
+    distances = []
+
+    for col in columns:
+        real_values = real_data[col].dropna()
+        synthetic_values = synthetic_data[col].dropna()
+
+        dist = wasserstein_distance(real_values, synthetic_values)
+        distances.append({
+            'Column': col,
+            'Wasserstein Distance': dist
+        })
+
+    return pd.DataFrame(distances)
+
+def generate_comparison_table(real_data, synthetic_data, test_data, columns):
+    """
+    Generate a comparison table with Wasserstein distances and outlier counts.
+
+    Parameters:
+        real_data (pd.DataFrame): The real dataset.
+        synthetic_data (pd.DataFrame): The synthetic dataset.
+        test_data (pd.DataFrame): The test dataset.
+        columns (list): List of column names to compare.
+
+    Returns:
+        pd.DataFrame: A DataFrame with Wasserstein distances and outlier counts.
+    """
+    comparison_data = []
+
+    for col in columns:
+        real_values = real_data[col].dropna()
+        synthetic_values = synthetic_data[col].dropna()
+        test_values = test_data[col].dropna()
+
+        ws_dist_synthetic_train = wasserstein_distance(synthetic_values, real_values)
+        ws_dist_test_train = wasserstein_distance(test_values, real_values)
+        ws_dist_synthetic_test = wasserstein_distance(synthetic_values, test_values)
+
+        comparison_data.append({
+            'Feature': col,
+            'Synthetic/Train': ws_dist_synthetic_train,
+            'Test/Train': ws_dist_test_train,
+            'Synthetic/Test': ws_dist_synthetic_test
+        })
+
+    return pd.DataFrame(comparison_data)
+
+# # Ejemplo de uso con tus datos
+# columns = ['admissions_per_drug', 'drugs_per_admission', 'drugs_per_patient', 'admissions_per_diagnosis', 
+#            'diagnosis_per_admission', 'diagnosis_per_patient', 'admissions_per_procedure', 'procedures_per_admission', 
+#            'procedures_per_patient']
+
+# real_data = pd.read_csv('path_to_real_data.csv')
+# synthetic_data = pd.read_csv('path_to_synthetic_data.csv')
+# test_data = pd.read_csv('path_to_test_data.csv')
+
+# # Generar la tabla de comparación
+# comparison_table = generate_comparison_table(real_data, synthetic_data, test_data, columns)
+# print(comparison_table)
+
+# # Guardar la tabla de comparación en un archivo CSV
+# comparison_table.to_csv('comparison_table.csv', index=False)
 
 def plot_admission_date_bar_charts(color_dict, color_dict_, grouped, grouped_synthetic, col, save=False,path_img=None):
             # Create the figure with two subplots side by side
@@ -298,38 +454,23 @@ def load_pkl(name):
        
 def obtain_dataset_admission_visit_rank(sample_patients_path,file,valid_perc,features_path,type_archivo='csv'):
     features = load_data(features_path)
+    #load csv 
     if type_archivo == 'csv':
-      total_features_synthethic = pd.read_csv(file) 
+      synthetic_ehr_dataset = pd.read_csv(file) 
     else:
-        total_features_synthethic = load_pickle(file)
-    cols_unnamed = total_features_synthethic.filter(like='Unnamed', axis=1).columns
-    total_features_synthethic.drop(cols_unnamed, axis=1, inplace=True)
-   
-    
+       synthetic_ehr_dataset = load_pickle(file)
+    # if there is an unnamed column drop it    
+    cols_unnamed = synthetic_ehr_dataset.filter(like='Unnamed', axis=1).columns
+    synthetic_ehr_dataset.drop(cols_unnamed, axis=1, inplace=True)
     sample_patients_r = load_pkl(sample_patients_path)
-    total_features_train = features[features['SUBJECT_ID'].isin(sample_patients_r)]
-    total_fetura_valid  = features[~features['SUBJECT_ID'].isin(sample_patients_r)]  
+    train_ehr_dataset = features[features['SUBJECT_ID'].isin(sample_patients_r)]
+    test_ehr_dataset  = features[~features['SUBJECT_ID'].isin(sample_patients_r)]  
     
-    if total_features_train.shape[0] > total_features_synthethic.shape[0]: 
-       total_features_train = total_features_train[:total_features_synthethic.shape[0]]
-    if total_features_train.shape[0] < total_features_synthethic.shape[0]:
-         total_features_synthethic = total_features_synthethic[:total_features_train.shape[0]]   
-    total_features_train   = total_features_train.rename(columns={"SUBJECT_ID":"id_patient"})
-    total_features_synthethic   = total_features_synthethic.rename(columns={"SUBJECT_ID":"id_patient"})
-    total_fetura_valid   = total_fetura_valid.rename(columns={"SUBJECT_ID":"id_patient"})
-    train_ehr_dataset = obtain_readmission_realdata(total_features_train)
-    test_ehr_dataset = obtain_readmission_realdata(total_fetura_valid) 
-    #obtener readmission
-    # este es el caso porque e arf se crearon dos columnas de dmitted time para que pudieran ser categorivas
-    if type_archivo=='ARFpkl':
-        total_features_synthethic['ADMITTIME'] = total_features_synthethic['year'].astype(str) +"-"+ total_features_synthethic['month'].astype(str) +"-"+ '01'
-        
-    total_features_synthethic['ADMITTIME'] = pd.to_datetime(total_features_synthethic['ADMITTIME'])
-    total_features_synthethic = total_features_synthethic.sort_values(by=['id_patient', 'ADMITTIME'])
-    # Ordena el DataFrame por 'patient_id' y 'visit_date' para garantizar el ranking correcto
-    # Agrupa por 'patient_id' y asigna un rango a cada visita
-    total_features_synthethic['visit_rank'] = total_features_synthethic.groupby('id_patient')['ADMITTIME'].rank(method='first').astype(int)
-    synthetic_ehr_dataset = obtain_readmission_realdata(total_features_synthethic) 
+    # if total_features_train.shape[0] > total_features_synthethic.shape[0]: 
+    #    total_features_train = total_features_train[:total_features_synthethic.shape[0]]
+    # if total_features_train.shape[0] < total_features_synthethic.shape[0]:
+    #      total_features_synthethic = total_features_synthethic[:total_features_train.shape[0]]  
+    
     return  test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,features
 
 def cols_todrop(total_features_synthethic,cols):
@@ -405,7 +546,7 @@ def obtain_most_freuent(train_ehr_dataset,columnas_test_ehr_dataset,num):
     top_300_codes = code_sums.head(num).index.tolist()
     return top_300_codes
 
-def obtain_least_frequent(train_ehr_dataset, columns, num):
+def obtain_least_frequent_fun(train_ehr_dataset, columns, num):
     """
     This function calculates the least frequent categories for specified columns in a DataFrame.
 
@@ -422,6 +563,17 @@ def obtain_least_frequent(train_ehr_dataset, columns, num):
     
     # Get the indices of the least frequent categories up to the number specified
     least_frequent_codes = code_sums.head(num).index.tolist()
+    return least_frequent_codes
+
+def proportion_non_zeros(df, columns):
+    # Cuenta el número total de valores en cada columna
+    total_counts = df[columns].apply(lambda x: len(x))
+    # Cuenta el número de valores no cero en cada columna
+    non_zero_counts = df[columns].apply(lambda x: np.count_nonzero(x))
+    # Calcula la proporción de valores no cero
+    non_zero_proportions = non_zero_counts / total_counts
+    # Convierte la serie resultante en un diccionario y la devuelve
+    return non_zero_proportions.to_dict()
     
     return least_frequent_codes
 def calculate_proportions(df, column):
@@ -458,7 +610,6 @@ def get_cols_diag_proc_drug(train_ehr_dataset):
 def obtain_readmission_realdata(total_fetura_valid):
     # Ordenando el DataFrame por 'id_' y 'visit_rank'
     total_fetura_valid = total_fetura_valid.sort_values(by=['id_patient', 'visit_rank'])
-
     # Crear una nueva columna 'readmission'
     # Comparamos si el siguiente 'visit_rank' es mayor que el actual para el mismo 'id_'
     total_fetura_valid['readmission'] = total_fetura_valid.groupby('id_patient')['visit_rank'].shift(-1).notna().astype(int)  
@@ -566,7 +717,8 @@ def plot_heatmap_(synthetic_ehr_dataset, name, col,name2,path_img=None):
     plt.ylabel('Visit Rank')
     plt.show()
     if path_img!= None:
-               save_plot_as_svg(plt,path_img,'plot_kernel_syn')
+        
+        save_plot_as_svg(plt,path_img,'plot_kernel_syn')
 
 # Adjust parameters according to your specific dataset structure and requirements
 
@@ -601,11 +753,18 @@ def hist_betw_a(original_data,synthetic_data,col,path_img=None):
 def box_pltos(df,df_syn,col,path_img=None):
     fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
     axes[0].boxplot(df[col])
-    axes[0].set_title('Real ' +col )
     axes[0].set_ylabel('Days')
     axes[1].boxplot(df_syn[col])
-    axes[1].set_title('Synthetic ' +col)
+    
     axes[1].set_ylabel('Days')
+   
+    try:
+        axes[0].set_title('Real ' +col )
+        axes[1].set_title('Synthetic ' +col)
+    except:
+        axes[0].set_title('Real ' )
+        axes[1].set_title('Synthetic ' )
+        
     plt.tight_layout()
     plt.show()   
     if path_img!= None:
@@ -655,9 +814,9 @@ def plot_heatmap(synthetic_ehr_dataset, name, col, cols_num=1, cols_prod="None",
                 
                 plt.figure(figsize=(12, 8))
                 ax = sns.heatmap(heatmap_data, cmap='viridis', annot=False)
-                ax.set_title(f'{name} by Year ({type_c})')
+                ax.set_title(f'{name} by Visit rank ({type_c})')
                 ax.set_xlabel(name)
-                ax.set_ylabel('Year')
+                ax.set_ylabel('Visit rank')
                 
                 # Generate labels, showing only the top items
                 labels = [label if label in top_drugs else '' for label in heatmap_data.columns]
@@ -817,7 +976,7 @@ def plot_histograms_separate_axes22(real_data, synthetic_data, title, xlabel, yl
             plt.show()
             if path_img!= None:
                save_plot_as_svg(plt,path_img,'plot_histograms_separate_axes22')
-
+            return wd
 class JensenShannonDistance2:
     
     def __init__(self, origdst, synthdst, num):
@@ -1265,8 +1424,37 @@ def plot_histograms22_(real_data, synthetic_data, title, xlabel, ylabel,path_img
                save_plot_as_svg(plt,path_img,'plot_histograms22_')
 
 
+def obtatain_df(serie1,serie2,serie3,serie4,serie5,serie6,name1,name2,name3,name4,name5,name6):
+        # Obtener las descripciones y convertirlas en DataFrames
+        desc1 = serie1.describe().reset_index()
+        desc1.columns = ['Statistic', name1]
+
+        desc2 = serie2.describe().reset_index()
+        desc2.columns = ['Statistic', name2]
+
+        desc3 = serie3.describe().reset_index()
+        desc3.columns = ['Statistic', name3]
+
+        desc4 = serie4.describe().reset_index()
+        desc4.columns = ['Statistic', name4]
+
+        desc5 = serie5.describe().reset_index()
+        desc5.columns = ['Statistic', name5]
+
+        desc6 = serie6.describe().reset_index()
+        desc6.columns = ['Statistic', name6]
+
+        # Unir las descripciones en un solo DataFrame
+        descriptions = desc1.merge(desc2, on='Statistic').merge(desc3, on='Statistic').merge(desc4, on='Statistic').merge(desc5, on='Statistic').merge(desc6, on='Statistic')
+
+        return descriptions
+
+# Combinar las descripciones en un solo DataFrame
+
+
 def calculate_counts(train_ehr_dataset,word):
     # Number of drugs each patient has (sum of drugs for each patient)
+    
     drugs_per_patient = train_ehr_dataset.groupby("id_patient").sum().reset_index()
     drugs_per_patient[word+'_count'] = drugs_per_patient.filter(like=word).sum(axis=1)
 
@@ -1523,7 +1711,7 @@ def histograms_codes(train_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset,pa
 
         plot_procedures_diag_drugs(col_prod,synthetic_ehr_dataset,type_procedur,name,path_img=None)
         
-def obtain_dataset(train_ehr_dataset):
+def obtain_dataset(train_ehr_dataset,columnas_test_ehr_dataset):
     df = train_ehr_dataset[columnas_test_ehr_dataset+["id_patient"]]
 
 
@@ -1609,6 +1797,31 @@ from scipy import stats
 import pandas as pd
 import numpy as np
 from scipy import stats
+def descriptive_statistics_matrix_dif(data, data_type):
+    # Check if the DataFrame is empty
+    if data.empty:
+        return "Empty DataFrame, no statistics available."
+
+    # Initialize a dictionary to hold statistics for each feature
+    stats_dict = {}
+    data_type = ""
+    # Calculate statistics for each feature (column)
+    for column in data.columns:
+        column_data = data[column]
+        
+        # Compute each statistic and concatenate it with the column name and data type
+        stats_dict[f'mean_{column}_{data_type}'] = np.mean(column_data)
+        stats_dict[f'median_{column}_{data_type}'] = np.median(column_data)
+        #stats_dict[f'mode_{column}_{data_type}'] = stats.mode(column_data)[0][0] if len(column_data) > 0 else None
+        stats_dict[f'minimum_{column}_{data_type}'] = np.min(column_data)
+        stats_dict[f'maximum_{column}_{data_type}'] = np.max(column_data)
+        stats_dict[f'range_{column}_{data_type}'] = np.ptp(column_data)
+        stats_dict[f'variance_{column}_{data_type}'] = np.var(column_data, ddof=1)
+        stats_dict[f'standard_deviation_{column}_{data_type}'] = np.std(column_data, ddof=1)
+        stats_dict[f'skewness_{column}_{data_type}'] = stats.skew(column_data)
+        stats_dict[f'kurtosis_{column}_{data_type}'] = stats.kurtosis(column_data)
+
+    return stats_dict
 
 def descriptive_statistics_matrix(data, data_type):
     # Check if the DataFrame is empty
@@ -1635,7 +1848,7 @@ def descriptive_statistics_matrix(data, data_type):
         stats_dict[f'kurtosis_{column}_{data_type}'] = stats.kurtosis(column_data)
 
     return stats_dict
-def compare_descriptive_statistics(test_ehr_dataset, syn_ehr):
+def compare_descriptive_statistics_fun(test_ehr_dataset, syn_ehr):
     """
     Compare descriptive statistics between two dataframes.
 
@@ -1647,8 +1860,8 @@ def compare_descriptive_statistics(test_ehr_dataset, syn_ehr):
         dict: A dictionary containing differences in descriptive statistics between the two datasets.
     """
     # Calculating descriptive statistics for both datasets
-    stats1 = descriptive_statistics_matrix(test_ehr_dataset,"Train")
-    stats2 = descriptive_statistics_matrix(syn_ehr ,"Synthetic")
+    stats1 = descriptive_statistics_matrix_dif(test_ehr_dataset,"Train")
+    stats2 = descriptive_statistics_matrix_dif(syn_ehr ,"Synthetic")
 
     # Dictionary to store the differences
     stats_differences = {}
@@ -1729,7 +1942,7 @@ def compare_proportions_and_return_dictionary(real_data, synthetic_data):
     return proportion_differences
 
 
-def compare_data_ranges(real_data, synthetic_data, columns):
+def compare_data_ranges(real_data, synthetic_data, columns,type_col):
     """
     Compare the maximum values of specified features in real and synthetic datasets.
 
@@ -1744,13 +1957,24 @@ def compare_data_ranges(real_data, synthetic_data, columns):
     if not all(col in real_data.columns and col in synthetic_data.columns for col in columns):
         raise ValueError("All specified columns must exist in both datasets.")
     
-    range_comparison = {}
+    
+    numeric_columns = real_data[columns].select_dtypes(include=[np.number]).columns
 
-    for col in columns:
-        range_comparison[f"real_max_{col}"] = real_data[col].max()
-        range_comparison[f"synthetic_max_{col}"] = synthetic_data[col].max()
+    synthetic_ranges = synthetic_data[numeric_columns].max() - synthetic_data[numeric_columns].min()
+    real_ranges = real_data[numeric_columns].max() - real_data[numeric_columns].min()
 
-    return range_comparison
+    # Comparer les ranges
+    range_diff = abs(real_ranges - synthetic_ranges)
+
+    # Trier les différences et obtenir les 10 premières colonnes
+    top_diff = range_diff.sort_values(ascending=False).head(10)
+    top_diff = range_diff.sort_values(ascending=False).head(10)
+
+    # Crear un DataFrame con las columnas y sus diferencias
+    result ={'Column '+type_col: top_diff.index.tolist(), 'Range Difference '+ type_col: top_diff.values.tolist()}
+
+
+    return result
 
 import pandas as pd
 
@@ -1862,9 +2086,11 @@ import matplotlib.pyplot as plt
 # Example usage:
 import matplotlib.pyplot as plt
 import numpy as np
-def calculate_means(dataset, columns):
-    return {col: dataset[col].mean() for col in columns}
-
+def count_non_zeros(df, columns):
+    # Aplica la función count_nonzero a cada columna especificada
+    non_zero_counts = df[columns].apply(lambda x: np.count_nonzero(x))
+    # Convierte la serie resultante en un diccionario y la devuelve
+    return non_zero_counts.to_dict()
 
 def calculate_means(dataset, columns):
     return {col: dataset[col].mean() for col in columns}
