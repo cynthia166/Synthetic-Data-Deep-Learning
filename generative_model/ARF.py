@@ -16,6 +16,7 @@ remote = True
 percentage_to_sample = 0.03
 train = True
 coverage_vars = False
+normalize_continous = True
 
 if remote:
     path_arf  = "ARF/"
@@ -23,6 +24,7 @@ if remote:
 else:
     train_data_features = load_data("data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl")
     path_arf = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/aux/"
+
 
 
 train_data_features["year"] = train_data_features['ADMITTIME'].dt.year

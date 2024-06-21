@@ -31,7 +31,7 @@ if __name__=="__main__":
     test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,features  = load_create_ehr(read_ehr,save_ehr,file_path_dataset,sample_patients_path,file,valid_perc,features_path,name_file_ehr,type_file='ARFpkl')
     
        #constrains  
-    train_ehr_dataset,synthetic_ehr_dataset,test_ehr_dataset = make_read_constraints(make_contrains,save_constrains,train_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset,columns_to_drop,columns_to_drop_syn,type_archivo,make_read_constraints_name)
+    train_ehr_dataset,synthetic_ehr_dataset,test_ehr_dataset = make_read_constraints(make_contrains,save_constrains,train_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset,columns_to_drop,columns_to_drop_syn,type_archivo, inver_normalize,cols_continuous,make_read_constraints_name)
     
     #get_columns
     columnas_test_ehr_dataset,cols_categorical,cols_diagnosis,cols_procedures,cols_drugs,top_300_codes        = get_columns_codes_commun(train_ehr_dataset,keywords)   
@@ -43,37 +43,37 @@ if __name__=="__main__":
     list_metric_resemblance = [
        ##descriptive stadistics
         
-        "get_descriptive_statistics",             #diferencia alarmante en estadiscas descriptivas 
+        #"get_descriptive_statistics",             #diferencia alarmante en estadiscas descriptivas 
         "compare_average_trends_recordlen",       #record lenght depende en numero de admissiones
         "get_visit_value_counts",              #analisar numero de admissiones / comparar la estadisticas con media y std normal truncada*
-        "compare_descriptive_stadistics",
+        #"compare_descriptive_stadistics",
         
         #plots descriptive stadistics
         "plot_means_continuos_variables",
-        "plot_first_visit",
-        "plot_dimension_wise",
-        "plot_prevalence_wise",
+        #"plot_first_visit",
+        #"plot_dimension_wise",
+        #"plot_prevalence_wise",
      
         #top10 dif or least diff                   #identificar los codigos o variables mas distintas/ identificar que importancia tienen en selccion random fors
-        "get_top10_different_mean_difference",         #identificar la frecuencia por alrbol y hoja/ identidicar mas comumnes pro arbol y hoja
-       "obtain_least_frequent",
+        #"get_top10_different_mean_difference",         #identificar la frecuencia por alrbol y hoja/ identidicar mas comumnes pro arbol y hoja
+        #"obtain_least_frequent",
         
         
         #comparrison                               # notar que el modelo no truna la log normal por lo que es nomal tener valor negativos y mayor al maximo
-        "compare_maximum_range",                  #to what percentageis is greater than thereal max
+        #"compare_maximum_range",                  #to what percentageis is greater than thereal max
         "get_proportion_demos",
        
         
         ##scores/metrics
-        "get_jensenshannon_dist",                   #score to obtain eta match duplicates. alsooo seee summerazed score, all of the score make a score with train/test as baseline
-        "get_MaximumMeanDiscrepancy",
+        #"get_jensenshannon_dist",                   #score to obtain eta match duplicates. alsooo seee summerazed score, all of the score make a score with train/test as baseline
+        #"get_MaximumMeanDiscrepancy",
         "get_common_proportions",
         "kolmogorov_smirnof_test_chissquare",
         
         #exact rcords
         
-        "get_excat_match",
-        "get_dupplicates",
+        #"get_excat_match",
+        #"get_dupplicates",
         
             
         
@@ -93,8 +93,8 @@ if __name__=="__main__":
                 
         
         #temporality
-        "temporal_histogram_heatmap",
-        "plot_acumulated",
+        #"temporal_histogram_heatmap",
+        #"plot_acumulated",
             
     
         #dimensional 
@@ -158,7 +158,7 @@ df_sorted.head(20)['name'], df_sorted.tail(20)['name'] = high_20_names, low_20_n
 
 
 # synthetic_ehr_dataset_constrains = load_pickle("generated_synthcity_tabular/ARF/" + 'synthetic_ehr_dataset_contrainst_tnorm.pkl')
-# real_training_data =load_pickle("generated_synthcity_tabular/ARF/" + 'train_ehr_dataset.pkl')
+real_training_data =load_pickle("generated_synthcity_tabular/ARF/" + 'train_ehr_dataset.pkl')
 
 def load_pkl(name):
     with open(name+'.pkl', 'rb') as f:
@@ -193,7 +193,7 @@ print(aggregated_stats.sort_values(ascending=False, by=(    'prob', 'mean'))[:20
 
 
 # ['readmission','HADM_ID',"ADMITTIME",'GENDER_0']
-# real_data = real_training_data["days_between_visits"]
+real_data = real_training_data["days_between_visits"]
 # synthetic_data = synthetic_ehr_dataset["days_between_visits"]
 # synthetic_data = np.clip(synthetic_data, min_vals, max_vals)
 # plot_hist(real_data,synthetic_ehr_dataset_constrains["days_between_visits"])
@@ -218,37 +218,176 @@ print(aggregated_stats.sort_values(ascending=False, by=(    'prob', 'mean'))[:20
 # from scipy.stats import beta, gamma, norm, lognorm, truncnorm, kstest
 # import pandas as pd
 
-# def fit_distributions(data):
-#     distributions = {
-#         'beta': beta,
-#         'gamma': gamma,
-#         'norm': norm,
-#         'lognorm': lognorm,
-#         'truncnorm': truncnorm,
-#     }
-#     results = []
-#     for column in data.columns:
-#         column_results = {'feature': column}
-#         feature_data = data[column]
-#         for name, distribution in distributions.items():
-#             if name == 'truncnorm':
-#                 min_val, max_val = feature_data.min(), feature_data.max()
-#                 mean, std = feature_data.mean(), feature_data.std()
-#                 a, b = (min_val - mean) / std, (max_val - mean) / std
-#                 params = (a, b, mean, std)  # Pass (a, b, loc, scale) for truncnorm
-#             else:
-#                 params = distribution.fit(feature_data)
-#             # Use Kolmogorov-Smirnov test for goodness of fit
-#             if name == 'truncnorm':
-#                 ks_stat, ks_p_value = kstest(feature_data, name, args=params)
-#             else:
-#                 ks_stat, ks_p_value = kstest(feature_data, name, args=params)
-#             column_results[name + '_params'] = params
-#             column_results[name + '_ks_stat'] = ks_stat
-#             column_results[name + '_ks_p_value'] = ks_p_value
-#         results.append(column_results)
-#     return pd.DataFrame(results)
-# # Ajustar distribuciones a los datos reales
+from scipy.stats import beta, gamma, norm, lognorm, truncnorm, expon, kstest
+import pandas as pd
+from threadpoolctl import threadpool_limits
+
+import numpy as np
+import pandas as pd
+from scipy.stats import beta, uniform, triang, truncnorm, expon, kstest, gaussian_kde
+from sklearn.mixture import GaussianMixture
+rest = fit_distributions(real_data, n_components=3)
+print(rest.to_latex())
+rest.to_csv("results/results_arf/results_trunxated.csv")
+def fit_distributions(data, n_components=3):
+    distributions = {
+        'beta': beta,
+        'uniform': uniform,
+        'triang': triang,
+        'truncnorm': truncnorm,
+        'expon': expon,
+        'kde': gaussian_kde,
+        'gmm': GaussianMixture
+    }
+    
+    results = []
+    
+    # If data is a Series, convert it to DataFrame
+    if isinstance(data, pd.Series):
+        data = data.to_frame()
+    
+    for column in data.columns:
+        
+        column_results = {'feature': column}
+        feature_data = data[column].values.reshape(-1, 1)  # Reshape for GMM
+        
+        # Handle constant features separately
+        if np.all(feature_data == feature_data[0]):
+            continue
+        
+        for name, distribution in distributions.items():
+            print(distribution)
+            if name == 'truncnorm':
+                min_val, max_val = feature_data.min(), feature_data.max()
+                mean, std = feature_data.mean(), feature_data.std()
+                a, b = (min_val - mean) / std, (max_val - mean) / std
+                params = (a, b, mean, std)
+            elif name == 'kde':
+                kde = distribution(feature_data.flatten())
+                params = kde
+            elif name == 'gmm':
+                with threadpool_limits(limits=1, user_api='blas'):
+                        gmm = distribution(n_components=n_components, random_state=0)
+                        gmm.fit(feature_data)
+                        params = gmm
+            elif name == 'beta':
+                # Ensure that data is within (0, 1) interval
+                min_val = feature_data.min()
+                max_val = feature_data.max()
+                if min_val == max_val:  # Avoid fitting Beta to constant data
+                    continue
+                scaled_data = (feature_data - min_val) / (max_val - min_val)
+                # Beta distribution fitting
+                try:
+                    a, b, loc, scale = distribution.fit(scaled_data.flatten(), floc=0, fscale=1)
+                    params = (a, b, loc, scale)
+                except Exception:
+                    continue
+            elif name == 'uniform':
+                loc, scale = distribution.fit(feature_data.flatten())
+                params = (loc, scale)
+            elif name == 'triang':
+                c, loc, scale = distribution.fit(feature_data.flatten())
+                params = (c, loc, scale)
+            elif name == 'expon':
+                loc, scale = distribution.fit(feature_data.flatten())
+                params = (loc, scale)
+            else:
+                params = distribution.fit(feature_data.flatten())
+            if np.isscalar(feature_data):
+                  feature_data = np.array([feature_data])
+            # Use Kolmogorov-Smirnov test for goodness of fit
+            if name == 'truncnorm':
+                ks_stat, ks_p_value = kstest(feature_data.flatten(), 'truncnorm', args=params)
+            elif name == 'kde':
+                cdf = lambda x: np.mean(params.integrate_box_1d(-np.inf, x))
+                cdf_values = np.array([cdf(xi) for xi in feature_data.flatten()])
+                ks_stat, ks_p_value = kstest(feature_data.flatten(), lambda x: cdf_values)
+            elif name == 'gmm':
+                gmm_samples, _ = params.sample(len(feature_data))
+                gmm_samples = gmm_samples.flatten()
+                cdf = lambda x: np.mean(gmm_samples <= x)
+                cdf_values = np.array([cdf(xi) for xi in feature_data.flatten()])
+                ks_stat, ks_p_value = kstest(feature_data.flatten(), lambda x: cdf_values)
+            elif name == 'beta':
+                ks_stat, ks_p_value = kstest(scaled_data.flatten(), 'beta', args=params)
+            elif name == 'uniform':
+                ks_stat, ks_p_value = kstest(feature_data.flatten(), 'uniform', args=params)
+            elif name == 'triang':
+                ks_stat, ks_p_value = kstest(feature_data.flatten(), 'triang', args=params)
+            elif name == 'expon':
+                ks_stat, ks_p_value = kstest(feature_data.flatten(), 'expon', args=params)
+            else:
+                ks_stat, ks_p_value = kstest(feature_data.flatten(), name, args=params)
+            
+            column_results[name + '_params'] = params
+            column_results[name + '_ks_stat'] = ks_stat
+            column_results[name + '_ks_p_value'] = ks_p_value
+        results.append(column_results)
+    
+    return pd.DataFrame(results)
+
+import numpy as np
+import pandas as pd
+from scipy.stats import gaussian_kde, kstest
+from sklearn.neighbors import KernelDensity
+from sklearn.model_selection import GridSearchCV
+
+def evaluate_kde_methods(data, kernels=['gaussian', 'tophat', 'epanechnikov', 'exponential', 'linear']):
+    """
+    Estimate the density parameters of a feature using various KDE methods and evaluate with KS test.
+    
+    Parameters:
+    data (pd.Series): Input feature data.
+    kernels (list): List of kernels to evaluate.
+    
+    Returns:
+    dict: A dictionary containing the best kernel and its KS statistic.
+    """
+    # Ensure data is in the correct format
+    if isinstance(data, pd.Series):
+        data = data.values
+    data = data[:, np.newaxis]
+
+    # Initialize results dictionary
+    results = {}
+
+    # Cross-validation to find the best bandwidth for each kernel
+    bandwidths = np.logspace(-1, 1, 20)
+    for kernel in kernels:
+        grid = GridSearchCV(KernelDensity(kernel=kernel), {'bandwidth': bandwidths}, cv=5)
+        grid.fit(data)
+        
+        # Get the best bandwidth
+        best_bandwidth = grid.best_params_['bandwidth']
+        
+        # Fit KDE with the best bandwidth
+        kde = KernelDensity(kernel=kernel, bandwidth=best_bandwidth)
+        kde.fit(data)
+        
+        # Generate samples from the fitted KDE
+        log_density = kde.score_samples(data)
+        kde_samples = np.exp(log_density)
+        
+        # Perform KS test
+        ks_stat, p_value = kstest(data.flatten(), kde_samples)
+        
+        # Store the results
+        results[kernel] = {'bandwidth': best_bandwidth, 'ks_stat': ks_stat, 'p_value': p_value}
+    
+    # Find the best kernel with the lowest KS statistic
+    best_kernel = min(results, key=lambda k: results[k]['ks_stat'])
+    best_result = results[best_kernel]
+    
+    return {'best_kernel': best_kernel, 'best_result': best_result, 'all_results': results}
+
+# Example usage
+results = evaluate_kde_methods(real_data)
+
+
+print("Best Kernel:", results['best_kernel'])
+print("Best Result:", results['best_result'])
+print("All Results:", results['all_results'])
 
 # def select_best_distribution(fit_results):
 #     best_distributions = {}

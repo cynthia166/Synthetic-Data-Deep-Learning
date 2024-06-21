@@ -190,9 +190,9 @@ def load_create_ehr(read_ehr,save_ehr,file_path_dataset,sample_patients_path,fil
             save_pickle(features, file_path_dataset + 'features'+name_file_ehr+'.pkl')
     return test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,features    
 
-def make_read_constraints(make_contrains,save_constrains,train_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset,columns_to_drop,columns_to_drop_syn,type_archivo,make_read_constraints_name='synthetic_ehr_dataset_contrainst.pkl'):
+def make_read_constraints(make_contrains,save_constrains,train_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset,columns_to_drop,columns_to_drop_syn,type_archivo,invert_normalize,cols_continuous,make_read_constraints_name='synthetic_ehr_dataset_contrainst.pkl'):
     if make_contrains:
-        c = EHRDataConstraints(train_ehr_dataset, test_ehr_dataset, synthetic_ehr_dataset,columns_to_drop,columns_to_drop_syn,True,type_archivo)
+        c = EHRDataConstraints(train_ehr_dataset, test_ehr_dataset, synthetic_ehr_dataset,columns_to_drop,columns_to_drop_syn,cols_continuous,True,type_archivo,invert_normalize)
         c.print_shapes()
         #cols_accounts = c.handle_categorical_data()
         synthetic_ehr_dataset, train_ehr_dataset, test_ehr_dataset = c.initiate_processing()
@@ -205,7 +205,7 @@ def make_read_constraints(make_contrains,save_constrains,train_ehr_dataset,test_
     else: 
         synthetic_ehr_dataset = load_pickle(file_path_dataset + make_read_constraints_name)       
     #   get sam num patient in train set as synthetic
-    train_ehr_dataset = get_same_numpatient_as_synthetic(   train_ehr_dataset, synthetic_ehr_dataset)      
+    #train_ehr_dataset = get_same_numpatient_as_synthetic(   train_ehr_dataset, synthetic_ehr_dataset)      
     # same shape_ synthetic train
     #train_ehr_dataset,synthetic_ehr_dataset = equalize_length_dataframe(train_ehr_dataset,synthetic_ehr_dataset)
     logging.info(f'test_ehr_dataset shape: {test_ehr_dataset.shape}')

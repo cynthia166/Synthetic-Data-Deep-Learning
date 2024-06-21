@@ -194,7 +194,7 @@ class EHRResemblanceMetrics:
         #equalsize
         #train_ehr_dataset, synthetic_ehr_dataset = equalize_length_dataframe(train_ehr_dataset, synthetic_ehr_dataset)    
         
-        for i in self.keywords:
+        for i in self.keywords[2:]:
                 synthetic_train_values = []
                 test_train_values = []
                 synthetic_train_outliers_values = []
