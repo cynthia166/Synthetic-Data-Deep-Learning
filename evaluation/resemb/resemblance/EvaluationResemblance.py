@@ -10,6 +10,7 @@ os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-
 import sys
 sys.path.append('evaluation/resemb/resemblance/utils_stats/')
 sys.path.append('evaluation')
+from  config import diagnosis_columns,procedure_columns,medication_columns
 
 sys.path.append('/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/')
 from evaluation.resemb.resemblance.utilsstats import *
@@ -38,8 +39,12 @@ class EHRResemblanceMetrics:
                     corr_plot_syn_real,
                     corr_plot_continous ,
                     corr_plot_categorical ,
-                    corr_plot_codes):
-        
+                    corr_plot_codes,
+                    num_visit_count,
+                    patient_visit
+                    ):
+        self.patient_visit = patient_visit
+        self.num_visit_count = num_visit_count
         self.test_ehr_dataset = test_ehr_dataset
         self.train_ehr_dataset = train_ehr_dataset
         self.synthetic_ehr_dataset = synthetic_ehr_dataset
@@ -66,9 +71,13 @@ class EHRResemblanceMetrics:
         self.corr_plot_continous = corr_plot_continous
         self.corr_plot_categotical = corr_plot_categorical
         self.corr_plot_codes = corr_plot_codes
+        
     def evaluate(self):    
         results = {}
-
+        if "analyse_trajectories" in self.list_metric_resemblance:
+            logging.info("Executing method: analyse_trajectories")
+            self.plot_count_matrix_for_specific_subject( self.train_ehr_dataset, self.synthetic_ehr_dataset,3)
+            
         if "outliers_and_histograms_patients_admissions" in self.list_metric_resemblance:
             logging.info("Executing method: outliers_and_histograms_patients_admissions")
             self.outliers_and_histograms_patients_admissions(self.test_ehr_dataset, self.train_ehr_dataset, self.synthetic_ehr_dataset,self.path_img)
@@ -184,7 +193,7 @@ class EHRResemblanceMetrics:
                
         combined_df = pd.DataFrame()    
         
-        train_ehr_dataset_t = get_same_numpatient_as_synthetic(train_ehr_dataset,test_ehr_dataset)
+        #train_ehr_dataset_t = get_same_numpatient_as_synthetic(train_ehr_dataset,test_ehr_dataset)
         #same sie for trainse
         if test_ehr_dataset.shape[0] < train_ehr_dataset_t.shape[0]:
             train_ehr_dataset_t = train_ehr_dataset_t[:test_ehr_dataset.shape[0]]
@@ -194,7 +203,7 @@ class EHRResemblanceMetrics:
         #equalsize
         #train_ehr_dataset, synthetic_ehr_dataset = equalize_length_dataframe(train_ehr_dataset, synthetic_ehr_dataset)    
         
-        for i in self.keywords[2:]:
+        for i in self.keywords:
                 synthetic_train_values = []
                 test_train_values = []
                 synthetic_train_outliers_values = []
@@ -233,11 +242,11 @@ class EHRResemblanceMetrics:
                                 'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test',path_img)
                 
                 wd_real_drugs_per_patient_esttrain = plot_histograms_separate_axes22(real_drugs_per_patient_t[i+'_count'], test_drugs_per_patient_t[i+'_count'], 
-                                'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test',path_img)
+                             'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test',path_img)
     
-                plot_boxplots(real_drugs_per_patient_t[i+'_count'], test_drugs_per_patient_t[i+'_count'], 
-                                'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Real)',path_img)
-                #, 'Patient Count 
+                # plot_boxplots(real_drugs_per_patient_t[i+'_count'], test_drugs_per_patient_t[i+'_count'], 
+                #                 'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Real)',path_img)
+                # #, 'Patient Count 
                 #, 'ADmission Count 
                 real_out_a_t = calculate_outlier_ratios_tout2(real_drugs_per_admission_t,i)
                 syn_out_a_t = calculate_outlier_ratios_tout2(test_drugs_per_admission_t,i)
@@ -247,8 +256,8 @@ class EHRResemblanceMetrics:
                                 'Histogram of ' +i+ ' per Admission', 'Number of' + i, 'Patient Count (Real)','Test',path_img)
             
         
-                plot_boxplots(real_drugs_per_admission_t[i+'_count'], test_drugs_per_admission_t[i+'_count'], 
-                                'Histogram of ' +i+ ' per Admission', 'Number of ' + i, 'Patient Count (Real)',path_img)
+                # plot_boxplots(real_drugs_per_admission_t[i+'_count'], test_drugs_per_admission_t[i+'_count'], 
+                #                 'Histogram of ' +i+ ' per Admission', 'Number of ' + i, 'Patient Count (Real)',path_img)
 
                 wd_real_drugs_per_admission_testtrain = plot_histograms_separate_axes22(real_drugs_per_admission_t[i+'_count'], test_drugs_per_admission_t[i+ '_count'], 
                                 'Histogram of ' +i+ ' per Admission', 'Number of ' + i, 'Admission Count (Real)'
@@ -267,8 +276,8 @@ class EHRResemblanceMetrics:
                 wd_real_admissions_per_drug_testtrain = plot_histograms_separate_axes22(real_admissions_per_drug_t['admission_count'], test_admissions_per_drug_t['admission_count'], 
                                 'Histogram of Admissions per ' + i, 'Number of Admissions ',  i+ ' Count (Real)','Test' ,path_img)
                 
-                plot_boxplots(real_admissions_per_drug_t['admission_count'], test_admissions_per_drug_t['admission_count'], 
-                                'Histogram of Admissions per ' +i, 'Number of Admissions ',  i+ ' Count (Real)',path_img)
+                # plot_boxplots(real_admissions_per_drug_t['admission_count'], test_admissions_per_drug_t['admission_count'], 
+                #                 'Histogram of Admissions per ' +i, 'Number of Admissions ',  i+ ' Count (Real)',path_img)
 
                 
                 #, 'Patient Count (Synthetic/train)'
@@ -417,9 +426,18 @@ class EHRResemblanceMetrics:
 
     def plot_kerneldis(self,train_ehr_dataset,synthetic_ehr_dataset,cols,path_img):
             for i in cols: 
-                plot_kernel_syn(train_ehr_dataset, synthetic_ehr_dataset, i, "Marginal_distribution",path_img)
+                plot_kernel_syn(train_ehr_dataset, synthetic_ehr_dataset, i, "Marginal_distribution",path_img,self.num_visit_count,self.patient_visit)
      
-    
+    def plot_count_matrix_for_specific_subject(self,train_ehr_dataset,synthetic_ehr_dataset,num_patient):
+        #training patietns
+        plot_visit_trejetory(   train_ehr_dataset,diagnosis_columns,procedure_columns,medication_columns,self.num_visit_count , self.patient_visit ,path_img=self.path_img)
+                    
+        #Synthetic Dataset
+        plot_visit_trejetory(   synthetic_ehr_dataset,diagnosis_columns,procedure_columns,medication_columns,num_visit_count = self.num_visit_count, patient_visit = num_patient,path_img=self.path_img)    
+        
+                
+
+           
     
     def get_top10_different_mean_difference(self,test_ehr_dataset , train_ehr_dataset,synthetic_ehr_dataset,cols):
         cols_ = ['ADMITTIME','HADM_ID','id_patient']
@@ -923,11 +941,14 @@ class EHRResemblanceMetrics:
             cols_f = synthetic_ehr_dataset.filter(like=i, axis=1).columns
             tabla_proporciones_final = get_proportions(train_ehr_dataset[cols_f],"train "+ i)
             tabla_proporciones_final_2= get_proportions(synthetic_ehr_dataset[cols_f],"synthetic"+ i)
-            
+            plot_pie_proportions(cols_f, tabla_proporciones_final, "Train data")
+            plot_pie_proportions(cols_f, tabla_proporciones_final_2, "Synthetic data")
             total = pd.merge(tabla_proporciones_final,tabla_proporciones_final_2,  on=["Variable","Category "], how='inner') 
             #total = total['Variable','Category ]+test_ehr_dataset[cols_f],"test "+ i]
             prop_datafram.append(total)
             latex_code = total.to_latex( index = "Variable")
+            if i == "visit_rank":
+               plot_vistis(    total )
             print(latex_code)
         return total.to_dict()  
     def get_excat_match(self,train_ehr_dataset,synthetic_ehr_dataset):

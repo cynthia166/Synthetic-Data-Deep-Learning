@@ -5,6 +5,10 @@ os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-
 import sys
 sys.path.append('/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/')
 current_directory = os.getcwd()
+from scipy.stats import beta, uniform, triang, truncnorm, expon, kstest, gaussian_kde
+from sklearn.mixture import GaussianMixture
+from threadpoolctl import threadpool_limits
+
 
 
 print(current_directory)
@@ -78,6 +82,24 @@ logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(level
 
 import svgutils.transform as sg
 
+def get_feature_importance(clf,synthetic_raw_data,num_impor):
+    feature_importances = clf.feature_importances_
+    print("Feature Importances:", feature_importances)
+    df = pd.DataFrame({
+        'importance': feature_importances,
+        'name': synthetic_raw_data.columns
+    })
+
+    # Sort by importance
+    df_sorted = df.sort_values(by='importance',ascending = False)
+
+    # Get the names of the lowest and highest 20 variables
+    print(df_sorted.head(num_impor).to_latex())
+    print(df_sorted.tail(num_impor).to_latex())
+
+    return  df_sorted
+
+
 def convert_to_pixels(value):
     if value.endswith('px'):
         return float(value.replace('px', ''))
@@ -144,6 +166,15 @@ def combine_svgs(svg_paths, path_img):
         save_plot_as_svg(fig, path_img, "concatenated_images")
 
 # Uso de la función
+def  get_hist(dy_df):    
+    random_node = random.randint(0, max(dy_df["nodeid"]))  
+    random_tree = random.randint(0, max(dy_df["tree"])) 
+    df_serti = dy_df[(dy_df["nodeid"]==random_node)&(dy_df["tree"]==random_tree)]
+    #plot
+    hist_counts_node(df_serti,"value",random_node,random_tree,path_img=None)    
+    
+
+
 
 def save_plot_as_svg(plt, path_img, filename):
     random_number = random.randint(1000, 9999)  # Genera un número aleatorio entre 1000 y 9999
@@ -164,7 +195,7 @@ def cols_drop_ehr(columns_to_drop, synthetic_ehr_dataset, train_ehr_dataset, tes
         return synthetic_ehr_dataset, train_ehr_dataset, test_ehr_dataset
 
 
-def get_columns_codes_commun(train_ehr_dataset,keywords):
+def get_columns_codes_commun(train_ehr_dataset,keywords,categorical_cols):
         columnas_test_ehr_dataset = get_cols_diag_proc_drug(train_ehr_dataset)
         #obtener cols para demosgraphics, contnious, procedures, diagnosis, drugs
         cols_categorical,cols_diagnosis,cols_procedures,cols_drugs = cols_to_filter(     train_ehr_dataset,keywords,categorical_cols,)
@@ -190,9 +221,10 @@ def load_create_ehr(read_ehr,save_ehr,file_path_dataset,sample_patients_path,fil
             save_pickle(features, file_path_dataset + 'features'+name_file_ehr+'.pkl')
     return test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,features    
 
-def make_read_constraints(make_contrains,save_constrains,train_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset,columns_to_drop,columns_to_drop_syn,type_archivo,invert_normalize,cols_continuous,make_read_constraints_name='synthetic_ehr_dataset_contrainst.pkl'):
+def make_read_constraints(make_contrains,save_constrains,train_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset,columns_to_drop,columns_to_drop_syn,type_archivo,invert_normalize,cols_continuous,subject_continous,
+                          file_path_dataset = None,make_read_constraints_name='synthetic_ehr_dataset_contrainst.pkl'):
     if make_contrains:
-        c = EHRDataConstraints(train_ehr_dataset, test_ehr_dataset, synthetic_ehr_dataset,columns_to_drop,columns_to_drop_syn,cols_continuous,True,type_archivo,invert_normalize)
+        c = EHRDataConstraints(train_ehr_dataset, test_ehr_dataset, synthetic_ehr_dataset,columns_to_drop,columns_to_drop_syn,cols_continuous,True,type_archivo,invert_normalize,subject_continous)
         c.print_shapes()
         #cols_accounts = c.handle_categorical_data()
         synthetic_ehr_dataset, train_ehr_dataset, test_ehr_dataset = c.initiate_processing()
@@ -202,8 +234,12 @@ def make_read_constraints(make_contrains,save_constrains,train_ehr_dataset,test_
         #synthetic_ehr_dataset = cols_todrop(synthetic_ehr_dataset,+)
         if save_constrains: 
             save_pickle(synthetic_ehr_dataset, file_path_dataset +make_read_constraints_name )
+            save_pickle(train_ehr_dataset, file_path_dataset +str("train_ehr_")+make_read_constraints_name )
+            save_pickle(test_ehr_dataset, file_path_dataset +str("test_ehr_")+make_read_constraints_name )
     else: 
         synthetic_ehr_dataset = load_pickle(file_path_dataset + make_read_constraints_name)       
+        train_ehr_dataset = load_pickle(file_path_dataset +str("train_ehr_")+make_read_constraints_name )
+        test_ehr_dataset = load_pickle(file_path_dataset+str("test_ehr_")+make_read_constraints_name )
     #   get sam num patient in train set as synthetic
     #train_ehr_dataset = get_same_numpatient_as_synthetic(   train_ehr_dataset, synthetic_ehr_dataset)      
     # same shape_ synthetic train
@@ -435,7 +471,7 @@ def categorilca_cols_fun(train_ehr_dataset,synthetic_ehr_dataset,categorical_col
                  
 def load_pickle(file_path):
     with open(file_path, 'rb') as f:
-        data = pickle.load(f)
+         data = pickle.load(f)
     return data
 
 def save_load_numpy(sample_patients=None,save=False,load=False,name='sample_patients.npy'):
@@ -446,6 +482,109 @@ def save_load_numpy(sample_patients=None,save=False,load=False,name='sample_pati
     if load: 
     # Load the numpy array from disk
        return np.load(name)    
+
+
+def fit_distributions(data, n_components=3):
+    distributions = {
+        'beta': beta,
+        'uniform': uniform,
+        'triang': triang,
+        'truncnorm': truncnorm,
+        'expon': expon,
+        'kde': gaussian_kde,
+        'gmm': GaussianMixture
+    }
+    
+    results = []
+    
+    # If data is a Series, convert it to DataFrame
+    if isinstance(data, pd.Series):
+        data = data.to_frame()
+    
+        
+        
+        column_results = {'feature': "var"}
+        feature_data = data.values
+        #Reshape for GMM
+        
+        # Handle constant features separately
+          
+        for name, distribution in distributions.items():
+            print(distribution)
+            if name == 'truncnorm':
+                min_val, max_val = feature_data.min(), feature_data.max()
+                mean, std = feature_data.mean(), feature_data.std()
+                a, b = (min_val - mean) / std, (max_val - mean) / std
+                params = (a, b, mean, std)
+            elif name == 'kde':
+                try: 
+                   kde = distribution(feature_data.flatten())
+                except:
+                    continue   
+                
+                params = kde
+            elif name == 'gmm':
+                with threadpool_limits(limits=1, user_api='blas'):
+                        gmm = distribution(n_components=n_components, random_state=0)
+                        gmm.fit(feature_data)
+                        params = gmm
+            elif name == 'beta':
+                # Ensure that data is within (0, 1) interval
+                min_val = feature_data.min()
+                max_val = feature_data.max()
+                if min_val == max_val:  # Avoid fitting Beta to constant data
+                    continue
+                scaled_data = (feature_data - min_val) / (max_val - min_val)
+                # Beta distribution fitting
+                try:
+                    a, b, loc, scale = distribution.fit(scaled_data.flatten(), floc=0, fscale=1)
+                    params = (a, b, loc, scale)
+                except Exception:
+                    continue
+            elif name == 'uniform':
+                loc, scale = distribution.fit(feature_data.flatten())
+                params = (loc, scale)
+            elif name == 'triang':
+                c, loc, scale = distribution.fit(feature_data.flatten())
+                params = (c, loc, scale)
+            elif name == 'expon':
+                loc, scale = distribution.fit(feature_data.flatten())
+                params = (loc, scale)
+            else:
+                params = distribution.fit(feature_data.flatten())
+            if np.isscalar(feature_data):
+                  feature_data = np.array([feature_data])
+            # Use Kolmogorov-Smirnov test for goodness of fit
+            if name == 'truncnorm':
+                ks_stat, ks_p_value = kstest(feature_data.flatten(), 'truncnorm', args=params)
+            elif name == 'kde':
+                cdf = lambda x: np.mean(params.integrate_box_1d(-np.inf, x))
+                cdf_values = np.array([cdf(xi) for xi in feature_data.flatten()])
+                ks_stat, ks_p_value = kstest(feature_data.flatten(), lambda x: cdf_values)
+            elif name == 'gmm':
+                gmm_samples, _ = params.sample(len(feature_data))
+                gmm_samples = gmm_samples.flatten()
+                cdf = lambda x: np.mean(gmm_samples <= x)
+                cdf_values = np.array([cdf(xi) for xi in feature_data.flatten()])
+                ks_stat, ks_p_value = kstest(feature_data.flatten(), lambda x: cdf_values)
+            elif name == 'beta':
+                ks_stat, ks_p_value = kstest(scaled_data.flatten(), 'beta', args=params)
+            elif name == 'uniform':
+                ks_stat, ks_p_value = kstest(feature_data.flatten(), 'uniform', args=params)
+            elif name == 'triang':
+                ks_stat, ks_p_value = kstest(feature_data.flatten(), 'triang', args=params)
+            elif name == 'expon':
+                ks_stat, ks_p_value = kstest(feature_data.flatten(), 'expon', args=params)
+            else:
+                ks_stat, ks_p_value = kstest(feature_data.flatten(), name, args=params)
+            
+            column_results[name + '_params'] = params
+            column_results[name + '_ks_stat'] = ks_stat
+            column_results[name + '_ks_p_value'] = ks_p_value
+        results.append(column_results)
+    
+    return pd.DataFrame(results).to_dict()
+
 
 def load_pkl(name):
     with open(name+'.pkl', 'rb') as f:
@@ -584,21 +723,27 @@ def dimensio_wise(real_samples,gen_samples,name,path_img=None):
             prob_real = np.mean(real_samples, axis=0)
             prob_syn = np.mean(gen_samples, axis=0)
 
-            p1 = plt.scatter(prob_real, prob_syn, c="b", alpha=0.5, label="ARF")
+            plt.scatter(prob_real, prob_syn, c="b", alpha=0.5, label="ARF")
             x_max = max(np.max(prob_real), np.max(prob_syn))
             x = np.linspace(0, x_max + 0.1, 1000)
-            p2 = plt.plot(x, x, linestyle='-', color='k', label="Ideal")  # solid
+            plt.plot(x, x, linestyle='-', color='k', label="Ideal")  # solid
+            
             plt.tick_params(labelsize=12)
             plt.legend(loc=2, prop={'size': 15})
             plt.title('Mean of dimensions')
-            plt.xlabel('Real data' + name)
-            plt.ylabel('Synthetic data'+name)
+            plt.xlabel('Real data ' + name)
+            plt.ylabel('Synthetic data ' + name)
+            
+            plt.xlim(0, x_max + 0.1)  # Ensure x-axis starts at 0
+            plt.ylim(0, x_max + 0.1)  # Ensure y-axis starts at 0
+            
             plt.show()
-            if path_img != None:
-                save_plot_as_svg(plt,path_img,'dimensio_wise')
-           
+            
+            if path_img is not None:
+                save_plot_as_svg(plt, path_img, 'dimensio_wise')
+            
             plt.close()
-             
+                    
 
 #from evaluation.resemb.resemblance.metric_stat import *
 #from evaluation.functions import *
@@ -607,13 +752,6 @@ def get_cols_diag_proc_drug(train_ehr_dataset):
     columnas_test_ehr_dataset = [col for col in train_ehr_dataset.columns if any(palabra in col for palabra in keywords)]
     return columnas_test_ehr_dataset
 
-def obtain_readmission_realdata(total_fetura_valid):
-    # Ordenando el DataFrame por 'id_' y 'visit_rank'
-    total_fetura_valid = total_fetura_valid.sort_values(by=['id_patient', 'visit_rank'])
-    # Crear una nueva columna 'readmission'
-    # Comparamos si el siguiente 'visit_rank' es mayor que el actual para el mismo 'id_'
-    total_fetura_valid['readmission'] = total_fetura_valid.groupby('id_patient')['visit_rank'].shift(-1).notna().astype(int)  
-    return  total_fetura_valid
 
 
 
@@ -748,6 +886,31 @@ def hist_betw_a(original_data,synthetic_data,col,path_img=None):
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'plot_kernel_syn')
 
+def hist_counts_node(synthetic_data,col,node_num,tree_node,path_img=None):
+    #original_data = pd.read_csv('original_data.csv')  # Adjust the file path as necessary
+    #synthetic_data = pd.read_csv('synthetic_data.csv')  # Adjust the file path as necessary
+
+    # Assume 'days_between_visits' column exists, otherwise calculate it
+    # Plotting the histograms
+              
+    plt.figure(figsize=(12, 6))
+
+    # Histogram for original data
+    #plt.hist(original_data[col], bins=50, alpha=0.3, label='Original', color='blue')
+
+        # Histogram for synthetic data
+    plt.hist(synthetic_data[col], bins=50,alpha=0.3, label='Synthetic', color='red')
+
+    # Adding titles and labels
+    plt.title('Comparison of Days '+col+' Synthetic Data node ' +str(node_num) + 'and tree ' + str(tree_node))
+    plt.xlabel(col)
+    plt.ylabel('Frequency')
+    plt.legend()
+
+    # Show the plot
+    plt.show()
+    if path_img!= None:
+               save_plot_as_svg(plt,path_img,'plot_kernel_syn_node')
 
     
 def box_pltos(df,df_syn,col,path_img=None):
@@ -757,7 +920,7 @@ def box_pltos(df,df_syn,col,path_img=None):
     axes[1].boxplot(df_syn[col])
     
     axes[1].set_ylabel('Days')
-   
+    col = limpiar_lista(col)
     try:
         axes[0].set_title('Real ' +col )
         axes[1].set_title('Synthetic ' +col)
@@ -893,6 +1056,12 @@ def correlacion_total(synthetic_ehr_dataset):
                 
             return cols_with_high_corr, cols_with_all_nan   # Ahora 'cols_with_high_corr' contiene las columnas que tienen una correlación mayor a 0.97 con al menos una otra columna
         
+def dist_node_tree_cat(FORED,col):
+    cat = FORED["cat"]
+    aux2 = cat[cat["variable"]==col]
+    s = aux2.groupby(["tree"])["nodeid"].value_counts().value_counts()
+    return  print(s)
+        
 def heatmap_diff_corr(df1, df2,path_img):
             # Calculate correlation matrices
             corr_matrix1 = df1.corr()
@@ -913,10 +1082,10 @@ def heatmap_diff_corr(df1, df2,path_img):
             column_names = list(df1.columns)
 
             # Create the figure and axis
-            fig, ax = plt.subplots(figsize=(10, 8))
+            fig, ax = plt.subplots(figsize=(20, 16))
 
             # Create a heatmap for the matrix of differences
-            sns.heatmap(diff_corr_matrix, cmap='coolwarm', center=0, ax=ax)
+            sns.heatmap(abs_diff_corr_matrix, cmap='coolwarm', center=0, ax=ax)
 
             # Configure the axis labels
            
@@ -927,25 +1096,37 @@ def heatmap_diff_corr(df1, df2,path_img):
             #ax.set_yticklabels(y_labels, rotation=45)  # Set y-tick labels
             
             
-            fontdict = {'fontsize': 8, 'fontweight': 'bold', 'fontname': 'Arial'}
-
+            fontdict = {'fontsize': 6, 'fontweight': 'bold', 'fontname': 'Arial'}
+            num_columns = corr_matrix1.shape[1]
+            if num_columns <= 50:
+                ax.set_xticklabels([])
+                y_labels = [limpiar_lista(label.get_text()) for label in ax.get_yticklabels()]
+                #ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right')
+                ax.set_yticklabels(y_labels, rotation=0)
+                #ax.xaxis.set_tick_params(labelsize=10)
+                ax.yaxis.set_tick_params(labelsize=12)
+                ax.set_xticklabels([])
+            else:
             # Configure the axis labels
-            y_labels = [column_names[i] if top_diff_mask[i].any() else '' for i in range(len(column_names))]
-            ax.set_yticks(np.arange(len(column_names)))  # Set y-tick positions
-            ax.set_yticklabels(y_labels, rotation=45, fontdict=fontdict)  # Set y-tick labels with font properties
-            ax.set_xticklabels([])
-            ax.set_yticklabels([])
-            #ax.set_xticklabels(column_names, rotation=45, horizontalalignment='right')
+                y_labels = [column_names[i] if top_diff_mask[i].any() else '' for i in range(len(column_names))]
+                y_labels = [limpiar_lista(label) for label in y_labels]
+                ax.set_yticks(np.arange(len(column_names)))  # Set y-tick positions
+                ax.set_yticklabels(y_labels, rotation=0, fontdict=fontdict)  # Set y-tick labels with font properties
+                ax.set_xticklabels([])
+                
+                #ax.set_xticklabels(column_names, rotation=45, horizontalalignment='right')
         
 
             # Show and save the graph
             plt.title('Heatmap of Correlation Matrix Differences')
             plt.savefig('difference_heatmap.svg')
+            plt.tight_layout()
             plt.show()
+            
             if path_img!= None:
                save_plot_as_svg(plt,path_img,'difference_heatmap_correaltion')
             y_labels = [item for item in y_labels if item != '']
-
+            plt.close()
             return y_labels
     
 def plot_histograms_separate_axes22(real_data, synthetic_data, title, xlabel, ylabel,label_s,path_img=None):
@@ -1179,7 +1360,7 @@ def corr_plot(total_features_train,name ,path_img=None):
     corr_matrix = total_features_train.corr()
 
     # Crear una figura y un eje para el gráfico
-    fig, ax = plt.subplots(figsize=(10, 8))  # Ajusta el tamaño según tus necesidades
+    fig, ax = plt.subplots(figsize=(14, 12))  # Ajusta el tamaño según tus necesidades
 
     # Definir un mapa de colores personalizado
     # Utilizando colores divergentes: azul para valores cercanos a -1 y rojo para valores cercanos a 1
@@ -1190,21 +1371,23 @@ def corr_plot(total_features_train,name ,path_img=None):
 
     # Configurando las etiquetas de los ejes con condiciones para visualización
     num_columns = corr_matrix.shape[1]
-    if num_columns <= 30:
+    if num_columns <= 50:
         ax.set_xticklabels([])
+        y_labels = [limpiar_lista(label.get_text()) for label in ax.get_yticklabels()]
         #ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right')
-        ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
+        ax.set_yticklabels(y_labels, rotation=0)
         #ax.xaxis.set_tick_params(labelsize=10)
-        ax.yaxis.set_tick_params(labelsize=10)
+        ax.yaxis.set_tick_params(labelsize=12)
     else:
         ax.set_xticklabels([])
         ax.set_yticklabels([])
 
     # Mostrar el gráfico
+    plt.tight_layout()
+    plt.show()
     if path_img!= None:
         save_plot_as_svg(plt,path_img,name+'_kernelplot')       
-    
-    plt.show()
+  
         
     return corr_matrix
 
@@ -1875,6 +2058,104 @@ def compare_descriptive_statistics_fun(test_ehr_dataset, syn_ehr):
 
     return stats_differences
 import pandas as pd
+
+def extract_relevant_part(subset):
+    parts = subset['Variable'].iloc[0].split('_')
+    if len(parts) > 2:
+        return subset['Variable'].apply(lambda x: '_'.join(x.split('_')[:2])) # Join parts after the second underscore
+    else:
+        return subset['Variable'].apply(lambda x: '_'.join(x.split('_')[:1]))  # Part after the first underscore
+
+def limpiar_lista(var):
+    var_new = ' '.join(var.split('_'))
+    
+    return var_new.replace('Otra', 'Other')
+    
+def plot_pie_proportions(variables, filtered_df, type_data):
+    # Combined plot
+    fig, axes = plt.subplots(len(filtered_df['Variable'].unique()), 1, figsize=(10, 15))
+    #fig.patch.set_facecolor('white')
+    
+    for i, variable in enumerate(filtered_df['Variable'].unique()):
+        subset = filtered_df[filtered_df['Variable'] == variable]
+        #col = subset['Variable'].apply(lambda x: '_'.join(x.split('_')[:2])).iloc[0]
+        col =extract_relevant_part(subset).iloc[0]
+        
+        if col=='visit':   
+            col =  'visit_rank'
+    
+
+        if type_data =='Synthetic data': 
+            counts = subset['Count synthetic'+col].values
+            labels = subset['Category '].values
+            proportions = subset['Proportion synthetic'+col].values
+            colors = sns.color_palette('Blues', len(labels))
+        else: 
+            counts = subset['Count train '+col].values
+            labels = subset['Category '].values
+            proportions = subset['Proportion train '+col].values
+            colors = sns.color_palette('Blues', len(labels))
+        if col == 'visit_rank':
+            counts =counts[:4]
+            labels = ["Visit " +str(i) for i in labels[:4] ]
+            pie = axes.pie(counts, labels=labels, autopct='%1.0f%%', startangle=90, colors=colors, textprops={'fontsize': 12})
+            # Agrega el título que desees
+            name_limpit = subset['Variable'].iloc[0]
+            limipiar_nom = limpiar_lista(name_limpit)
+            plt.title("Number of visits" + " " +type_data)
+            plt.axis('off')  # Desactiva los ejes
+            plt.legend('')  # Desactiva las leyendas
+            plt.show()
+            save_plot_as_svg(plt,path_img,'pie_chart_proportion')
+        else:       
+        #pie = axes.pie(counts, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors, textprops={'fontsize': 12})
+            pie = axes[i].pie(counts, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors, textprops={'fontsize': 12})
+            axes[i].legend(pie[0], labels, loc='center left', fontsize=12, bbox_to_anchor=(1, 0.5))
+            name_limpit = subset['Variable'].iloc[0]
+            limipiar_nom = limpiar_lista(name_limpit)
+            axes[i].set_title(limipiar_nom + " " +type_data, fontsize=15)
+            axes[i].set_aspect('equal')  # Ensure pie is circular
+            axes[i].set_xlabel('')  # Remove x-axis label
+            axes[i].set_ylabel('')  # Remove y-axis label
+
+        plt.tight_layout()
+        
+        plt.show()
+        
+    save_plot_as_svg(plt,path_img,'pie_chart_proportion')
+    plt.close()
+def plot_vistis(    df ):    
+    
+    df['Percentage Difference'] = (df['Proportion syntheticvisit_rank'] - df['Proportion train visit_rank']) / df['Proportion train visit_rank'] * 100
+
+    # Plot the data
+    fig, ax1 = plt.subplots(figsize=(14, 8))
+
+    # Bar plot for proportions
+    bar1 = sns.barplot(x='Category ', y='Proportion train visit_rank', data=df, color='red', alpha=0.8, label='Train Proportion', ax=ax1, dodge=False)
+    bar2 = sns.barplot(x='Category ', y='Proportion syntheticvisit_rank', data=df, color='blue', alpha=0.4, label='Synthetic Proportion', ax=ax1, dodge=False)
+
+    # Add proportions on top of each bar
+    for p in bar1.patches:
+        ax1.text(p.get_x() + p.get_width() / 2., p.get_height(), '{0:.2f}'.format(p.get_height()), 
+            fontsize=12, color='black', ha='center', va='bottom')
+
+    for p in bar2.patches:
+        ax1.text(p.get_x() + p.get_width() / 2., p.get_height(), '{0:.2f}'.format(p.get_height()), 
+            fontsize=12, color='black', ha='center', va='bottom')
+
+    ax1.set_xlabel('Visit Number ')
+    ax1.set_ylabel('Proportion')
+    ax1.set_title('Proportion Comparison of Train and Synthetic Data by Visit Number')
+    ax1.legend(loc='upper left')
+
+    
+    # Adding legends and titles
+    fig.tight_layout()
+    fig.legend(loc='upper right', bbox_to_anchor=(0.5, -0.05))
+
+    plt.show()    
+    save_plot_as_svg(fig, path_img, "pie_char_vist")
 def get_proportions(df,type_st):
 
     # Suponiendo que df es tu DataFrame y que contiene columnas categóricas
@@ -2045,6 +2326,8 @@ def plot_kernel_syn(real_df, synthetic_df, col, name ,path_img=None):
     ax.plot(x_values, kde_synthetic(x_values), color=dark_green, label='Synthetic Data KDE')
 
     # Set the labels and title for the plot
+    
+    col = limpiar_lista(col)
     ax.set_xlabel(col)
     ax.set_ylabel('Density')
     ax.set_title(f'Kernel Density Plot - {col}')
@@ -2393,4 +2676,187 @@ def calculate_outlier_ratios_tout2(real_drugs_per_patient,i):
     outliers = sorted_df[(sorted_df[i+'_count'] < (Q1 - 1.5 * IQR)) | (sorted_df[i+'_count'] > (Q3 + 1.5 * IQR))]
     return outliers
 
+def test_distributions_nodes(long,ruta_save_dist):
+    '''params
+    #input function that  test the distributions
+    long: dataframe data de nodos en arboles de variables continuas
+    ruta_save_dist: path where result are stored
+    '''
+    test_list = []
+    cont_var_above_threshold = 0
+    params = pd.DataFrame()
+    for (t, n, var), group in long.groupby(['tree', 'nodeid', 'variable']):
+        if len(group)<threshold:
+            continue
+        else:
+            cont_var_above_threshold += 1
+            rest = fit_distributions(group['value'], n_components=3)
+            
+            test_list.append([t, n, var, rest])
+            res = pd.DataFrame(test_list, columns=['tree', 'nodeid', 'variable', 'test_results'])
+            params = pd.concat([params, res])
+            params["cont_var_above_threshold"] =cont_var_above_threshold       
+        save_pickle(params,ruta_save_dist)
+    return params
 
+
+def get_proportion_significant_kst(long_):
+    list_par = list(long_["test_results"].iloc[0].keys())
+    col_ks_p_value = [i for i in list_par if "p_value" in i]        
+
+
+    uniform_l = []
+    triang_l = []
+    truncnorm_l =[]
+    expon_l = []
+    gmm_l = []
+
+    for j in range(len(long_)):
+        x =long_["test_results"].iloc[j]
+        for i in col_ks_p_value:
+            p_value =  int(x[i][0]>0.05)
+            print(p_value)
+            if i  == 'uniform_ks_p_value':
+                uniform_l.append(p_value)
+            elif i == 'triang_ks_p_value':
+                triang_l.append(p_value)
+            elif i == 'truncnorm_ks_p_value':
+                truncnorm_l.append(p_value)
+            elif i == 'expon_ks_p_value':
+                expon_l.append(p_value)
+            elif i == 'gmm_ks_p_value':
+                gmm_l.append(p_value)
+        
+    long_["uniform_ks_stat"]=  uniform_l
+    long_["triang_ks_stat"]=  triang_l
+    long_["truncnorm_ks_stat"]=  truncnorm_l
+    long_["expon_ks_stat"]=  expon_l
+    long_["gmm_ks_stat"]=  gmm_l
+    mena_kst = long_.groupby([ 'variable'])[["uniform_ks_stat","triang_ks_stat","truncnorm_ks_stat","expon_ks_stat","gmm_ks_stat"]].mean()
+
+    return long_,uniform_l,triang_l,truncnorm_l,expon_l,gmm_l
+
+def prom(uniform_l):
+    print(uniform_l.shape)
+    return sum(uniform_l[-2149701:])/len(uniform_l[-2149701:])        
+
+
+def res_promedio_ks_stat(uniform_l,triang_l,truncnorm_l,expon_l,gmm_l):
+    list_dist_resp = [uniform_l,triang_l,truncnorm_l,expon_l,gmm_l]
+    res = [prom(i) for i in list_dist_resp]    
+    print(res)
+    return res
+
+def hist(df,col,title,x_label,lsup=None):
+    plt.figure(figsize=(12, 6))
+    vmin = df[col].min()
+    vmax = df[col].max()
+    if lsup==None:
+        plt.hist(df[col], bins=100,alpha=0.3, label='Patient Counts', color='red')
+    else:    
+        plt.hist(df[col], bins=100,range=(vmin,lsup),alpha=0.3, label='Patient Counts', color='red')
+    plt.title(title)
+    plt.xlabel(x_label)
+    plt.ylabel('Frequency')
+    plt.legend()
+    plt.show()
+
+
+def create_plot_count_matrix_for_specific_subject(train_ehr_dataset,subjects,type_data  = 'Train data',path_img=None):
+
+
+# Seleccionamos las columnas correspondientes
+    diagnosis_columns = train_ehr_dataset.filter(like="diagnosis").columns
+    procedure_columns = train_ehr_dataset.filter(like="procedures").columns
+    medication_columns = train_ehr_dataset.filter(like="drugs").columns
+
+    # Seleccionamos tres sujetos específicos por sus índices
+    # Cambia estos índices según los sujetos que quieras analizar
+
+
+    fig, axes = plt.subplots(nrows=len(subjects), ncols=3, figsize=(20, 15))
+    
+    diagnosis_palette = sns.color_palette("Blues", n_colors=len(subjects))
+    procedure_palette = sns.color_palette("Greens", n_colors=len(subjects))
+    medication_palette = sns.color_palette("Reds", n_colors=len(subjects))
+
+
+
+    for i, subject in enumerate(subjects):
+        df = train_ehr_dataset[train_ehr_dataset["id_patient"] == subject].sort_values("visit_rank")
+        
+        # Diagnósticos
+        df['diagnosis_sum'] = df[diagnosis_columns].sum(axis=1)
+        sns.barplot(x="visit_rank", y="diagnosis_sum", data=df, ax=axes[i, 0], color=diagnosis_palette[i])
+        axes[i, 0].set_title(f'Subject {subject} - Diagnosis {type_data}', fontsize=10)
+        axes[i, 0].set_xlabel('Visit Number')
+        axes[i, 0].set_ylabel('Number of ICD-9 Codes')
+        
+        # Procedimientos
+        df['procedure_sum'] = df[procedure_columns].sum(axis=1)
+        sns.barplot(x="visit_rank", y="procedure_sum", data=df, ax=axes[i, 1],color=procedure_palette[i])
+        axes[i, 1].set_title(f'Subject {subject} - Procedures {type_data}'  , fontsize=10)
+        axes[i, 1].set_xlabel('Visit Number')
+        axes[i, 1].set_ylabel('Number of ICD-9 Codes')
+        
+        # Medicamentos
+        df['medication_sum'] = df[medication_columns].sum(axis=1)
+        sns.barplot(x="visit_rank", y="medication_sum", data=df, ax=axes[i, 2],color=medication_palette[i])
+        axes[i, 2].set_title(f'Subject {subject} - Drugs {type_data}', fontsize=10)
+        axes[i, 2].set_xlabel('Visit Number')
+        axes[i, 2].set_ylabel('Number of ICD-9 Codes')
+
+    plt.tight_layout()
+    plt.show()
+
+    if path_img is not None:
+        save_plot_as_svg(plt, path_img, "count_matrix_progression")
+
+    plt.tight_layout()
+    plt.show()
+
+    if path_img is not None:
+        save_plot_as_svg(plt, path_img, "count_matrix_progression")
+        
+         
+def plot_visit_trejetory(   train_ehr_dataset,diagnosis_columns,procedure_columns,medication_columns,num_visit_count = 10, patient_visit = 3,path_img = None, type_data = "Train"):
+            visit_counts = train_ehr_dataset['id_patient'].value_counts()
+            patients_with_10_visits = visit_counts[visit_counts == num_visit_count].index
+            # Seleccionar 3 pacientes al azar
+            selected_patients = np.random.choice(patients_with_10_visits, patient_visit, replace=False)
+            create_plot_count_matrix_for_specific_subject(train_ehr_dataset,selected_patients,type_data,path_img=path_img)
+            #plot trajectories
+            for patient_id in selected_patients:
+                plot_patient_trajectory(train_ehr_dataset, patient_id=patient_id, diagnosis_columns=diagnosis_columns, visit_column='visit_rank',name= 'ICD-9 Codes',type_anal='Diagnoses',type_data="Train")        
+                plot_patient_trajectory(train_ehr_dataset, patient_id=patient_id, diagnosis_columns=procedure_columns, visit_column='visit_rank',name= 'ICD-9 Codes',type_anal='Procedure',type_data="Train")        
+                plot_patient_trajectory(train_ehr_dataset, patient_id=patient_id, diagnosis_columns=medication_columns, visit_column='visit_rank',name= 'Drugs',type_anal='Drugs',path_img = path_img,type_data="Train")        
+
+
+def plot_patient_trajectory(df, patient_id, diagnosis_columns, visit_column='visit_rank', id_column='id_patient',name= 'ICD-9 Codes',type_anal='Diagnoses',path_img = None,type_data="Train"):
+    # Filter data for the specific patient
+    patient_data = df[df[id_column] == patient_id].sort_values(visit_column)    
+    # Select only the diagnosis columns and the visit column
+    plot_data = patient_data[diagnosis_columns + [visit_column]]
+    # Set the visit column as the index
+    plot_data = plot_data.set_index(visit_column)
+    # Get the top 10 most frequent diagnoses
+    diagnosis_sums = plot_data.sum().nlargest(10)
+    top_diagnoses = diagnosis_sums.index.tolist()
+    # Select only the top 10 diagnoses
+    plot_data = plot_data[top_diagnoses]
+    # Create the plot
+    plt.figure(figsize=(15, 8))
+    sns.heatmap(plot_data, cmap='YlOrRd', annot=True, fmt='g', cbar_kws={'label': 'Count'})
+    plt.title(f'Top 10  Trajectory for Patient {patient_id} {type_data}')
+    plt.xlabel(name)
+    plt.ylabel('Visit Rank')
+    # Rotate x-axis labels for better readability
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.show()
+    if path_img is not None:
+        save_plot_as_svg(plt, path_img, "trajectories_patient_")
+
+
+
+        

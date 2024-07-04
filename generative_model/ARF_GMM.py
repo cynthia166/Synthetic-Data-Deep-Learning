@@ -14,7 +14,7 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 #from sklearn.ensemble._forest import _generate_unsampled_indices
 import scipy
-from utils import utils
+#from utils import utils
 
 class arfgmm:
   """Implements Adversarial Random Forests (ARF) in python
@@ -186,7 +186,7 @@ class arfgmm:
         # Prune again if child was pruned
         to_prune = np.where(np.in1d(left, to_prune))[0]
 
-  def forde(self, dist="truncnorm", oob=False, alpha=0):
+  def forde(self, dist="gmm", oob=False, alpha=0):
         """This part is for density estimation (FORDE)
 
         :param dist: Distribution to use for density estimation of continuous features.
@@ -327,7 +327,8 @@ class arfgmm:
             gmm.means_ = variable["mean"].values.reshape(-1, 1)
             gmm.covariances_ = variable["sd"].values.reshape(-1, 1, 1) ** 2
             gmm.precisions_cholesky_ = np.linalg.cholesky(np.linalg.inv(gmm.covariances_))
-            
+            if sum(gmm.weights_)>1:
+               gmm.weights_ = gmm.weights_/gmm.weights_.sum()
             data_new.isetitem(j, gmm.sample(n_samples=n)[0].flatten())
 
     # Use original column names

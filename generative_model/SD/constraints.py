@@ -9,13 +9,21 @@ import logging
 print(os.getcwd())
 sys.path.append('../../')
 os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
-
+import gzip
+import pickle
 import sys
 sys.path.append('/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/')
 
-from evaluation.resemb.resemblance.utilsstats import *
+#from evaluation.resemb.resemblance.utilsstats import *
 #from evaluation.resemb.resemblance.utilsstats import obtain_dataset_admission_visit_rank, obtain_readmission_ehrs
 
+def obtain_readmission_realdata(total_fetura_valid):
+    # Ordenando el DataFrame por 'id_' y 'visit_rank'
+    total_fetura_valid = total_fetura_valid.sort_values(by=['id_patient', 'visit_rank'])
+    # Crear una nueva columna 'readmission'
+    # Comparamos si el siguiente 'visit_rank' es mayor que el actual para el mismo 'id_'
+    total_fetura_valid['readmission'] = total_fetura_valid.groupby('id_patient')['visit_rank'].shift(-1).notna().astype(int)  
+    return  total_fetura_valid
 
 def load_data(file_path):
     with gzip.open(file_path, 'rb') as f:
@@ -55,7 +63,8 @@ class EHRDataConstraints:
                  cols_continuous 
                  ,eliminate_negatives_var = False,
                  type_archivo = 'ARFpkl',
-                 invert_normalize = False
+                 invert_normalize = False,
+                 subject_continous = False
                  
                  ):
         self.train_ehr_dataset = train_ehr_dataset
@@ -67,6 +76,7 @@ class EHRDataConstraints:
         self.columns_to_drop_syn = columns_to_drop_syn
         self.inver_normalize = invert_normalize
         self.cols_continuous = cols_continuous
+        self.subject_continous  = subject_continous
     def print_shapes(self):
         """
         Prints the shapes of the test, train, and synthetic EHR datasets.
@@ -90,6 +100,9 @@ class EHRDataConstraints:
         """
         if self.inver_normalize:
            self.inver_normalization()
+        if self.subject_continous:
+            self.subject_continous_fun()     
+               
         self.change_subject_id()
         self.get_admitted_time_datetime()
         self.obtain_readmission_ehrs()
@@ -104,9 +117,16 @@ class EHRDataConstraints:
         self.remove_duplicates()
         self.handle_hospital_expire_flag()
         self.eliminate_columns()
-        self.have_same_patients_similar_num_visits()
+        self.add_0_between_days_if_visit1()
+        #self.have_same_patients_similar_num_visits()
         
         return self.synthetic_ehr_dataset, self.train_ehr_dataset, self.test_ehr_dataset
+    
+    def subject_continous_fun(self):
+        
+        self.synthetic_ehr_dataset["SUBJECT_ID"] = self.synthetic_ehr_dataset["SUBJECT_ID"].apply(lambda x: abs(int(round(x))))
+        
+        
     def inver_normalization(self):
         for column in self.cols_continuous:
             data = self.synthetic_ehr_dataset[column].values
@@ -283,61 +303,67 @@ class EHRDataConstraints:
 
         self.synthetic_ehr_dataset.loc[(self.synthetic_ehr_dataset['HOSPITAL_EXPIRE_FLAG'] == 1) & (self.synthetic_ehr_dataset['ADMITTIME'] != last_admission), 'HOSPITAL_EXPIRE_FLAG'] = 0
         self.synthetic_ehr_dataset.loc[(self.synthetic_ehr_dataset['HOSPITAL_EXPIRE_FLAG'] == 1) & (self.synthetic_ehr_dataset['days_between_visits'] != max_days_between_visits), 'HOSPITAL_EXPIRE_FLAG'] = 0
-    def have_same_patients_similar_num_visits(self):
-        train_visits = self.train_ehr_dataset.groupby('id_patient').size().reset_index(name='num_visitas_train')
-        synthetico_visits = self.synthetic_ehr_dataset.groupby('id_patient').size().reset_index(name='num_visitas_synthetico')
+        
+    def add_0_between_days_if_visit1(self):
+        
+        self.synthetic_ehr_dataset.loc[(self.synthetic_ehr_dataset['visit_rank'] == 1) & (self.synthetic_ehr_dataset['days_between_visits'] > 0.0), 'days_between_visits'] = 0
+        
+            
+    # def have_same_patients_similar_num_visits(self):
+    #     train_visits = self.train_ehr_dataset.groupby('id_patient').size().reset_index(name='num_visitas_train')
+    #     synthetico_visits = self.synthetic_ehr_dataset.groupby('id_patient').size().reset_index(name='num_visitas_synthetico')
 
-        # Calcular la distribución de la frecuencia relativa de las visitas en el dataset real
-        real_distribution = train_visits['num_visitas_train'].value_counts(normalize=True).sort_index()
+    #     # Calcular la distribución de la frecuencia relativa de las visitas en el dataset real
+    #     real_distribution = train_visits['num_visitas_train'].value_counts(normalize=True).sort_index()
 
-        # Inicializar lista de pacientes seleccionados y dataframe seleccionado
-        selected_ids = []
-        selected_synthetic = pd.DataFrame()
+    #     # Inicializar lista de pacientes seleccionados y dataframe seleccionado
+    #     selected_ids = []
+    #     selected_synthetic = pd.DataFrame()
 
-        np.random.seed(42)
+    #     np.random.seed(42)
 
-        # Muestrear pacientes del dataset sintético para que coincidan con la distribución del dataset real
-        for num_visitas, proportion in real_distribution.items():
-            # Número de pacientes necesarios con este número de visitas
-            num_required_patients = int(np.round(proportion * len(train_visits)))
+    #     # Muestrear pacientes del dataset sintético para que coincidan con la distribución del dataset real
+    #     for num_visitas, proportion in real_distribution.items():
+    #         # Número de pacientes necesarios con este número de visitas
+    #         num_required_patients = int(np.round(proportion * len(train_visits)))
 
-            # Filtrar pacientes en el dataset sintético con el mismo número de visitas
-            candidate_ids = synthetico_visits[synthetico_visits['num_visitas_synthetico'] == num_visitas]['id_patient'].values
+    #         # Filtrar pacientes en el dataset sintético con el mismo número de visitas
+    #         candidate_ids = synthetico_visits[synthetico_visits['num_visitas_synthetico'] == num_visitas]['id_patient'].values
 
-            # Si hay menos candidatos que los necesarios, ajustar el número necesario
-            num_required_patients = min(num_required_patients, len(candidate_ids))
+    #         # Si hay menos candidatos que los necesarios, ajustar el número necesario
+    #         num_required_patients = min(num_required_patients, len(candidate_ids))
 
-            # Seleccionar aleatoriamente los pacientes necesarios
-            selected_candidate_ids = np.random.choice(candidate_ids, num_required_patients, replace=False)
-            selected_ids.extend(selected_candidate_ids)
+    #         # Seleccionar aleatoriamente los pacientes necesarios
+    #         selected_candidate_ids = np.random.choice(candidate_ids, num_required_patients, replace=False)
+    #         selected_ids.extend(selected_candidate_ids)
 
-        # Filtrar el dataframe sintético con los pacientes seleccionados
-        selected_synthetic = self.synthetic_ehr_dataset[self.synthetic_ehr_dataset['id_patient'].isin(selected_ids)]
+    #     # Filtrar el dataframe sintético con los pacientes seleccionados
+    #     selected_synthetic = self.synthetic_ehr_dataset[self.synthetic_ehr_dataset['id_patient'].isin(selected_ids)]
 
-        # Asegurar que el número de pacientes en ambos datasets sea el mismo
-        num_real_patients = self.train_ehr_dataset['id_patient'].nunique()
-        if len(selected_ids) > num_real_patients:
-            selected_ids = np.random.choice(selected_ids, num_real_patients, replace=False)
-            selected_synthetic = self.synthetic_ehr_dataset[self.synthetic_ehr_dataset['id_patient'].isin(selected_ids)]
-        num = selected_synthetic['id_patient'].nunique()
-        all_patients  = self.train_ehr_dataset['id_patient'].unique()
-        sampled_patient_ids = np.random.choice(all_patients, size=num, replace=False)
-        # Selecciona los datos de los pacientes muestreados
-        self.train_ehr_dataset = self.train_ehr_dataset[self.train_ehr_dataset['id_patient'].isin(sampled_patient_ids)]
+    #     # Asegurar que el número de pacientes en ambos datasets sea el mismo
+    #     num_real_patients = self.train_ehr_dataset['id_patient'].nunique()
+    #     if len(selected_ids) > num_real_patients:
+    #         selected_ids = np.random.choice(selected_ids, num_real_patients, replace=False)
+    #         selected_synthetic = self.synthetic_ehr_dataset[self.synthetic_ehr_dataset['id_patient'].isin(selected_ids)]
+    #     num = selected_synthetic['id_patient'].nunique()
+    #     all_patients  = self.train_ehr_dataset['id_patient'].unique()
+    #     sampled_patient_ids = np.random.choice(all_patients, size=num, replace=False)
+    #     # Selecciona los datos de los pacientes muestreados
+    #     self.train_ehr_dataset = self.train_ehr_dataset[self.train_ehr_dataset['id_patient'].isin(sampled_patient_ids)]
 
-        # Subsamplear el dataframe sintético para que tenga el mismo número de filas que el dataframe real
-        # num_real_rows = self.train_ehr_dataset.shape[0]
-        # if selected_synthetic.shape[0] > num_real_rows:
-        #     selected_synthetic = selected_synthetic.sample(n=num_real_rows, random_state=42)
+    #     # Subsamplear el dataframe sintético para que tenga el mismo número de filas que el dataframe real
+    #     # num_real_rows = self.train_ehr_dataset.shape[0]
+    #     # if selected_synthetic.shape[0] > num_real_rows:
+    #     #     selected_synthetic = selected_synthetic.sample(n=num_real_rows, random_state=42)
 
-        # Actualizar los datasets en la clase
-        self.synthetic_ehr_dataset = selected_synthetic
+    #     # Actualizar los datasets en la clase
+    #     self.synthetic_ehr_dataset = selected_synthetic
 
-        # Mostrar los resultados
-        print("Synthetic shape", self.synthetic_ehr_dataset.shape)
-        print("Real shape", self.train_ehr_dataset.shape)
-        print("Number of unique patients in Synthetic", self.synthetic_ehr_dataset['id_patient'].nunique())
-        print("Number of unique patients in Real", self.train_ehr_dataset['id_patient'].nunique())
+    #     # Mostrar los resultados
+    #     print("Synthetic shape", self.synthetic_ehr_dataset.shape)
+    #     print("Real shape", self.train_ehr_dataset.shape)
+    #     print("Number of unique patients in Synthetic", self.synthetic_ehr_dataset['id_patient'].nunique())
+    #     print("Number of unique patients in Real", self.train_ehr_dataset['id_patient'].nunique())
 
     def eliminate_columns(self):
         self.synthetic_ehr_dataset.drop(columns=self.columns_to_drop_syn, inplace=True)
