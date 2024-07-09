@@ -1,9 +1,16 @@
-import pandas as pd
-from utilsstats import load_data
-# save ehr en la primera corrida
 
+import pandas as pd
+import pickle 
+import gzip
+# The comment `# save ehr en la primera corrida` is indicating that the variable `save_ehr` is used to
+# determine whether to save Electronic Health Record (EHR) data during the first run of the program.
+# If `save_ehr` is set to `True`, then the EHR data will be saved. Otherwise, if it is set to `False`,
+# the EHR data will not be saved during the first run. This variable controls the behavior related to
+# saving EHR data based on its value.
+# save ehr en la primera corrida
+# TODO Modify*
 save_ehr = True
-#si se tiene dopplegange con attraibutes y features
+#si se tiene doppleganger con attributes y features
 
 attributes = False
 if save_ehr:
@@ -20,47 +27,77 @@ else:
     save_constrains = False
 
     
-
+# TODO Modify*
 # si los datos son normalizados continuos
-inver_normalize = False
+invert_normalize = False
 # si subject continuo was modeled continous; subject_continous
-subject_continous = True
+subject_continous = False
+
+create_visit_rank_col = True
+post_processing = True
+if post_processing:
+    propagate_fistvisit_categoricaldata = True
+    #considerin th date as principa pivot
+    create_days_between_visits_by_date_var = False
+    adjust_age_and_dates_get = True
+    get_remove_duplicates = True
+    get_handle_hospital_expire_flag = True
+    get_0_first_visit = True
+    eliminate_negatives_var = True
+    get_sample_synthetic_similar_real = False
+    
+else:    
+    propagate_fistvisit_categoricaldata = False
+    adjust_age_and_dates_get = False
+    get_remove_duplicates = False
+    get_handle_hospital_expire_flag = False
+    get_0_first_visit = False
+    get_sample_synthetic_similar_real = False
+    #eliminate_negatives_var = False
 # this is only for Dopplganger
-valid_perc = 0.3 # 30 por ciento de los clientes
-results_df = pd.DataFrame()
-#trajwctories analys
+valid_perc = 0.7 # 30 por ciento de los clientes
 num_patient=3
 num_visit_count = 5
-    
-#csv_files = ['generated_synthcity_tabular/adsgantotal_0.2_epochs.pkl','generated_synthcity_tabular/pategantotal_0.2_epochs.pkl']
-#name of synthetic data
-file = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF_local/synthetic_data_continous_id_0.4.pkl"
-#file = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF_local/synthetic_data_continous_id_0.4.pkl"
-#file = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/ARF_norm/synthetic_data_generative_model_arf_per_norm0.7.pkl"
-#name  of constraints file
-name_file_ehr = 'ARF_local'
-make_read_constraints_name = 'synthetic_ehr_dataset_contrainst_ARF_'+name_file_ehr+'.pkl'
-#ame of file to be save ehr
- # distribution limits initially modified before the desition tree
+
+file_data =     "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"
+name_file_ehr = "ARF_fixedv"
+#folder = "ARF_fixed_v_sin_subject_id/"
+folder = "ARF_fixed_postpros/"
+path_to_folder_syn = file_data+folder
+file =path_to_folder_syn+ "synthetic_data_generative_model_arf_per_fixed_v0.7.pkl"
 #type of model
 type_archivo = 'ARFpkl'
+sample_patients_path =path_to_folder_syn + "sample_patients_fixed_v"
+
+
+results_df = pd.DataFrame()
+#trajectories analys
+
+#name of synthetic data
+
+#constraints name
+
+features_path = "data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl"
+make_read_constraints_name = 'synthetic_ehr_dataset_contrainst_ARF_'+name_file_ehr+'.pkl'
+path_to_directory = 'generated_synthcity_tabular/*'  # Asegúrate de incluir el asterisco al final
+#name of file to be save ehr
+
+# Not modif
 #features path/ original data path
-folder = "ARF_local"
-file_path_dataset =     "generated_synthcity_tabular/ARF/"+folder+"/"
-file_path_dataset =     "generated_synthcity_tabular/"+folder+"/"
+file_path_dataset =   path_to_folder_syn
 #path of the patients
-sample_patients_path ="generated_synthcity_tabular/"+folder+"/sample_patients"
-
 #image of path
-path_img = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/"+folder+"/img/"
-
-
+path_img = path_to_folder_syn+"img/"
 ## columns
+
 #cols to drop        
 columns_to_drop = ['LOSRD_sum', 'L_1s_last_p1','HADM_ID']   
-columns_to_drop_syn = ['days_between_visits_cumsum']
+if adjust_age_and_dates_get:
+   columns_to_drop_syn = ['days from last visit_cumsum']
+else:
+    columns_to_drop_syn = []   
 #cols continous
-cols_continuous = [ 'Age_max', 'LOSRD_avg','days_between_visits','id_patient']
+cols_continuous = [ 'Age_max', 'LOSRD_avg','days from last visit','id_patient']
 #categorical cols
 categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
                         'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
@@ -72,9 +109,9 @@ dependant_fist_visit = ['ADMITTIME',  'RELIGION',
 keywords = ['diagnosis', 'procedures', 'drugs']
 #path to synthetic data
 #paths
-features_path = "data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl"
-
-path_to_directory = 'generated_synthcity_tabular/*'  # Asegúrate de incluir el asterisco al final
+def load_data(file_path):
+    with gzip.open(file_path, 'rb') as f:
+        return pickle.load(f)
 
 train_ehr_dataset = load_data(features_path)
 diagnosis_columns = list(train_ehr_dataset.filter(like="diagnosis").columns)  # Ajusta los índices según corresponda

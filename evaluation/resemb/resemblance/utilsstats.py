@@ -221,10 +221,48 @@ def load_create_ehr(read_ehr,save_ehr,file_path_dataset,sample_patients_path,fil
             save_pickle(features, file_path_dataset + 'features'+name_file_ehr+'.pkl')
     return test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,features    
 
-def make_read_constraints(make_contrains,save_constrains,train_ehr_dataset,test_ehr_dataset,synthetic_ehr_dataset,columns_to_drop,columns_to_drop_syn,type_archivo,invert_normalize,cols_continuous,subject_continous,
-                          file_path_dataset = None,make_read_constraints_name='synthetic_ehr_dataset_contrainst.pkl'):
+def make_read_constraints(make_contrains,
+                          save_constrains,
+                          train_ehr_dataset,
+                          test_ehr_dataset,
+                          synthetic_ehr_dataset,
+                          columns_to_drop,
+                          columns_to_drop_syn,
+                          type_archivo,
+                          invert_normalize,
+                          cols_continuous,
+                           create_visit_rank_col,
+                            propagate_fistvisit_categoricaldata,
+                            adjust_age_and_dates_get,
+                            get_remove_duplicates,
+                            get_handle_hospital_expire_flag,
+                            get_0_first_visit,
+                            get_sample_synthetic_similar_real,
+                            subject_continous,
+                            create_days_between_visits_by_date_var,
+                            eliminate_negatives_var,
+                            file_path_dataset = None,
+                            make_read_constraints_name='synthetic_ehr_dataset_contrainst.pkl'):
     if make_contrains:
-        c = EHRDataConstraints(train_ehr_dataset, test_ehr_dataset, synthetic_ehr_dataset,columns_to_drop,columns_to_drop_syn,cols_continuous,True,type_archivo,invert_normalize,subject_continous)
+        c = EHRDataConstraints(train_ehr_dataset, 
+                 test_ehr_dataset,
+                 synthetic_ehr_dataset,
+                 columns_to_drop,
+                 columns_to_drop_syn,
+                 cols_continuous ,
+                 create_visit_rank_col,
+                propagate_fistvisit_categoricaldata,
+                adjust_age_and_dates_get,
+                get_remove_duplicates,
+                get_handle_hospital_expire_flag,
+                get_0_first_visit,
+                get_sample_synthetic_similar_real,
+                create_days_between_visits_by_date_var,
+                 eliminate_negatives_var=True ,
+                 type_archivo = 'ARFpkl',
+                 invert_normalize = False,
+                 subject_continous = False
+           )
         c.print_shapes()
         #cols_accounts = c.handle_categorical_data()
         synthetic_ehr_dataset, train_ehr_dataset, test_ehr_dataset = c.initiate_processing()
@@ -263,6 +301,9 @@ def equalize_length_dataframe(df1, df2):
     df2 = df2.iloc[:min_len]
 
     return df1, df2    
+
+
+
 def cols_filter_codes_drugs(train_ehr_dataset):
     cols_diagnosis = train_ehr_dataset.filter(like= 'diagnosis', axis=1).columns
     cols_procedures = train_ehr_dataset.filter(like= 'procedures', axis=1).columns
@@ -524,10 +565,11 @@ def fit_distributions(data, n_components=3):
                 
                 params = kde
             elif name == 'gmm':
-                with threadpool_limits(limits=1, user_api='blas'):
-                        gmm = distribution(n_components=n_components, random_state=0)
-                        gmm.fit(feature_data)
-                        params = gmm
+                if len(feature_data) > 2:
+                    with threadpool_limits(limits=1, user_api='blas'):
+                            gmm = distribution(n_components=n_components, random_state=0)
+                            gmm.fit(feature_data)
+                            params = gmm
             elif name == 'beta':
                 # Ensure that data is within (0, 1) interval
                 min_val = feature_data.min()
@@ -562,11 +604,12 @@ def fit_distributions(data, n_components=3):
                 cdf_values = np.array([cdf(xi) for xi in feature_data.flatten()])
                 ks_stat, ks_p_value = kstest(feature_data.flatten(), lambda x: cdf_values)
             elif name == 'gmm':
-                gmm_samples, _ = params.sample(len(feature_data))
-                gmm_samples = gmm_samples.flatten()
-                cdf = lambda x: np.mean(gmm_samples <= x)
-                cdf_values = np.array([cdf(xi) for xi in feature_data.flatten()])
-                ks_stat, ks_p_value = kstest(feature_data.flatten(), lambda x: cdf_values)
+                if len(feature_data) > 1:
+                    gmm_samples, _ = params.sample(len(feature_data))
+                    gmm_samples = gmm_samples.flatten()
+                    cdf = lambda x: np.mean(gmm_samples <= x)
+                    cdf_values = np.array([cdf(xi) for xi in feature_data.flatten()])
+                    ks_stat, ks_p_value = kstest(feature_data.flatten(), lambda x: cdf_values)
             elif name == 'beta':
                 ks_stat, ks_p_value = kstest(scaled_data.flatten(), 'beta', args=params)
             elif name == 'uniform':
@@ -586,10 +629,24 @@ def fit_distributions(data, n_components=3):
     return pd.DataFrame(results).to_dict()
 
 
-def load_pkl(name):
-    with open(name+'.pkl', 'rb') as f:
-        data = pickle.load(f)
-    return data        
+
+def expand_dict_column(row):
+    expanded_data = {}
+    for key, value in row['test_results'].items():
+        if 0 in value:
+            expanded_data[key] = value[0]
+    return pd.Series(expanded_data)
+
+# Aplicar la función para expandir la columna de diccionarios
+# expanded_df = long_.apply(expand_dict_column, axis=1)
+
+# # Agregar las columnas node_id y tree
+# expanded_df['node_id'] = long_['node_id']
+# expanded_df['tree'] = long_['tree']
+
+# # Reorganizar las columnas
+# expanded_df = expanded_df[['node_id', 'tree'] + [col for col in expanded_df.columns if col not in ['node_id', 'tree']]]
+
        
 def obtain_dataset_admission_visit_rank(sample_patients_path,file,valid_perc,features_path,type_archivo='csv'):
     features = load_data(features_path)
@@ -793,7 +850,7 @@ def plot_heatmap(synthetic_ehr_dataset, name,col, cols_num=1,cols_prod="None",ty
             synthetic_ehr_dataset.sort_values(by = 'visit_rank', ascending=True, inplace=True)  # Sort by year
             # Aggregate data to count ICD-9 codes occurrences per year  
             if cols_num == 1:
-                if col == 'Age_max' or col == 'days_between_visits':
+                if col == 'Age_max' or col == 'days from last visit':
                     age_intervals  = synthetic_ehr_dataset[col].unique()
                     synthetic_ehr_dataset[col]= pd.Categorical(synthetic_ehr_dataset[col], categories=age_intervals, ordered=True)
                 heatmap_data = synthetic_ehr_dataset.groupby(['visit_rank', col]).size().unstack(fill_value=0)
@@ -865,7 +922,7 @@ def hist_betw_a(original_data,synthetic_data,col,path_img=None):
     #original_data = pd.read_csv('original_data.csv')  # Adjust the file path as necessary
     #synthetic_data = pd.read_csv('synthetic_data.csv')  # Adjust the file path as necessary
 
-    # Assume 'days_between_visits' column exists, otherwise calculate it
+    # Assume 'days from last visit' column exists, otherwise calculate it
     # Plotting the histograms
     plt.figure(figsize=(12, 6))
 
@@ -890,7 +947,7 @@ def hist_counts_node(synthetic_data,col,node_num,tree_node,path_img=None):
     #original_data = pd.read_csv('original_data.csv')  # Adjust the file path as necessary
     #synthetic_data = pd.read_csv('synthetic_data.csv')  # Adjust the file path as necessary
 
-    # Assume 'days_between_visits' column exists, otherwise calculate it
+    # Assume 'days from last visit' column exists, otherwise calculate it
     # Plotting the histograms
               
     plt.figure(figsize=(12, 6))
@@ -920,7 +977,10 @@ def box_pltos(df,df_syn,col,path_img=None):
     axes[1].boxplot(df_syn[col])
     
     axes[1].set_ylabel('Days')
-    col = limpiar_lista(col)
+    try:
+        col = limpiar_lista(col)
+    except:
+        pass    
     try:
         axes[0].set_title('Real ' +col )
         axes[1].set_title('Synthetic ' +col)
@@ -941,8 +1001,8 @@ def plot_heatmap(synthetic_ehr_dataset, name, col, cols_num=1, cols_prod="None",
             
             # Aggregate data to count occurrences per 'visit_rank'
             if cols_num == 1:
-                # Create categories if specified column is 'Age_max' or 'days_between_visits'
-                if col in ['Age_max', 'days_between_visits']:
+                # Create categories if specified column is 'Age_max' or 'days from last visit'
+                if col in ['Age_max', 'days from last visit']:
                     age_intervals = synthetic_ehr_dataset[col].unique()
                     synthetic_ehr_dataset[col] = pd.Categorical(synthetic_ehr_dataset[col], categories=age_intervals, ordered=True)
 
@@ -1132,7 +1192,8 @@ def heatmap_diff_corr(df1, df2,path_img):
 def plot_histograms_separate_axes22(real_data, synthetic_data, title, xlabel, ylabel,label_s,path_img=None):
             # Definir bins comunes con más intervalos para hacer los bins más pequeños
             max_value = max(real_data.max(), synthetic_data.max())
-            bins = np.linspace(0, max_value, 101)  # 101 bins para crear 100 intervalos más pequeños
+            min_value = min(real_data.min(), synthetic_data.min())
+            bins = np.linspace(min_value, max_value, 101)  # 101 bins para crear 100 intervalos más pequeños
             
             plt.figure(figsize=(12, 6))
             
@@ -2294,9 +2355,9 @@ def value_couts_visit(df,type_d):
 
     # Calculate the total codes per patient across all visits
  
+#train_ehr_dataset, synthetic_ehr_dataset, i, "Marginal_distribution",path_img,self.num_visit_count,self.patient_visit
 
-
-def plot_kernel_syn(real_df, synthetic_df, col, name ,path_img=None):
+def plot_kernel_syn(real_df, synthetic_df, col ,path_img=None):
     # Set the background style
     plt.style.use("seaborn-white")
 
@@ -2676,7 +2737,7 @@ def calculate_outlier_ratios_tout2(real_drugs_per_patient,i):
     outliers = sorted_df[(sorted_df[i+'_count'] < (Q1 - 1.5 * IQR)) | (sorted_df[i+'_count'] > (Q3 + 1.5 * IQR))]
     return outliers
 
-def test_distributions_nodes(long,ruta_save_dist):
+def test_distributions_nodes(long,ruta_save_dist,threshold):
     '''params
     #input function that  test the distributions
     long: dataframe data de nodos en arboles de variables continuas
@@ -2747,20 +2808,19 @@ def res_promedio_ks_stat(uniform_l,triang_l,truncnorm_l,expon_l,gmm_l):
     print(res)
     return res
 
-def hist(df,col,title,x_label,lsup=None):
+def hist(df,col,title,x_label,lsup=None,label  = ''):
     plt.figure(figsize=(12, 6))
     vmin = df[col].min()
     vmax = df[col].max()
     if lsup==None:
         plt.hist(df[col], bins=100,alpha=0.3, label='Patient Counts', color='red')
     else:    
-        plt.hist(df[col], bins=100,range=(vmin,lsup),alpha=0.3, label='Patient Counts', color='red')
+        plt.hist(df[col], bins=100,range=(vmin,lsup),alpha=0.3, label=label, color='red')
     plt.title(title)
     plt.xlabel(x_label)
     plt.ylabel('Frequency')
     plt.legend()
     plt.show()
-
 
 def create_plot_count_matrix_for_specific_subject(train_ehr_dataset,subjects,type_data  = 'Train data',path_img=None):
 
@@ -2819,7 +2879,7 @@ def create_plot_count_matrix_for_specific_subject(train_ehr_dataset,subjects,typ
         save_plot_as_svg(plt, path_img, "count_matrix_progression")
         
          
-def plot_visit_trejetory(   train_ehr_dataset,diagnosis_columns,procedure_columns,medication_columns,num_visit_count = 10, patient_visit = 3,path_img = None, type_data = "Train"):
+def plot_visit_trejetory(   train_ehr_dataset,diagnosis_columns,procedure_columns,medication_columns,type_data,num_visit_count = 5, patient_visit = 3,path_img = None ):
             visit_counts = train_ehr_dataset['id_patient'].value_counts()
             patients_with_10_visits = visit_counts[visit_counts == num_visit_count].index
             # Seleccionar 3 pacientes al azar
@@ -2827,12 +2887,12 @@ def plot_visit_trejetory(   train_ehr_dataset,diagnosis_columns,procedure_column
             create_plot_count_matrix_for_specific_subject(train_ehr_dataset,selected_patients,type_data,path_img=path_img)
             #plot trajectories
             for patient_id in selected_patients:
-                plot_patient_trajectory(train_ehr_dataset, patient_id=patient_id, diagnosis_columns=diagnosis_columns, visit_column='visit_rank',name= 'ICD-9 Codes',type_anal='Diagnoses',type_data="Train")        
-                plot_patient_trajectory(train_ehr_dataset, patient_id=patient_id, diagnosis_columns=procedure_columns, visit_column='visit_rank',name= 'ICD-9 Codes',type_anal='Procedure',type_data="Train")        
-                plot_patient_trajectory(train_ehr_dataset, patient_id=patient_id, diagnosis_columns=medication_columns, visit_column='visit_rank',name= 'Drugs',type_anal='Drugs',path_img = path_img,type_data="Train")        
+                plot_patient_trajectory(train_ehr_dataset,type_data, patient_id=patient_id, diagnosis_columns=diagnosis_columns, visit_column='visit_rank',name= 'ICD-9 Codes',type_anal='Diagnoses',path_img = path_img)        
+                plot_patient_trajectory(train_ehr_dataset,type_data, patient_id=patient_id, diagnosis_columns=procedure_columns, visit_column='visit_rank',name= 'ICD-9 Codes',type_anal='Procedure',path_img = path_img)        
+                plot_patient_trajectory(train_ehr_dataset,type_data, patient_id=patient_id, diagnosis_columns=medication_columns, visit_column='visit_rank',name= 'Drugs',type_anal='Drugs',path_img = path_img)        
 
 
-def plot_patient_trajectory(df, patient_id, diagnosis_columns, visit_column='visit_rank', id_column='id_patient',name= 'ICD-9 Codes',type_anal='Diagnoses',path_img = None,type_data="Train"):
+def plot_patient_trajectory(df,type_data, patient_id, diagnosis_columns, visit_column='visit_rank', id_column='id_patient',name= 'ICD-9 Codes',type_anal='Diagnoses',path_img = None):
     # Filter data for the specific patient
     patient_data = df[df[id_column] == patient_id].sort_values(visit_column)    
     # Select only the diagnosis columns and the visit column
@@ -2847,7 +2907,7 @@ def plot_patient_trajectory(df, patient_id, diagnosis_columns, visit_column='vis
     # Create the plot
     plt.figure(figsize=(15, 8))
     sns.heatmap(plot_data, cmap='YlOrRd', annot=True, fmt='g', cbar_kws={'label': 'Count'})
-    plt.title(f'Top 10  Trajectory for Patient {patient_id} {type_data}')
+    plt.title(f'Top 10 {type_anal} trajectory for patient {patient_id} in {type_data}')
     plt.xlabel(name)
     plt.ylabel('Visit Rank')
     # Rotate x-axis labels for better readability
@@ -2858,5 +2918,368 @@ def plot_patient_trajectory(df, patient_id, diagnosis_columns, visit_column='vis
         save_plot_as_svg(plt, path_img, "trajectories_patient_")
 
 
+import numpy as np
+from scipy import stats
+from sklearn.neighbors import KernelDensity
 
+def compare_distributions(df, obs_params, colname):
+    results = []
+
+    for _, row in obs_params.iterrows():
+        tree_id, node_id = row['tree'], row['nodeid']
         
+        # Filter data for the specific node and variable
+        node_data = df[(df['tree'] == tree_id) & (df['nodeid'] == node_id) & (df['variable'] == colname)]['value']
+        
+        if len(node_data) == 0:
+            continue  # Skip if no data for this node
+
+        # Get parameters for truncated normal
+        myclip_a, myclip_b = row['min'], row['max']
+        myloc, myscale = row['mean'], row['sd']
+        
+        # Adjust invalid ranges
+        if myclip_a >= myclip_b:
+            myclip_a = myloc - 2*myscale
+            myclip_b = myloc + 2*myscale
+        
+        # Create truncated normal distribution
+        a, b = (myclip_a - myloc) / myscale, (myclip_b - myloc) / myscale
+        trunc_norm = stats.truncnorm(a, b, loc=myloc, scale=myscale)
+        
+        # Generate KDE for empirical data
+        kde = KernelDensity(kernel='gaussian', bandwidth=0.5).fit(node_data.values.reshape(-1, 1))
+        
+        # Create a range of x values
+        x = np.linspace(myclip_a, myclip_b, 1000)
+        
+        # Get PDF values
+        kde_pdf = np.exp(kde.score_samples(x.reshape(-1, 1)))
+        trunc_norm_pdf = trunc_norm.pdf(x)
+        
+        # Normalize PDFs
+        kde_pdf /= np.sum(kde_pdf)
+        trunc_norm_pdf /= np.sum(trunc_norm_pdf)
+        
+        # Calculate metrics
+        kl_divergence = np.sum(np.where(kde_pdf != 0, kde_pdf * np.log(kde_pdf / trunc_norm_pdf), 0))
+        js_divergence = jensenshannon(kde_pdf, trunc_norm_pdf)
+        w_distance = wasserstein_distance(x, x, kde_pdf, trunc_norm_pdf)
+        ks_statistic, _ = ks_2samp(node_data, trunc_norm.rvs(size=len(node_data)))
+        
+        results.append({
+            'tree': tree_id,
+            'node': node_id,
+            'KL_divergence': kl_divergence,
+            'JS_divergence': js_divergence,
+            'Wasserstein_distance': w_distance,
+            'KS_statistic': ks_statistic
+        })
+    
+    return pd.DataFrame(results)
+    # Generate KDE for empirical data
+    
+    # Create a range of x values
+    
+    
+    # Plot
+    # plt.figure(figsize=(10, 6))
+    # plt.hist(node_data, bins=30, density=True, alpha=0.5, label='Empirical Histogram')
+    # plt.plot(x, np.exp(kde.score_samples(x.reshape(-1, 1))), label='KDE')
+    # plt.plot(x, trunc_norm.pdf(x), label='Truncated Normal')
+    # plt.title(f'Density Comparison for {colname} (Tree {tree_id}, Node {node_id})')
+    # plt.xlabel(colname)
+    # plt.ylabel('Density')
+    # plt.legend()
+    # plt.show()
+
+# Usage
+import numpy as np
+import pandas as pd
+from scipy.stats import beta, uniform, triang, truncnorm, expon, gamma, lognorm, weibull_min, chi2, f, t
+from scipy.stats import kstest, wasserstein_distance
+from sklearn.mixture import GaussianMixture
+from scipy.stats import gaussian_kde
+from threadpoolctl import threadpool_limits
+from scipy.spatial.distance import jensenshannon
+
+def fit_distributionsv2(data, ks_threshold=0.05, wasserstein_threshold=0.1, js_threshold=0.1, n_components=3):
+    distributions = {
+        'beta': beta,
+        'uniform': uniform,
+        'triang': triang,
+        'truncnorm': truncnorm,
+        'expon': expon,
+        'gamma': gamma,
+        'lognorm': lognorm,
+        'weibull': weibull_min,
+        'chi2': chi2,
+        'f': f,
+        't': t,
+        'kde': gaussian_kde,
+        'gmm': GaussianMixture
+    }
+    
+    results = []
+    
+    for tree_id, tree_data in data.groupby('tree'):
+        for node_id, node_data in tree_data.groupby('nodeid'):
+            for var_name, feature_data in node_data.groupby('variable'):
+                column_results = {'tree': tree_id, 'node': node_id, 'feature': var_name}
+                feature_values = feature_data['value'].values
+                try:
+                    for name, distribution in distributions.items():
+                        if name == 'truncnorm':
+                            min_val, max_val = feature_data.min(), feature_data.max()
+                            mean, std = feature_data.mean(), feature_data.std()
+                            a, b = (min_val - mean) / std, (max_val - mean) / std
+                            params = (a, b, mean, std)
+            
+                        elif name == 'kde':
+                            try: 
+                                kde = distribution(feature_data.flatten())
+                                params = kde
+                            except:
+                                continue   
+
+                            
+                        elif name == 'gmm':
+                            with threadpool_limits(limits=1, user_api='blas'):
+                                    gmm = distribution(n_components=n_components, random_state=0)
+                                    gmm.fit(feature_data)
+                                    params = gmm
+                        elif name == 'beta':
+                            # Ensure that data is within (0, 1) interval
+                            min_val = feature_data.min()
+                            max_val = feature_data.max()
+                            if min_val == max_val:  # Avoid fitting Beta to constant data
+                                continue
+                            scaled_data = (feature_data - min_val) / (max_val - min_val)
+                            # Beta distribution fitting
+                            try:
+                                a, b, loc, scale = distribution.fit(scaled_data.flatten(), floc=0, fscale=1)
+                                params = (a, b, loc, scale)
+                            except Exception:
+                                continue
+                        elif name == 'uniform':
+                            loc, scale = distribution.fit(feature_data.flatten())
+                            params = (loc, scale)
+                        elif name == 'triang':
+                            c, loc, scale = distribution.fit(feature_data.flatten())
+                            params = (c, loc, scale)
+                        elif name == 'expon':
+                            loc, scale = distribution.fit(feature_data.flatten())
+                            params = (loc, scale)
+                        else:
+                            params = distribution.fit(feature_data.flatten())
+                        
+                                    # Generate samples from the fitted distribution
+                        if name == 'kde':
+                            fitted_samples = params.resample(len(feature_values))[0]
+                        elif name == 'gmm':
+                            fitted_samples, _ = params.sample(len(feature_values))
+                        else:
+                            fitted_samples = distribution.rvs(*params, size=len(feature_values))
+
+                        # Perform Kolmogorov-Smirnov test
+                        ks_stat, ks_p_value = kstest(feature_values, name, args=params)
+
+                        # Calculate Wasserstein distance
+                        w_distance = wasserstein_distance(feature_values, fitted_samples)
+
+                        # Calculate Jensen-Shannon divergence
+                        hist1, _ = np.histogram(feature_values, bins=50, density=True)
+                        hist2, _ = np.histogram(fitted_samples, bins=50, density=True)
+                        js_divergence = jensenshannon(hist1, hist2)
+
+                        column_results[f'{name}_ks_stat'] = ks_stat
+                        column_results[f'{name}_ks_p_value'] = ks_p_value
+                        column_results[f'{name}_ks_indicator'] = int(ks_p_value > ks_threshold)
+                        column_results[f'{name}_wasserstein'] = w_distance
+                        column_results[f'{name}_wasserstein_indicator'] = int(w_distance < wasserstein_threshold)
+                        column_results[f'{name}_js_divergence'] = js_divergence
+                        column_results[f'{name}_js_indicator'] = int(js_divergence < js_threshold)
+
+                except Exception as e:
+                        print(f"Error fitting {name} distribution: {e}")
+                        column_results[f'{name}_ks_stat'] = np.nan
+                        column_results[f'{name}_ks_p_value'] = np.nan
+                        column_results[f'{name}_ks_indicator'] = 0
+                        column_results[f'{name}_wasserstein'] = np.nan
+                        column_results[f'{name}_wasserstein_indicator'] = 0
+                        column_results[f'{name}_js_divergence'] = np.nan
+                        column_results[f'{name}_js_indicator'] = 0
+
+                results.append(column_results)
+    
+    return pd.DataFrame(results)
+
+# Usage
+# Assuming 'df' is your DataFrame with columns: 'tree', 'nodeid', 'variable', 'value'
+import numpy as np
+import pandas as pd
+from scipy import stats
+from scipy.stats import kstest, wasserstein_distance
+from sklearn.mixture import GaussianMixture
+from scipy.stats import gaussian_kde
+from scipy.spatial.distance import jensenshannon
+import warnings
+
+
+import numpy as np
+import pandas as pd
+from scipy import stats
+from scipy.stats import kstest, wasserstein_distance
+from scipy.spatial.distance import jensenshannon
+from scipy.stats import gaussian_kde
+from sklearn.mixture import GaussianMixture
+import warnings
+
+def fit_distributionsv3(data, ks_threshold=0.05, wasserstein_threshold=0.1, js_threshold=0.1, n_components=3):
+    # distributions = {
+    #     'uniform': stats.uniform,
+    #     'triang': stats.triang,
+    #     'truncnorm': stats.truncnorm,
+    #     'expon': stats.expon,
+    #     'gamma': stats.gamma,
+    #     'lognorm': stats.lognorm,
+    #     'weibull_min': stats.weibull_min,
+    #     'chi2': stats.chi2,
+    #     'f': stats.f,
+    #     't': vvstats.t,
+    # }
+    distributions = {
+        
+        'truncnorm': stats.truncnorm,
+        'expon': stats.expon,
+        'lognorm': stats.lognorm,
+        'kde': stats.gaussian_kde,
+        
+    }
+    
+    results = []
+    
+    for tree_id, tree_data in data.groupby('tree'):
+        for node_id, node_data in tree_data.groupby('nodeid'):
+            for var_name, feature_data in node_data.groupby('variable'):
+                column_results = {'tree': tree_id, 'node': node_id, 'feature': var_name}
+                feature_values = feature_data['value'].values
+
+                # Comprobar valores no válidos
+                if np.any(np.isnan(feature_values)) or np.any(np.isinf(feature_values)):
+                    print(f"Skipping due to invalid values in tree {tree_id}, node {node_id}, feature {var_name}")
+                    continue
+
+                # Imprimir resumen de los datos
+                print(f"Summary for tree {tree_id}, node {node_id}, feature {var_name}:")
+                print(f"Min: {np.min(feature_values)}, Max: {np.max(feature_values)}, Mean: {np.mean(feature_values)}, Std: {np.std(feature_values)}")
+
+                for name, distribution in distributions.items():
+                    try:
+                        if name == 'truncnorm':
+                            min_val, max_val = np.min(feature_values), np.max(feature_values)
+                            mean, std = np.mean(feature_values), np.std(feature_values)
+                            a, b = (min_val - mean) / std, (max_val - mean) / std
+                            #params = distribution.fit(feature_values, floc=mean, fscale=std, fa=a, fb=b)
+                            params = (a, b, mean, std)
+                        elif name == 'beta':
+                            min_val, max_val = np.min(feature_values), np.max(feature_values)
+                            if min_val == max_val:
+                                continue
+                            scaled_data = (feature_values - min_val) / (max_val - min_val)
+                            with warnings.catch_warnings():
+                                warnings.filterwarnings('ignore')
+                                params = distribution.fit(scaled_data, floc=0, fscale=1)
+                        elif name in ['gamma',  'weibull_min']:
+                            with warnings.catch_warnings():
+                                warnings.filterwarnings('ignore')
+                                params = distribution.fit(feature_values)
+                        elif name in ['chi2', 'f', 't']:
+                            with warnings.catch_warnings():
+                                warnings.filterwarnings('ignore')
+                                params = distribution.fit(feature_values)
+                        elif name == 'kde':
+                            try: 
+                                 kde = gaussian_kde(feature_values)
+                                 fitted_samples = kde.resample(len(feature_values))[0]
+                                 ks_stat, ks_p_value = kstest(feature_values, kde_samples)
+                                 
+                  
+                            except:
+                                continue    
+                                   
+                        else:
+                            params = distribution.fit(feature_values)
+
+                       
+                           
+                            
+                        try:
+                            if name != 'kde':     
+                                fitted_samples = distribution.rvs(*params, size=len(feature_values))
+                                ks_stat, ks_p_value = kstest(feature_values, name, args=params)
+                            w_distance = wasserstein_distance(feature_values, fitted_samples)
+                            column_results[f'{name}_ks_stat'] = ks_stat
+                            column_results[f'{name}_ks_p_value'] = ks_p_value
+                            column_results[f'{name}_ks_indicator'] = int(ks_p_value > ks_threshold)
+                            column_results[f'{name}_wasserstein'] = w_distance
+                            column_results[f'{name}_wasserstein_indicator'] = int(w_distance < wasserstein_threshold)
+                        
+                        except Exception as e:
+                                print(f"Error fitting {name} distribution for tree {tree_id}, node {node_id}, feature {var_name}: {e}")
+                        
+                                column_results[f'{name}_ks_stat'] = np.nan
+                                column_results[f'{name}_ks_p_value'] = np.nan
+                                column_results[f'{name}_ks_indicator'] = np.nan
+                                column_results[f'{name}_wasserstein'] = np.nan
+                                column_results[f'{name}_wasserstein_indicator'] = np.nan
+                            
+                        try:        
+                                hist1, _ = np.histogram(feature_values, bins=50, density=True)
+                                hist2, _ = np.histogram(fitted_samples, bins=50, density=True)
+                                js_divergence = jensenshannon(hist1, hist2)
+
+                                column_results[f'{name}_js_divergence'] = js_divergence
+                                column_results[f'{name}_js_indicator'] = int(js_divergence < js_threshold)
+                        except Exception as e:
+                                print(f"Error fitting {name} distribution for tree {tree_id}, node {node_id}, feature {var_name}: {e}")
+                     
+                                column_results[f'{name}_js_divergence'] = np.nan
+                                column_results[f'{name}_js_indicator'] = np.nan
+                                
+                    except Exception as e:
+                        print(f"Error fitting {name} distribution for tree {tree_id}, node {node_id}, feature {var_name}: {e}")
+                        column_results[f'{name}_ks_stat'] = np.nan
+                        column_results[f'{name}_ks_p_value'] = np.nan
+                        column_results[f'{name}_ks_indicator'] = 0
+                        column_results[f'{name}_wasserstein'] = np.nan
+                        column_results[f'{name}_wasserstein_indicator'] = 0
+                        column_results[f'{name}_js_divergence'] = np.nan
+                        column_results[f'{name}_js_indicator'] = 0
+                
+                # Manejar GMM
+                try:
+                    gmm = GaussianMixture(n_components=n_components, random_state=0)
+                    gmm.fit(feature_values.reshape(-1, 1))
+                    gmm_samples = gmm.sample(len(feature_values))[0].flatten()
+                    
+                    ks_stat, ks_p_value = kstest(feature_values, 'gmm', args=(lambda x: np.mean(gmm_samples <= x),))
+                    w_distance = wasserstein_distance(feature_values, gmm_samples)
+                    
+                    hist1, _ = np.histogram(feature_values, bins='auto', density=True)
+                    hist2, _ = np.histogram(gmm_samples, bins='auto', density=True)
+                    js_divergence = jensenshannon(hist1, hist2)
+
+                    column_results['gmm_ks_stat'] = ks_stat
+                    column_results['gmm_ks_p_value'] = ks_p_value
+                    column_results['gmm_ks_indicator'] = int(ks_p_value > ks_threshold)
+                    column_results['gmm_wasserstein'] = w_distance
+                    column_results['gmm_wasserstein_indicator'] = int(w_distance < wasserstein_threshold)
+                    column_results['gmm_js_divergence'] = js_divergence
+                    column_results['gmm_js_indicator'] = int(js_divergence < js_threshold)
+                except Exception as e:
+                    print(f"Error fitting GMM for tree {tree_id}, node {node_id}, feature {var_name}: {e}")
+
+                results.append(column_results)
+    
+    return pd.DataFrame(results)

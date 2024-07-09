@@ -193,8 +193,10 @@ class EHRResemblanceMetrics:
                
         combined_df = pd.DataFrame()    
         
-        #train_ehr_dataset_t = get_same_numpatient_as_synthetic(train_ehr_dataset,test_ehr_dataset)
+        train_ehr_dataset_t = train_ehr_dataset.copy()
+        
         #same sie for trainse
+        
         if test_ehr_dataset.shape[0] < train_ehr_dataset_t.shape[0]:
             train_ehr_dataset_t = train_ehr_dataset_t[:test_ehr_dataset.shape[0]]
         else:
@@ -239,10 +241,10 @@ class EHRResemblanceMetrics:
                 #plot_outliers(real_out_t, test_out_t, i,
                 #                'Outliers of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test')
                 wd_real_drugs_per_patient_outlier_esttrain = plot_histograms_separate_axes22(real_out_t[i+'_count'], test_out_t[i+'_count'], 
-                                'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test',path_img)
+                                'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test',None)
                 
                 wd_real_drugs_per_patient_esttrain = plot_histograms_separate_axes22(real_drugs_per_patient_t[i+'_count'], test_drugs_per_patient_t[i+'_count'], 
-                             'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test',path_img)
+                             'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test',None)
     
                 # plot_boxplots(real_drugs_per_patient_t[i+'_count'], test_drugs_per_patient_t[i+'_count'], 
                 #                 'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Real)',path_img)
@@ -253,7 +255,7 @@ class EHRResemblanceMetrics:
                 #plot_outliers(real_out_a_t, syn_out_a_t, i,
                 #                'Outliers of ' +i+ ' per Admission', 'Number of ' + i, 'Patient Count (Real)','Test')
                 wd_real_drugs_per_admission_outliers_testtrain =  plot_histograms_separate_axes22(real_out_a_t[i+'_count'], syn_out_a_t[i+'_count'], 
-                                'Histogram of ' +i+ ' per Admission', 'Number of' + i, 'Patient Count (Real)','Test',path_img)
+                                'Histogram of ' +i+ ' per Admission', 'Number of' + i, 'Patient Count (Real)','Test',None)
             
         
                 # plot_boxplots(real_drugs_per_admission_t[i+'_count'], test_drugs_per_admission_t[i+'_count'], 
@@ -261,7 +263,7 @@ class EHRResemblanceMetrics:
 
                 wd_real_drugs_per_admission_testtrain = plot_histograms_separate_axes22(real_drugs_per_admission_t[i+'_count'], test_drugs_per_admission_t[i+ '_count'], 
                                 'Histogram of ' +i+ ' per Admission', 'Number of ' + i, 'Admission Count (Real)'
-                            ,'Test',path_img)
+                            ,'Test',None)
                 #, 'ADmission Count per drug(train, test)'
                 
                 real_out_a_a_t = calculate_outlier_ratios_tout2(real_admissions_per_drug_t,"admission")
@@ -270,11 +272,11 @@ class EHRResemblanceMetrics:
                 #plot_outliers(real_out_a_a_t, test_out_a_a_t, "admission",
                 #                'Outliers of   Admission per ' + i, 'Number of ' + i, 'Patient Count (Real)','Test')
                 wd_real_admissions_per_drug_outliers_esttrain = plot_histograms_separate_axes22(real_out_a_a_t["admission"+'_count'], test_out_a_a_t["admission"+'_count'], 
-                                'Histogram of outliers ' + 'Admission per ' + i, 'Number of ' + i, 'Patient Count (Real)','Test',path_img)
+                                'Histogram of outliers ' + 'Admission per ' + i, 'Number of ' + i, 'Patient Count (Real)','Test',None)
                 
 
                 wd_real_admissions_per_drug_testtrain = plot_histograms_separate_axes22(real_admissions_per_drug_t['admission_count'], test_admissions_per_drug_t['admission_count'], 
-                                'Histogram of Admissions per ' + i, 'Number of Admissions ',  i+ ' Count (Real)','Test' ,path_img)
+                                'Histogram of Admissions per ' + i, 'Number of Admissions ',  i+ ' Count (Real)','Test' ,None)
                 
                 # plot_boxplots(real_admissions_per_drug_t['admission_count'], test_admissions_per_drug_t['admission_count'], 
                 #                 'Histogram of Admissions per ' +i, 'Number of Admissions ',  i+ ' Count (Real)',path_img)
@@ -426,14 +428,20 @@ class EHRResemblanceMetrics:
 
     def plot_kerneldis(self,train_ehr_dataset,synthetic_ehr_dataset,cols,path_img):
             for i in cols: 
-                plot_kernel_syn(train_ehr_dataset, synthetic_ehr_dataset, i, "Marginal_distribution",path_img,self.num_visit_count,self.patient_visit)
+                plot_kernel_syn(train_ehr_dataset,synthetic_ehr_dataset, i,path_img)
      
     def plot_count_matrix_for_specific_subject(self,train_ehr_dataset,synthetic_ehr_dataset,num_patient):
         #training patietns
-        plot_visit_trejetory(   train_ehr_dataset,diagnosis_columns,procedure_columns,medication_columns,self.num_visit_count , self.patient_visit ,path_img=self.path_img)
+        plot_visit_trejetory(   train_ehr_dataset,diagnosis_columns,procedure_columns,medication_columns,"Train",
+                             self.num_visit_count 
+                             , num_patient ,
+                             path_img=self.path_img)
                     
         #Synthetic Dataset
-        plot_visit_trejetory(   synthetic_ehr_dataset,diagnosis_columns,procedure_columns,medication_columns,num_visit_count = self.num_visit_count, patient_visit = num_patient,path_img=self.path_img)    
+        plot_visit_trejetory(   synthetic_ehr_dataset,diagnosis_columns,procedure_columns,medication_columns,"Synthetic", 
+                             self.num_visit_count, 
+                              num_patient,
+                             path_img=self.path_img)    
         
                 
 
@@ -501,7 +509,7 @@ class EHRResemblanceMetrics:
         print(la)
         res_train.update(res2_synthetic)
         return res_train  
-    def plot_differen_correlation(self,synthetic_ehr_dataset,train_ehr_dataset,cols,categorical_cols,keywords,path_img,all_data_heatmap_diff=False,corr_plot_syn_real=False,corr_plot_continous = False,corr_plot_categotical =False,corr_plot_codes=False):
+    def plot_differen_correlation(self,synthetic_ehr_dataset,train_ehr_dataset,cols,categorical_cols,keywords,path_img,all_data_heatmap_diff=False,corr_plot_syn_real=False,corr_plot_continous = True,corr_plot_categotical =True,corr_plot_codes=False):
 
         # Example usage:
         if all_data_heatmap_diff:
@@ -555,19 +563,19 @@ class EHRResemblanceMetrics:
 
         cols = [ 'Age_max', 'LOSRD_sum','LOSRD_avg',
         'visit_rank',
-        'days_between_visits']
+        'days from last visit']
         PACMAP_PLOT(cols_list,synthetic_ehr_dataset,train_ehr_dataset,"Continuos variables",path_img )    
     
     def temporal_histogram_heatmap(self,synthetic_ehr_dataset,train_ehr_dataset,path_img ):    
                 
         name = "Days between visits"
-        col =   'days_between_visits_bins'
-        synthetic_ehr_dataset['days_between_visits_bins'] = pd.qcut(synthetic_ehr_dataset['days_between_visits'], q=10, duplicates='drop')
-        hist_d("days_between_visits",synthetic_ehr_dataset,path_img ) 
+        col =   'days from last visit_bins'
+        synthetic_ehr_dataset['days from last visit_bins'] = pd.qcut(synthetic_ehr_dataset['days from last visit'], q=2, duplicates='drop')
+        hist_d("days from last visit",synthetic_ehr_dataset,path_img ) 
         plot_heatmap_(synthetic_ehr_dataset, name,col,"Synthetic",path_img)
-        train_ehr_dataset['days_between_visits_bins'] = pd.qcut(train_ehr_dataset['days_between_visits'], q=10, duplicates='drop')
-        hist_d("days_between_visits",train_ehr_dataset,path_img) 
-        hist_betw_a(train_ehr_dataset,synthetic_ehr_dataset,"days_between_visits",path_img)
+        train_ehr_dataset['days from last visit_bins'] = pd.qcut(train_ehr_dataset['days from last visit'], q=2, duplicates='drop')
+        hist_d("days from last visit",train_ehr_dataset,path_img) 
+        hist_betw_a(train_ehr_dataset,synthetic_ehr_dataset,"days from last visit",path_img)
         hist_betw_a(train_ehr_dataset,synthetic_ehr_dataset,"id_patient",path_img)
         
         plot_heatmap_(train_ehr_dataset, name,col, "Real",path_img)
@@ -579,7 +587,7 @@ class EHRResemblanceMetrics:
         plot_heatmap_(synthetic_ehr_dataset, name,col, "Synthetic",path_img)
         train_ehr_dataset['Age_max_bins'] = pd.qcut(train_ehr_dataset['Age_max'], q=5, duplicates='drop')
         plot_heatmap_(train_ehr_dataset, name,col,"Real",path_img)
-        hist_d("days_between_visits",train_ehr_dataset) 
+        hist_d("days from last visit",train_ehr_dataset) 
         
         
         # Histograms
@@ -740,9 +748,9 @@ class EHRResemblanceMetrics:
 
     #     plot_data = remove_outliers(plot_data, 'Real')
     #     plot_data = remove_outliers(plot_data, 'Synthetic')
-    #     index_to_drop = ["id_patient","HADM_ID","days_between_visits","Age_max","LOSRD_avg"]
+    #     index_to_drop = ["id_patient","HADM_ID","days from last visit","Age_max","LOSRD_avg"]
         
-    #     #plot_data = plot_data.drop(["days_between_visits", "Age_max", "LOSRD_avg"])
+    #     #plot_data = plot_data.drop(["days from last visit", "Age_max", "LOSRD_avg"])
 
         
         
@@ -793,7 +801,7 @@ class EHRResemblanceMetrics:
         mmd_evaluator = MaximumMeanDiscrepancy(kernel="rbf")
         train_test = "test"
         cols = ['ADMITTIME','HADM_ID']
-        #cols = "days_between_visits_cumsum"
+        #cols = "days from last visit_cumsum"
         train_ehr_dataset, synthetic_ehr_dataset = filter_and_equalize_datasets(train_ehr_dataset, synthetic_ehr_dataset)
           
         #train_ehr_dataset_a = cols_todrop(train_ehr_dataset,cols)

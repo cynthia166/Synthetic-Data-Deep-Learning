@@ -1,4 +1,5 @@
 {
     "jupyter.exportWithOutputEnabled": true,
-    "python.REPL.enableREPLSmartSend": false
+    "python.REPL.enableREPLSmartSend": false,
+    "emmet.showAbbreviationSuggestions": false
 }

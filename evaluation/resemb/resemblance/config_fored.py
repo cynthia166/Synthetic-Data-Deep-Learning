@@ -1,20 +1,28 @@
 #create feature with random sampled pkl
-create_features = True
+from scipy.stats import beta, uniform, triang, truncnorm, expon, gamma, lognorm, weibull_min, chi2, f, t
+from sklearn.mixture import GaussianMixture
+from scipy.stats import gaussian_kde
+create_features = False
 #analyze the feature Subject_I
 continous_variable_ks_test = False
+if continous_variable_ks_test:
+    perform_ks_test = True 
+else:
+    perform_ks_test = False    
 #get continous values count and parameters leaf (mean std deviation)
-get_count_variables_per_node_tree_cont = True
+get_count_variables_per_node_tree_cont = False
 #get aras nodes descete
 get_long_params_per_node_tree_distcre = False
+get_analysis_continous_fun = True
 #threshol for values in leaves
-threshold = 30
+threshold = 0
 #obtain mean_per node
 obtain_promedio_por_nodo_ks_dist = False
 #perform ks test for each node
-perform_ks_test = False 
+
 visualization_days_bewteen = False
 
-"id subject if"
+#"id subject if"
 col_cat = "SUBJECT_ID"
 #threshold que se analiza
 threshold_values = 30
@@ -25,15 +33,25 @@ columns_to_drop = ['LOSRD_sum', 'L_1s_last_p1','HADM_ID',"ADMITTIME",'GENDER_0']
 cols_continuous = ['Age_max', 'LOSRD_avg','days_between_visits'] 
 keywords = ['diagnosis', 'procedures', 'drugs']
 
+folder_arf = "ARF_fixed_postpros/"
+fored_fixed = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf + "FORED_fixedr"
 
-fored_fixed = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/FORED_fixed"
-path_arf = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF_local/"
-sample_patients_path = "generated_synthcity_tabular/ARF/sample_patients"
+sample_patients_path = "generated_synthcity_tabular/ARF/"+folder_arf+"sample_patients_fixed_v"
 original_data_path = "data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl"
-ruta_continous_observations = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/ARF_gmm/result_test_concat"
+ruta_continous_observations = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat"
 #save path
-save_path_features = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/x_real"
-save_path_count_features = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/ARF_gmm/result_test_concat.pkl"
-save_path_dist = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/ARF_gmm/result_test_concat.pkl"
+save_path_features = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"features"
+save_path__leaf_coverages = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"leaf_coveerage.pkl"
+save_path_count_features = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat_v2"
+save_path_leaf_coverages = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat_coverage"
+save_path_dist = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat.pkl"
+read_path_dist = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat"
 
 
+distributions = {
+        'beta': beta,
+        'expon': expon,
+        'kde': gaussian_kde,
+        
+    }
+   

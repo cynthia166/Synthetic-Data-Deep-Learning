@@ -626,7 +626,7 @@ if __name__=='__main__':
         synthetic_ehr_dataset = c.initiate_processing()
         c.print_shapes()
         train_ehr_dataset = train_ehr_dataset[ :synthetic_ehr_dataset.shape[0]]
-        cols = "days_between_visits_cumsum"
+        cols = "days from last visit_cumsum"
         synthetic_ehr_dataset = cols_todrop(synthetic_ehr_dataset,[cols])
         
               

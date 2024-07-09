@@ -1,8 +1,10 @@
-# cols_continuous = ['Age_max', 'LOSRD_avg','days_between_visits']     
+# cols_continuous = ['Age_max', 'LOSRD_avg','days from last visit']     
 # fored = load_pkl("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/FORED")
 # trnorm_modified = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/ARF_tnorm/synthetic_data_generative_model_arf_adjs_per_0.7.pkl"
 # initial_tnorm = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/synthetic_data_generative_model_arf_per_0.7.pkl"
+
 import os
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 import sys
 os.chdir('/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/')
 sys.path.append('/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning')
@@ -22,40 +24,37 @@ from sklearn.neighbors import KernelDensity
 from sklearn.model_selection import GridSearchCV
 from collections import Counter
 from evaluation.resemb.resemblance.config_fored  import *
-
-
-class AnalysisFORED(
-    original_data_path ,
-    sample_patients_path,
-    columns_to_drop,
-    cols_continuous,
-    save_path_features,
-    create_features,
-    fored_fixed,
-    ruta_continous_observations,
-    get_count_variables_per_node_tree_cont,
-    continous_variable_ks_test,
-    obtain_promedio_por_nodo_ks_dist,
-    perform_ks_test,
-    threshold_continous,
-    col_continous,
-    col_cat,
-    columns_to_drop,
-    save_path_count_features
+from config_fored import *
+from scipy.stats import beta, uniform, triang, truncnorm, expon, gamma, lognorm, weibull_min, chi2, f, t
+class AnalysisFORED:
     
-    
-):
-    
-    def __init__(self):
+    def __init__(self,original_data_path ,
+        sample_patients_path,
+        columns_to_drop,
+        cols_continuous,
+        save_path_features,
+        create_features,
+        fored_fixed,
+        ruta_continous_observations,
+        get_count_variables_per_node_tree_cont,
+        continous_variable_ks_test,
+        obtain_promedio_por_nodo_ks_dist,
+        perform_ks_test,
+        threshold_continous,
+        col_continous,
+        col_cat,
+        save_path_count_features,
+        get_long_params_per_node_tree_distcre,
+        save_path_leaf_coverages,
+        get_analysis_continous_fun
+        ):
         self.original_data_path = original_data_path
         self.sample_patients_path = sample_patients_path
         self.columns_to_drop = columns_to_drop
         self.cols_continuous = cols_continuous
         self.save_path_features = save_path_features
         self.create_features = create_features
-        self.FORED = load_pkl(fored_fixed)
-        self.params   = load_pkl(ruta_continous_observations)        
-        self.aux_real =  load_pkl(save_path_features)
+
         self.get_count_variables_per_node_tree_cont = get_count_variables_per_node_tree_cont
         self.continous_variable_ks_test = continous_variable_ks_test
         self.obtain_promedio_por_nodo_ks_dist = obtain_promedio_por_nodo_ks_dist
@@ -64,21 +63,34 @@ class AnalysisFORED(
         self.col_continous = col_continous
         self.save_path_count_features = save_path_count_features
         self.col_cat = col_cat
+        self.leaf_coverages = {}
+        self.get_long_params_per_node_tree_distcre =get_long_params_per_node_tree_distcre
+
+        self.save_path_leaf_coverages = save_path_leaf_coverages
+        self.get_analysis_continous_fun = get_analysis_continous_fun
+        self.FORED = load_pkl(fored_fixed)
+        if self.get_count_variables_per_node_tree_cont:
+            pass
+        else:
+            self.params = load_pkl(save_path_count_features)
         
+        #self.aux_real =  load_pkl(save_path_features)
         
     def initialize(self):
     
 
         if  self.create_features:
-            self.x_real = self.get_featuresfun()
+            self.get_featuresfun()
         else:
             self.x_real =load_pkl(self.save_path_features)
         if  get_count_variables_per_node_tree_cont:
             self.get_count_pervariables_fun()
         if  continous_variable_ks_test:
-            self.get_continous_variable_ks_test
-        if  self.get_analysis_categotical:    
+            self.get_continous_variable_ks_test()
+        if  self.get_long_params_per_node_tree_distcre:    
             self.get_analysis_per_node()
+        if self.get_analysis_continous_fun:
+            self.get_analysis_continous()   
     def  get_featuresfun(self):
        
             train_data_features = load_data(self.original_data_path)
@@ -90,13 +102,12 @@ class AnalysisFORED(
             train_data_features = convertir_categoricas(train_data_features,categorical_cols)
             print(train_data_features.dtypes)
             sample_patients_r = load_pkl(self.sample_patients_path)
-            x_real = train_data_features[train_data_features['SUBJECT_ID'].isin(sample_patients_r)]
-            save_pickle(x_real,self.save_path_features)
+            self.x_real = train_data_features[train_data_features['SUBJECT_ID'].isin(sample_patients_r)]
+            save_pickle(self.x_real,self.save_path_features)
     
                  
     def   get_count_pervariables_fun(self):
         
-            
             #feature importance
             clf = self.FORED["forest"]
 
@@ -107,7 +118,7 @@ class AnalysisFORED(
             oob = False
             alpha = 0
             num_trees = 30
-            orig_colnames = list(x_real)
+            orig_colnames = list(self.x_real)
             p = self.x_real.shape[1]
             # Get terminal nodes for all observations
             
@@ -129,9 +140,13 @@ class AnalysisFORED(
             bnds_2 = pd.DataFrame()
             for t in range(num_trees):
                 unique, freq = np.unique(pred[:,t], return_counts=True)
+                cvg = freq / pred.shape[0]
                 vv = pd.concat([pd.Series(unique, name = 'leaf'), pd.Series(freq/pred.shape[0], name = 'cvg')], axis = 1)
                 zz = bnds[bnds['tree'] == t]
                 bnds_2 =pd.concat([bnds_2,pd.merge(left=vv, right=zz, on=['leaf'])])
+                # Save the leaf coverages for this tree
+                self.leaf_coverages[t] = dict(zip(unique, cvg))
+
             bnds = bnds_2
             del(bnds_2)
 
@@ -149,23 +164,26 @@ class AnalysisFORED(
             bnds= bnds
             # Fit continuous distribution in all terminal nodes
             params = pd.DataFrame()
+            long  = pd.DataFrame()
             if np.invert(factor_cols).any():
                 for tree in range(num_trees):
                     dt = self.x_real.loc[:, np.invert(factor_cols)].copy()
                     dt["tree"] = tree
                     dt["nodeid"] = pred[:,tree]
                     # merge bounds and make it long format
-                    long = pd.merge(right = bnds[['tree', 'nodeid','variable', 'min', 'max', 'f_idx']], left = pd.melt(dt[dt["nodeid"] >= 0], id_vars = ["tree", "nodeid"]), on = ['tree', 'nodeid', 'variable'], how = 'left')
-                    long["count"] = 1
+                    tree_long = pd.merge(right = bnds[['tree', 'nodeid','variable', 'min', 'max', 'f_idx']], left = pd.melt(dt[dt["nodeid"] >= 0], id_vars = ["tree", "nodeid"]), on = ['tree', 'nodeid', 'variable'], how = 'left')
+                    tree_long["count"] = 1
                     # get distribution parameters
                     if dist == "truncnorm":
                         
-                        res = long.groupby([ 'tree',"nodeid", "variable"], as_index = False).agg(mean=("value", "mean"), sd=("value", "std"), min = ("min", "min"), max = ("max", "max"), count = ("count","count"))
+                        res = tree_long.groupby([ 'tree',"nodeid", "variable"], as_index = False).agg(mean=("value", "mean"), sd=("value", "std"), min = ("min", "min"), max = ("max", "max"), count = ("count","count"))
                     else:
                         raise ValueError('unknown distribution, make sure to enter a vaild value for dist')
                         exit()
                     params = pd.concat([params, res])
+                    long = pd.concat([long, tree_long])
             save_pickle(params,self.save_path_count_features)
+            save_pickle(long,self.save_path_leaf_coverages)
             print("Process finished!")    
             # Get class probabilities in all terminal nodes
             
@@ -176,11 +194,13 @@ class AnalysisFORED(
         
         # perfom ks test 5 distribution
         if perform_ks_test:
-            long = load_pkl(save_path_dist)
-            test_distributions_nodes(long,save_path_dist)
+            
+            long = load_pkl(save_path_leaf_coverages)
+            long = long[long["variable"]==self.col_continous]
+            test_distributions_nodes(long,save_path_dist,threshold)
 
         if obtain_promedio_por_nodo_ks_dist:
-            long_ =  load_pkl(save_path_dist)
+            long_ =  load_pkl(read_path_dist)
             #count signifiant prom
             long_,mena_kst,long_,uniform_l,triang_l,truncnorm_l,expon_l,gmm_l = get_proportion_significant_kst(long_)
             res = res_promedio_ks_stat(uniform_l,triang_l,truncnorm_l,expon_l,gmm_l)
@@ -265,9 +285,47 @@ class AnalysisFORED(
 
 
     def get_analysis_continous(self):
+        
+        
 
-        cnt = self.FORED[self]
+        #cnt = self.FORED[self]
+        cnt = load_pkl(self.save_path_leaf_coverages)
+        obs_params = load_pkl(self.save_path_count_features)
+        
         aux2 = cnt[cnt["variable"]==self.col_continous]
+        
+        
+        # Assuming your data is in a DataFrame called 'df'
+        # The above code in Python is grouping the DataFrame `aux2` by the columns 'tree' and
+        # 'nodeid', then summing up the values in the 'count' column for each group. The result is a
+        # new DataFrame `obs_per_node` that contains the sum of 'count' values for each unique
+        # combination of 'tree' and 'nodeid'.
+        obs_per_node = aux2.groupby(['tree', 'nodeid'])['count'].sum().reset_index()
+
+        # Count of valuer per leave and tree        
+        x_label = "Distribution of variable (days from last visit) of values per Node"
+        # hist(obs_per_node,'count','Number of variable (days from last visit) per node',x_label,100)
+        # hist(obs_per_node,'count','Number of variable (days from last visit) per node',x_label,max(obs_per_node["count"]))
+         
+        
+
+         
+        result_df = fit_distributionsv3(aux2, ks_threshold=0.05, wasserstein_threshold=0.1, js_threshold=0.1)
+        #test_
+# Display summary
+        print(result_df.describe())
+
+        # Calculate proportion of nodes that satisfy each distribution for each metric
+        for dist in distributions.keys():
+            ks_prop = result_df[f'{dist}_ks_indicator'].mean()
+            w_prop = result_df[f'{dist}_wasserstein_indicator'].mean()
+            js_prop = result_df[f'{dist}_js_indicator'].mean()
+            print(f"Proportion of nodes satisfying {dist} distribution:")
+            print(f"  KS test: {ks_prop:.2f}")
+            print(f"  Wasserstein: {w_prop:.2f}")
+            print(f"  Jensen-Shannon: {js_prop:.2f}")
+                    
+        
         col  ="mean"
         title = "Mean of days parameter mean tcnorm of  visit considering all the nodes and trees"
         xlab = "Mean Days between visit considering"
@@ -286,8 +344,8 @@ class AnalysisFORED(
 
         #description real data
         
-        print("Train data distribution of "+ self.col_continous,self.aux_real["days_between_visits"].describe())
-        hist(self.aux_real,"days_between_visits",title,xlab)
+        print("Train data distribution of "+ self.col_continous,self.aux_real["days from last visit"].describe())
+        hist(self.aux_real,"days from last visit",title,xlab)
 
 
     
@@ -307,25 +365,31 @@ class AnalysisFORED(
         hist(aux,"count",title,xlab)
         print("Truncated Graph")
         hist(aux,"count",title,xlab,100)
+
 if __name__ == "__main__":
-    AnalysisFORED(
-    original_data_path ,
-    sample_patients_path,
-    columns_to_drop,
-    cols_continuous,
-    save_path_features,
-    create_features,
-    fored_fixed,
-    ruta_continous_observations,
-    get_count_variables_per_node_tree_cont,
-    continous_variable_ks_test,
-    obtain_promedio_por_nodo_ks_dist,
-    perform_ks_test,
-    threshold_continous,
-    col_continous,
-    col_cat,
-    columns_to_drop,
-    save_path_count_features).initialize()
+    analysis = AnalysisFORED(
+        original_data_path ,
+        sample_patients_path,
+        columns_to_drop,
+        cols_continuous,
+        save_path_features,
+        create_features,
+        fored_fixed,
+        ruta_continous_observations,
+        get_count_variables_per_node_tree_cont,
+        continous_variable_ks_test,
+        obtain_promedio_por_nodo_ks_dist,
+        perform_ks_test,
+        threshold_continous,
+        col_continous,
+        col_cat,
+        save_path_count_features,
+        get_long_params_per_node_tree_distcre,
+        save_path_leaf_coverages,
+        get_analysis_continous_fun
+        
+    )
+    analysis.initialize()
     
 '''
 # fit in every node a distribution:
@@ -431,7 +495,7 @@ print("All Results:", results['all_results'])
 # print(fit_results)
 # fit_results.to_csv("fit_results.csv")
 # best_distributions = select_best_distribution(fit_results)
-# #{'Age_max': 'beta', 'LOSRD_avg': 'lognorm', 'days_between_visits': 'norm'}
+# #{'Age_max': 'beta', 'LOSRD_avg': 'lognorm', 'days from last visit': 'norm'}
 # print("Mejores distribuciones por característica:")
 # print(best_distributions)
 
@@ -462,20 +526,20 @@ aggregated_stats.sort_values(ascending=False, by=(    'prob', 'mean'))
 #print(aggregated_stats.to_latex())
 print(aggregated_stats.sort_values(ascending=True, by=(    'prob', 'mean'))[:20].to_latex())
 print(aggregated_stats.sort_values(ascending=False, by=(    'prob', 'mean'))[:20].to_latex())
-# fored_aux = fored["cnt"][fored["cnt"]["variable"]=="days_between_visits"]
+# fored_aux = fored["cnt"][fored["cnt"]["variable"]=="days from last visit"]
 
 # import matplotlib.pyplot as plt
 
-# min_vals = real_training_data["days_between_visits"].min(axis=0)
-# max_vals = real_training_data["days_between_visits"].max(axis=0)
+# min_vals = real_training_data["days from last visit"].min(axis=0)
+# max_vals = real_training_data["days from last visit"].max(axis=0)
 
 
 
 # ['readmission','HADM_ID',"ADMITTIME",'GENDER_0']
-real_data = real_training_data["days_between_visits"]
-# synthetic_data = synthetic_ehr_dataset["days_between_visits"]
+real_data = real_training_data["days from last visit"]
+# synthetic_data = synthetic_ehr_dataset["days from last visit"]
 # synthetic_data = np.clip(synthetic_data, min_vals, max_vals)
-# plot_hist(real_data,synthetic_ehr_dataset_constrains["days_between_visits"])
+# plot_hist(real_data,synthetic_ehr_dataset_constrains["days from last visit"])
 
 # import numpy as np
 # import seaborn as sns
