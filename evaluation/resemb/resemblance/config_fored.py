@@ -3,6 +3,8 @@ from scipy.stats import beta, uniform, triang, truncnorm, expon, gamma, lognorm,
 from sklearn.mixture import GaussianMixture
 from scipy.stats import gaussian_kde
 create_features = False
+get_fit_dist = False
+anal_categotical = True
 #analyze the feature Subject_I
 continous_variable_ks_test = False
 if continous_variable_ks_test:
@@ -13,7 +15,7 @@ else:
 get_count_variables_per_node_tree_cont = False
 #get aras nodes descete
 get_long_params_per_node_tree_distcre = False
-get_analysis_continous_fun = True
+get_analysis_continous_fun = False
 #threshol for values in leaves
 threshold = 0
 #obtain mean_per node
@@ -30,7 +32,7 @@ threshold_continous = 30
 col_continous = "days_between_visits"
 
 columns_to_drop = ['LOSRD_sum', 'L_1s_last_p1','HADM_ID',"ADMITTIME",'GENDER_0']
-cols_continuous = ['Age_max', 'LOSRD_avg','days_between_visits'] 
+cols_continuous = ['Age', 'LOSRD_avg','days_between_visits'] 
 keywords = ['diagnosis', 'procedures', 'drugs']
 
 folder_arf = "ARF_fixed_postpros/"
@@ -46,12 +48,15 @@ save_path_count_features = "/Users/cgarciay/Desktop/Laval_Master_Computer/resear
 save_path_leaf_coverages = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat_coverage"
 save_path_dist = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat.pkl"
 read_path_dist = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat"
-
+read_path_dist2 = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat_dist"
 
 distributions = {
-        'beta': beta,
-        'expon': expon,
-        'kde': gaussian_kde,
+    
+        'truncnorm',
+        'expon',
+        'lognorm',
+       
+    
         
     }
    

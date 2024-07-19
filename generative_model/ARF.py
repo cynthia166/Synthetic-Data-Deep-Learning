@@ -38,7 +38,7 @@ columns_to_drop = ['LOSRD_sum', 'L_1s_last_p1','HADM_ID',"ADMITTIME",'GENDER_0']
 
 train_data_features = train_data_features.drop(columns=columns_to_drop)  
 
-#cols_continuous = ['Age_max', 'LOSRD_avg','days from last visit',"SUBJECT_ID"] 
+#cols_continuous = ['Age', 'LOSRD_avg','days from last visit',"SUBJECT_ID"] 
 cols_continuous = []
 keywords = ['diagnosis', 'procedures', 'drugs']
 # se filtras las columns con keywords

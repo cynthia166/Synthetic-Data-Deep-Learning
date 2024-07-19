@@ -1,4 +1,4 @@
-# cols_continuous = ['Age_max', 'LOSRD_avg','days from last visit']     
+# cols_continuous = ['Age', 'LOSRD_avg','days from last visit']     
 # fored = load_pkl("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/FORED")
 # trnorm_modified = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/ARF_tnorm/synthetic_data_generative_model_arf_adjs_per_0.7.pkl"
 # initial_tnorm = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/synthetic_data_generative_model_arf_per_0.7.pkl"
@@ -46,7 +46,8 @@ class AnalysisFORED:
         save_path_count_features,
         get_long_params_per_node_tree_distcre,
         save_path_leaf_coverages,
-        get_analysis_continous_fun
+        get_analysis_continous_fun,
+        anal_categotical
         ):
         self.original_data_path = original_data_path
         self.sample_patients_path = sample_patients_path
@@ -73,12 +74,13 @@ class AnalysisFORED:
             pass
         else:
             self.params = load_pkl(save_path_count_features)
-        
+        self.anal_categotical = anal_categotical
         #self.aux_real =  load_pkl(save_path_features)
         
     def initialize(self):
     
-
+        if self.anal_categotical:
+             self.get_analysis_categotical()
         if  self.create_features:
             self.get_featuresfun()
         else:
@@ -207,10 +209,25 @@ class AnalysisFORED:
 
     def get_analysis_categotical(self):
         
-        fored_fixed =   FORED
+        fored_fixed =   self.FORED
         # agrupar por nodos en lista conta valore s repeditos
         df = self.FORED["cat"]
         aux  = df[df["variable"]== self.col_cat]
+        
+        obs_per_node = aux.groupby(['tree', 'nodeid'])['value'].count().reset_index()
+        print(obs_per_node.value.describe().to_latex())
+        # Count of valuer per leave and tree        
+        
+        #Distribution per node :
+        print(aux["prob"].describe().to_latex())
+        
+        
+        x_label = "Distribution of variable (patient id) of values per Node"
+        hist(obs_per_node,'value','Number of variable (days from last visit) per node',x_label,100)
+        hist(obs_per_node,'value','Number of variable (days from last visit) per node',x_label,max(obs_per_node["value"]))
+        
+        #la proporcion de los valores que se tiene de un nodo y todo lo arbol
+        print((aux["value"].value_counts() /aux["value"].sum()).describe().to_latex())
         #ciontar el promedio de aquellos con menso de 13 valores
         value_counts_prob = aux.groupby(["tree","nodeid"])["value"].nunique().value_counts()
         print("Count of unique values_per node and tree",value_counts_prob)
@@ -218,7 +235,7 @@ class AnalysisFORED:
         print("Count of values per node and tree" ,df_count_subject_id)
         print("Stats of Count of values per node and tree" ,df_count_subject_id.describe())
         
-        print("Analyzing variables with less than " + s+ "per node")
+        print("Analyzing variables with less than  per node")
         # Those values that have less thatn 30 values per node
         less_thirteen = df_count_subject_id[df_count_subject_id["count"]<30]
         tree_l = less_thirteen["tree"].unique()
@@ -286,14 +303,10 @@ class AnalysisFORED:
 
     def get_analysis_continous(self):
         
-        
-
         #cnt = self.FORED[self]
         cnt = load_pkl(self.save_path_leaf_coverages)
         obs_params = load_pkl(self.save_path_count_features)
-        
         aux2 = cnt[cnt["variable"]==self.col_continous]
-        
         
         # Assuming your data is in a DataFrame called 'df'
         # The above code in Python is grouping the DataFrame `aux2` by the columns 'tree' and
@@ -306,17 +319,20 @@ class AnalysisFORED:
         x_label = "Distribution of variable (days from last visit) of values per Node"
         # hist(obs_per_node,'count','Number of variable (days from last visit) per node',x_label,100)
         # hist(obs_per_node,'count','Number of variable (days from last visit) per node',x_label,max(obs_per_node["count"]))
-         
-        
-
-         
-        result_df = fit_distributionsv3(aux2, ks_threshold=0.05, wasserstein_threshold=0.1, js_threshold=0.1)
-        #test_
+        if get_fit_dist:
+            result_df = fit_distributionsv3(aux2, ks_threshold=0.05, wasserstein_threshold=0.1, js_threshold=0.1)
+        else:
+            result_df =    load_pkl(read_path_dist2)#test_
 # Display summary
         print(result_df.describe())
 
         # Calculate proportion of nodes that satisfy each distribution for each metric
-        for dist in distributions.keys():
+        for dist in distributions:
+            # result_df[f'{dist}_js_indicator'] = int(js_divergence < js_threshold)
+            # result_df[f'{dist}_ks_indicator'] = int(ks_p_value > ks_threshold)
+            # result_df[f'{dist}_wasserstein_indicator'] = int(w_distance < wasserstein_threshold)
+        
+            
             ks_prop = result_df[f'{dist}_ks_indicator'].mean()
             w_prop = result_df[f'{dist}_wasserstein_indicator'].mean()
             js_prop = result_df[f'{dist}_js_indicator'].mean()
@@ -325,6 +341,14 @@ class AnalysisFORED:
             print(f"  Wasserstein: {w_prop:.2f}")
             print(f"  Jensen-Shannon: {js_prop:.2f}")
                     
+        cols = list(result_df.filter(like="ks_indicator").columns) 
+        print(result_df[cols].describe().to_latex())
+        
+        cols_js = list(result_df.filter(like="js_divergence").columns)
+        print(result_df[cols_js+ cols].describe().to_latex())
+        
+        cols_ws = list(result_df.filter(like="wasserstein").columns)
+        print(result_df[cols_ws].describe().to_latex())
         
         col  ="mean"
         title = "Mean of days parameter mean tcnorm of  visit considering all the nodes and trees"
@@ -386,8 +410,8 @@ if __name__ == "__main__":
         save_path_count_features,
         get_long_params_per_node_tree_distcre,
         save_path_leaf_coverages,
-        get_analysis_continous_fun
-        
+        get_analysis_continous_fun,
+        anal_categotical
     )
     analysis.initialize()
     
@@ -495,7 +519,7 @@ print("All Results:", results['all_results'])
 # print(fit_results)
 # fit_results.to_csv("fit_results.csv")
 # best_distributions = select_best_distribution(fit_results)
-# #{'Age_max': 'beta', 'LOSRD_avg': 'lognorm', 'days from last visit': 'norm'}
+# #{'Age': 'beta', 'LOSRD_avg': 'lognorm', 'days from last visit': 'norm'}
 # print("Mejores distribuciones por característica:")
 # print(best_distributions)
 

@@ -1,4 +1,11 @@
 from scipy.spatial.distance import jensenshannon
+from sklearn.metrics import mean_squared_error
+from math import sqrt
+
+
+# random.seed(42)
+# os.environ["PYTHONHASHSEED"] = str(42)
+# np.random.seed(42)
 import os
 #os.chdir("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning")
 os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
@@ -82,6 +89,26 @@ logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(level
 
 import svgutils.transform as sg
 
+def plot_sub(real_prob, fake_prob, feature, ax, name,  rmse):
+    df = pd.DataFrame({'real': real_prob,  'fake': fake_prob, "feature": feature})
+    sns.scatterplot(ax=ax, data=df, x='real', y='fake', hue="feature", s=10, alpha=0.8, edgecolor='none', legend=None, palette='Paired_r')
+    sns.lineplot(ax=ax, x=[0, 1], y=[0, 1], linewidth=0.5, color="darkgrey")
+    ax.set_title(name, fontsize=11)
+    ax.set(xlabel="Bernoulli success probability of real data")
+    ax.set(ylabel="Bernoulli success probability of synthetic data")
+    ax.xaxis.label.set_size(8)
+    ax.yaxis.label.set_size(8)
+    ax.set_xlim([0, 1])
+    ax.set_ylim([0, 1])
+    
+    ax.text(0.75, 0.05, 'RMSE='+str(rmse), fontsize=9)
+
+def cal_cc(real_prob, fake_prob):
+    return float("{:.4f}".format(np.corrcoef(real_prob, fake_prob)[0, 1]))
+
+def cal_rmse(real_prob, fake_prob):
+    return float("{:.4f}".format(sqrt(mean_squared_error(real_prob, fake_prob)))) 
+    
 def get_feature_importance(clf,synthetic_raw_data,num_impor):
     feature_importances = clf.feature_importances_
     print("Feature Importances:", feature_importances)
@@ -241,10 +268,13 @@ def make_read_constraints(make_contrains,
                             subject_continous,
                             create_days_between_visits_by_date_var,
                             eliminate_negatives_var,
+                            get_days_grom_visit_histogram,
+                            get_admitted_time,
+                            get_synthetic_subject_clustering,
                             file_path_dataset = None,
                             make_read_constraints_name='synthetic_ehr_dataset_contrainst.pkl'):
     if make_contrains:
-        c = EHRDataConstraints(train_ehr_dataset, 
+        c = EHRDataConstraints( train_ehr_dataset, 
                  test_ehr_dataset,
                  synthetic_ehr_dataset,
                  columns_to_drop,
@@ -257,11 +287,14 @@ def make_read_constraints(make_contrains,
                 get_handle_hospital_expire_flag,
                 get_0_first_visit,
                 get_sample_synthetic_similar_real,
-                create_days_between_visits_by_date_var,
-                 eliminate_negatives_var=True ,
-                 type_archivo = 'ARFpkl',
-                 invert_normalize = False,
-                 subject_continous = False
+                create_days_between_visits_by_date_var
+                 ,eliminate_negatives_var ,
+                 get_days_grom_visit_histogram,
+                 get_admitted_time,
+                 
+                type_archivo = 'ARFpkl',
+                invert_normalize = False,
+                subject_continous = False
            )
         c.print_shapes()
         #cols_accounts = c.handle_categorical_data()
@@ -286,7 +319,8 @@ def make_read_constraints(make_contrains,
     logging.info(f'train_ehr_dataset shape: {train_ehr_dataset.shape}')
     logging.info(f'synthetic_ehr_dataset shape: {synthetic_ehr_dataset.shape}')
     logging.info(f'itrain_unicos: {train_ehr_dataset["id_patient"].nunique()}')
-    logging.info(f'synthetic unique patients: {synthetic_ehr_dataset["id_patient"].nunique()}')  
+    if get_synthetic_subject_clustering != True:
+        logging.info(f'synthetic unique patients: {synthetic_ehr_dataset["id_patient"].nunique()}')  
     return train_ehr_dataset,synthetic_ehr_dataset,test_ehr_dataset
 def equalize_length_dataframe(df1, df2):
     # Obtiene la longitud de cada DataFrame
@@ -389,7 +423,10 @@ def doppleganger_data_synthetic(data, synthetic_data,  attributes,  path_o, attr
             #obtener un syntethic datafram que considere el percentil y si es mayor a eso se considera 1 si no 0, si es false no se le agrega la columnas id_patient
             synthetic_ehr = change_tosyn_stickers_temporal(synthetic_ehr_dataset,columnas_test_ehr_dataset,True)
             return synthetic_ehr,train_ehr_dataset,test_ehr_dataset,attributes,features,static,con_cols,cat,cat1,total_cols,total_cols1,top_300_codes
-
+def identify_categorical_features(df):
+    """Identifica características categóricas basadas en el tipo de datos."""
+    categorical_features = df.select_dtypes(include=['object', 'category']).columns
+    return categorical_features
 def print_latex(result):
     aux_s =pd.DataFrame(result,index = [0])
     la = aux_s.to_latex()
@@ -471,6 +508,14 @@ def generate_comparison_table(real_data, synthetic_data, test_data, columns):
 
 # # Guardar la tabla de comparación en un archivo CSV
 # comparison_table.to_csv('comparison_table.csv', index=False)
+def common_cols(df1,df2):
+            columnas_df1 = set(df1.columns)
+            columnas_df2 = set(df2.columns)
+            columnas_comunes = columnas_df1.intersection(columnas_df2)
+            # Filtra ambos DataFrames para quedarte solo con las columnas comunes
+            df1_filtrado = df1[columnas_comunes]
+            df2_filtrado = df2[columnas_comunes]
+            return df1_filtrado, df2_filtrado
 
 def plot_admission_date_bar_charts(color_dict, color_dict_, grouped, grouped_synthetic, col, save=False,path_img=None):
             # Create the figure with two subplots side by side
@@ -498,9 +543,11 @@ def plot_admission_date_bar_charts(color_dict, color_dict_, grouped, grouped_syn
             fig.autofmt_xdate()  # Automatically format the dates to improve visualization
             # Show the graph
             plt.show()
+
             
             if path_img != None:
                 save_plot_as_svg(plt,path_img,'plot_admission_date_bar_charts')    
+            plt.close()
                
  
             
@@ -647,6 +694,10 @@ def expand_dict_column(row):
 # # Reorganizar las columnas
 # expanded_df = expanded_df[['node_id', 'tree'] + [col for col in expanded_df.columns if col not in ['node_id', 'tree']]]
 
+def load_pkl(name):
+    with open(name+'.pkl', 'rb') as f:
+        data = pickle.load(f)
+    return data  
        
 def obtain_dataset_admission_visit_rank(sample_patients_path,file,valid_perc,features_path,type_archivo='csv'):
     features = load_data(features_path)
@@ -703,9 +754,10 @@ def plot_admission_date_bar_charts(color_dict, color_dict_, grouped, grouped_syn
             fig.autofmt_xdate()  # Automatically format the dates to improve visualization
             # Show the graph
             plt.show()
+          
             if path_img != None:
                 save_plot_as_svg(plt,path_img,'plot_admission_date_bar_charts')
-       
+            plt.close()
        
 def fun_grafico_compa(col,train_ehr_dataset):
             cols =    filter_cols([col],train_ehr_dataset) 
@@ -796,6 +848,7 @@ def dimensio_wise(real_samples,gen_samples,name,path_img=None):
             
             plt.show()
             
+            
             if path_img is not None:
                 save_plot_as_svg(plt, path_img, 'dimensio_wise')
             
@@ -850,7 +903,7 @@ def plot_heatmap(synthetic_ehr_dataset, name,col, cols_num=1,cols_prod="None",ty
             synthetic_ehr_dataset.sort_values(by = 'visit_rank', ascending=True, inplace=True)  # Sort by year
             # Aggregate data to count ICD-9 codes occurrences per year  
             if cols_num == 1:
-                if col == 'Age_max' or col == 'days from last visit':
+                if col == 'Age' or col == 'days from last visit':
                     age_intervals  = synthetic_ehr_dataset[col].unique()
                     synthetic_ehr_dataset[col]= pd.Categorical(synthetic_ehr_dataset[col], categories=age_intervals, ordered=True)
                 heatmap_data = synthetic_ehr_dataset.groupby(['visit_rank', col]).size().unstack(fill_value=0)
@@ -865,7 +918,7 @@ def plot_heatmap(synthetic_ehr_dataset, name,col, cols_num=1,cols_prod="None",ty
                 plt.show()
                 if path_img!= None:
                      save_plot_as_svg(plt,path_img,'plot_kernel_syn')
-
+                plt.close()
 
             else:
                 heatmap_data = synthetic_ehr_dataset[cols_prod+["visit_rank"]].groupby(col).sum()   
@@ -887,6 +940,7 @@ def plot_heatmap(synthetic_ehr_dataset, name,col, cols_num=1,cols_prod="None",ty
                 plt.show()
                 if path_img!= None:
                      save_plot_as_svg(plt,path_img,'plot_kernel_syn')
+                plt.close()     
 
 def hist_d(col,synthetic_ehr_dataset,path_img = None):
     plt.figure(figsize=(12, 8))
@@ -914,7 +968,7 @@ def plot_heatmap_(synthetic_ehr_dataset, name, col,name2,path_img=None):
     if path_img!= None:
         
         save_plot_as_svg(plt,path_img,'plot_kernel_syn')
-
+    plt.close()
 # Adjust parameters according to your specific dataset structure and requirements
 
     
@@ -942,7 +996,7 @@ def hist_betw_a(original_data,synthetic_data,col,path_img=None):
     plt.show()
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'plot_kernel_syn')
-
+    plt.close()
 def hist_counts_node(synthetic_data,col,node_num,tree_node,path_img=None):
     #original_data = pd.read_csv('original_data.csv')  # Adjust the file path as necessary
     #synthetic_data = pd.read_csv('synthetic_data.csv')  # Adjust the file path as necessary
@@ -969,7 +1023,7 @@ def hist_counts_node(synthetic_data,col,node_num,tree_node,path_img=None):
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'plot_kernel_syn_node')
 
-    
+    plt.close()
 def box_pltos(df,df_syn,col,path_img=None):
     fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
     axes[0].boxplot(df[col])
@@ -992,7 +1046,7 @@ def box_pltos(df,df_syn,col,path_img=None):
     plt.show()   
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'plot_kernel_syn')
-
+    plt.close()
         
 def plot_heatmap(synthetic_ehr_dataset, name, col, cols_num=1, cols_prod="None", type_c="Synthetic",path_img=None):
             # Assuming synthetic_ehr_dataset is preloaded and contains 'visit_rank'
@@ -1001,8 +1055,8 @@ def plot_heatmap(synthetic_ehr_dataset, name, col, cols_num=1, cols_prod="None",
             
             # Aggregate data to count occurrences per 'visit_rank'
             if cols_num == 1:
-                # Create categories if specified column is 'Age_max' or 'days from last visit'
-                if col in ['Age_max', 'days from last visit']:
+                # Create categories if specified column is 'Age' or 'days from last visit'
+                if col in ['Age', 'days from last visit']:
                     age_intervals = synthetic_ehr_dataset[col].unique()
                     synthetic_ehr_dataset[col] = pd.Categorical(synthetic_ehr_dataset[col], categories=age_intervals, ordered=True)
 
@@ -1028,7 +1082,7 @@ def plot_heatmap(synthetic_ehr_dataset, name, col, cols_num=1, cols_prod="None",
                 plt.show()
                 if path_img != None:
                     save_plot_as_svg(plt, path_img, 'plot_heatmap')
-
+                plt.close()
             else:
                 # For multiple columns, sum data and sort
                 heatmap_data = synthetic_ehr_dataset[cols_prod + ["visit_rank"]].groupby('visit_rank').sum()
@@ -1048,7 +1102,27 @@ def plot_heatmap(synthetic_ehr_dataset, name, col, cols_num=1, cols_prod="None",
                 plt.show()
                 if path_img != None:
                     save_plot_as_svg(plt, path_img, 'plot_heatmap')
+                plt.close()
+                
+from scipy.stats import wasserstein_distance, chi2_contingency
 
+def calculate_wasserstein_distance(real_data, synthetic_data, columns):
+    distances = {}
+    for col in columns:
+        dist = wasserstein_distance(real_data[col], synthetic_data[col])
+        distances[col] = dist
+    return distances
+
+def calculate_cramers_v(real_data, synthetic_data, columns):
+    v_values = []
+    for col in columns:
+        contingency_table = pd.crosstab(real_data[col], synthetic_data[col])
+        chi2, _, _, _ = chi2_contingency(contingency_table)
+        n = contingency_table.sum().sum()
+        min_dim = min(contingency_table.shape) - 1
+        v = np.sqrt(chi2 / (n * min_dim))
+        v_values.append(v)
+    return np.mean(v_values)
 
  
 def PACMAP_PLOT(col_prod,synthetic_ehr_dataset,train_ehr_dataset,i,save=False,path_img=None ):
@@ -1080,7 +1154,7 @@ def PACMAP_PLOT(col_prod,synthetic_ehr_dataset,train_ehr_dataset,i,save=False,pa
             plt.show()
             if path_img != None:
                     save_plot_as_svg(plt, path_img, 'PACMAP_PLOT')
-
+            plt.close()
  
  
 def correlacion_total(synthetic_ehr_dataset):
@@ -1215,10 +1289,27 @@ def plot_histograms_separate_axes22(real_data, synthetic_data, title, xlabel, yl
             plt.legend(title='Data Type')
             
             # Mostrar el gráfico
-            plt.show()
+            
             if path_img!= None:
                save_plot_as_svg(plt,path_img,'plot_histograms_separate_axes22')
+            plt.show()
+            plt.close()   
             return wd
+
+def plo_dimensionwisebernoulli(discreat_real,synthethic_data,path_img):
+            sns.set_style("whitegrid", {'grid.linestyle': ' '})
+            fig, ax = plt.subplots(figsize=(4.2, 3.8))
+
+            real_prob = np.mean(discreat_real, axis=0)
+            fake_prob = np.mean(synthethic_data, axis=0)
+            feature = np.concatenate([([i] * discreat_real.shape[0]) for i in range(discreat_real.shape[1])])
+            cc_value = cal_cc(real_prob, fake_prob)
+            rmse_value = cal_rmse(real_prob, fake_prob)
+            plot_sub(real_prob, fake_prob, "", ax, name="ARF", rmse=rmse_value)
+            fig.show()
+            if path_img!= None:
+                save_plot_as_svg(plt,path_img,'dimension_bernoulli_metric')
+            plt.close()
 class JensenShannonDistance2:
     
     def __init__(self, origdst, synthdst, num):
@@ -1446,9 +1537,10 @@ def corr_plot(total_features_train,name ,path_img=None):
     # Mostrar el gráfico
     plt.tight_layout()
     plt.show()
+    
     if path_img!= None:
         save_plot_as_svg(plt,path_img,name+'_kernelplot')       
-  
+    plt.close()
         
     return corr_matrix
 
@@ -1467,8 +1559,8 @@ def generate_statistics(ehr_datasets,type_s,):
         #avg_visit_len = np.mean(visit_lens)
         #std_visit_len = np.std(visit_lens)
         # Storing results
-        aggregate_stats["Record Length Mean" +type_s] = avg_record_len
-        aggregate_stats["Record Length Standard Deviation" +type_s] = std_record_len
+        aggregate_stats["Record Length Mean " +type_s] = avg_record_len
+        aggregate_stats["Record Length Standard Deviation " +type_s] = std_record_len
         #aggregate_stats["Visit Length Mean"] = avg_visit_len
         #aggregate_stats["Visit Length Standard Deviation"] = std_visit_len
         #stats[label] = aggregate_stats
@@ -1488,18 +1580,18 @@ def plot_age(df,col,name,path_img=None):
     # Create a figure and axes
     fig, ax = plt.subplots(figsize=(7, 4))
 
-    # Calculate the kernel density estimate for 'Age_max' for each gender
+    # Calculate the kernel density estimate for 'Age' for each gender
    
-    age_max_female = df[col]
+    Age_female = df[col]
    
-    kde_age_max_female = gaussian_kde(age_max_female)
+    kde_Age_female = gaussian_kde(Age_female)
 
     # Generate x-values for the kernel density estimate
-    x_age_max = np.linspace(age_max_female.min(), age_max_female.max(), 100)
+    x_Age = np.linspace(Age_female.min(), Age_female.max(), 100)
 
-    ax.plot(x_age_max, kde_age_max_female(x_age_max), color=light_blue, label='Gaussian KDE')
+    ax.plot(x_Age, kde_Age_female(x_Age), color=light_blue, label='Gaussian KDE')
 
-    # Set the labels and title for the 'Age_max' plot
+    # Set the labels and title for the 'Age' plot
     ax.set_xlabel(str(col))
     ax.set_ylabel('Density')
     ax.set_title('Kernel Density Plot - ' + str(col))
@@ -1507,9 +1599,10 @@ def plot_age(df,col,name,path_img=None):
     plt.savefig('results_SD/img/'+col+'_'+name+'_kernelplot.svg')
     # Show the plot
     plt.show()
+    
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'kentnel_densitu_plot')
-
+    plt.close()
 
 
 def filter_and_equalize_datasets(df1, df2):
@@ -1566,9 +1659,10 @@ def plot_procedures_diag_drugs(col_prod,train_ehr_dataset,type_procedur,name,pat
     # Show the plot
     
     plt.show()
+    
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'count_of_drugs')
-
+    plt.close()
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -1610,7 +1704,7 @@ def plot_visits_per_patient_histogram(train_ehr_dataset, synthetic_ehr,path_img=
     plt.show()
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'Histogram_numbervisit')
-
+    plt.close()
     
 def plot_patients_per_visit_rank_histogram(train_ehr_dataset, synthetic_ehr_dataset,path_img=None):
     # Group by visit_rank and count the number of unique patients for real data
@@ -1630,9 +1724,10 @@ def plot_patients_per_visit_rank_histogram(train_ehr_dataset, synthetic_ehr_data
     plt.legend(title='Source')
     plt.tight_layout()
     plt.show()
+    
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'visit_rank_histogram')
-
+    plt.close()
 
 
 import pandas as pd
@@ -1664,8 +1759,10 @@ def plot_histograms22_(real_data, synthetic_data, title, xlabel, ylabel,path_img
     plt.ylabel(ylabel)
     plt.legend(title='Data Type')
     plt.show()
+    ()
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'plot_histograms22_')
+    plt.close()           
 
 
 def obtatain_df(serie1,serie2,serie3,serie4,serie5,serie6,name1,name2,name3,name4,name5,name6):
@@ -1738,9 +1835,10 @@ def plot_histograms(real_data, synthetic_data, title, xlabel, ylabel_real, ylabe
     #fig.tight_layout()
     fig.legend(loc='upper right', )
     plt.show()
+    
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'plot_histograms')
-
+    plt.close()
     
 def plot_histograms22(real_data, synthetic_data, title, xlabel, ylabel_real, ylabel_synthetic,path_img=None):
     fig, ax1 = plt.subplots(figsize=(10, 6))
@@ -1764,9 +1862,10 @@ def plot_histograms22(real_data, synthetic_data, title, xlabel, ylabel_real, yla
     
     fig.legend(loc='upper right')
     plt.show()
+    
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'plot_histomas_')
-
+    plt.close()
     
 # Plot histograms
 # The code snippet is iterating over a list containing strings 'diagnosis', 'procedures', 'drugs'
@@ -1843,7 +1942,7 @@ def plot_hist_emp_codes(col_prod, train_ehr_dataset, synthetic_ehr, type_procedu
     plt.show()
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'patient_count')
-
+    plt.close()
 
     # Figure for Admission Data
     fig2, (ax3, ax4) = plt.subplots(1, 2, figsize=(12, 6), sharey=True)
@@ -1859,7 +1958,7 @@ def plot_hist_emp_codes(col_prod, train_ehr_dataset, synthetic_ehr, type_procedu
     plt.show()
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'admission_count')
-
+    plt.close()
 
 # Example usage with mock data and parameters
 # plot_hist_emp_codes(col_prod, train_ehr_dataset, synthetic_ehr, type_procedur, name)
@@ -1928,8 +2027,9 @@ def plot_hist_emp_codes_auz(col_prod, train_ehr_dataset, synthetic_ehr, type_pro
     
     plt.show()
     if path_img!= None:
+        
                save_plot_as_svg(plt,path_img,'plot_hist_emp_codes_auz')
-
+    plt.close()
 
 
 
@@ -2081,15 +2181,15 @@ def descriptive_statistics_matrix(data, data_type):
         
         # Compute each statistic and concatenate it with the column name and data type
         stats_dict[f'mean_{column}_{data_type}'] = np.mean(column_data)
-        stats_dict[f'median_{column}_{data_type}'] = np.median(column_data)
+        #stats_dict[f'median_{column}_{data_type}'] = np.median(column_data)
         #stats_dict[f'mode_{column}_{data_type}'] = stats.mode(column_data)[0][0] if len(column_data) > 0 else None
         stats_dict[f'minimum_{column}_{data_type}'] = np.min(column_data)
         stats_dict[f'maximum_{column}_{data_type}'] = np.max(column_data)
-        stats_dict[f'range_{column}_{data_type}'] = np.ptp(column_data)
-        stats_dict[f'variance_{column}_{data_type}'] = np.var(column_data, ddof=1)
+        #stats_dict[f'range_{column}_{data_type}'] = np.ptp(column_data)
+        #stats_dict[f'variance_{column}_{data_type}'] = np.var(column_data, ddof=1)
         stats_dict[f'standard_deviation_{column}_{data_type}'] = np.std(column_data, ddof=1)
-        stats_dict[f'skewness_{column}_{data_type}'] = stats.skew(column_data)
-        stats_dict[f'kurtosis_{column}_{data_type}'] = stats.kurtosis(column_data)
+        # stats_dict[f'skewness_{column}_{data_type}'] = stats.skew(column_data)
+        # stats_dict[f'kurtosis_{column}_{data_type}'] = stats.kurtosis(column_data)
 
     return stats_dict
 def compare_descriptive_statistics_fun(test_ehr_dataset, syn_ehr):
@@ -2131,106 +2231,111 @@ def limpiar_lista(var):
     var_new = ' '.join(var.split('_'))
     
     return var_new.replace('Otra', 'Other')
-    
+def limpiar_col(strin_col):
+    return strin_col.replace('_', ' ') 
+        
 def plot_pie_proportions(variables, filtered_df, type_data):
     # Combined plot
     fig, axes = plt.subplots(len(filtered_df['Variable'].unique()), 1, figsize=(10, 15))
     #fig.patch.set_facecolor('white')
     
     for i, variable in enumerate(filtered_df['Variable'].unique()):
-        subset = filtered_df[filtered_df['Variable'] == variable]
-        #col = subset['Variable'].apply(lambda x: '_'.join(x.split('_')[:2])).iloc[0]
-        col =extract_relevant_part(subset).iloc[0]
         
-        if col=='visit':   
-            col =  'visit_rank'
-    
+            subset = filtered_df[filtered_df['Variable'] == variable]
+            #col = subset['Variable'].apply(lambda x: '_'.join(x.split('_')[:2])).iloc[0]
+            col =extract_relevant_part(subset).iloc[0]
+            if col =='HOSPITAL_EXPIRE':
+                continue
+            if col=='visit':   
+                col =  'visit_rank'
+        
 
-        if type_data =='Synthetic data': 
-            counts = subset['Count synthetic'+col].values
-            labels = subset['Category '].values
-            proportions = subset['Proportion synthetic'+col].values
-            colors = sns.color_palette('Blues', len(labels))
-        else: 
-            counts = subset['Count train '+col].values
-            labels = subset['Category '].values
-            proportions = subset['Proportion train '+col].values
-            colors = sns.color_palette('Blues', len(labels))
-        if col == 'visit_rank':
-            counts =counts[:4]
-            labels = ["Visit " +str(i) for i in labels[:4] ]
-            pie = axes.pie(counts, labels=labels, autopct='%1.0f%%', startangle=90, colors=colors, textprops={'fontsize': 12})
-            # Agrega el título que desees
-            name_limpit = subset['Variable'].iloc[0]
-            limipiar_nom = limpiar_lista(name_limpit)
-            plt.title("Number of visits" + " " +type_data)
-            plt.axis('off')  # Desactiva los ejes
-            plt.legend('')  # Desactiva las leyendas
-            plt.show()
-            save_plot_as_svg(plt,path_img,'pie_chart_proportion')
-        else:       
-        #pie = axes.pie(counts, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors, textprops={'fontsize': 12})
-            pie = axes[i].pie(counts, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors, textprops={'fontsize': 12})
-            axes[i].legend(pie[0], labels, loc='center left', fontsize=12, bbox_to_anchor=(1, 0.5))
-            name_limpit = subset['Variable'].iloc[0]
-            limipiar_nom = limpiar_lista(name_limpit)
-            axes[i].set_title(limipiar_nom + " " +type_data, fontsize=15)
-            axes[i].set_aspect('equal')  # Ensure pie is circular
-            axes[i].set_xlabel('')  # Remove x-axis label
-            axes[i].set_ylabel('')  # Remove y-axis label
+            if type_data =='Synthetic data': 
+                #col = limpiar_col(col)
+                counts = subset['Count synthetic '+col].values
+                labels = subset['Category '].values
+                proportions = subset['Proportion synthetic '+col].values
+                colors = sns.color_palette('Blues', len(labels))
+            else: 
+                counts = subset['Count train '+col].values
+                labels = subset['Category '].values
+                proportions = subset['Proportion train '+col].values
+                colors = sns.color_palette('Blues', len(labels))
+            if col == 'visit_rank':
+                counts =counts[:4]
+                labels = ["Visit " +str(i) for i in labels[:4] ]
+                pie = axes.pie(counts, labels=labels, autopct='%1.0f%%', startangle=90, colors=colors, textprops={'fontsize': 12})
+                # Agrega el título que desees
+                name_limpit = subset['Variable'].iloc[0]
+                limipiar_nom = limpiar_lista(name_limpit)
+                plt.title("Number of visits" + " " +type_data)
+                plt.axis('off')  # Desactiva los ejes
+                plt.legend('')  # Desactiva las leyendas
+                plt.show()
+                
+                save_plot_as_svg(plt,path_img,'pie_chart_proportion')
+                plt.close()
+            else:       
+            #pie = axes.pie(counts, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors, textprops={'fontsize': 12})
+                pie = axes[i].pie(counts, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors, textprops={'fontsize': 12})
+                axes[i].legend(pie[0], labels, loc='center left', fontsize=12, bbox_to_anchor=(1, 0.5))
+                name_limpit = subset['Variable'].iloc[0]
+                limipiar_nom = limpiar_lista(name_limpit)               
+                axes[i].set_title(limipiar_nom + " " +type_data, fontsize=15)
+                axes[i].set_aspect('equal')  # Ensure pie is circular
+                axes[i].set_xlabel('')  # Remove x-axis label
+                axes[i].set_ylabel('')  # Remove y-axis label
 
-        plt.tight_layout()
-        
-        plt.show()
-        
+                plt.tight_layout()
+                plt.show()
     save_plot_as_svg(plt,path_img,'pie_chart_proportion')
     plt.close()
+ 
+         
 def plot_vistis(    df ):    
     
-    df['Percentage Difference'] = (df['Proportion syntheticvisit_rank'] - df['Proportion train visit_rank']) / df['Proportion train visit_rank'] * 100
+    df['Percentage Difference'] = (df['Proportion synthetic visit_rank'] - df['Proportion train visit_rank']) / df['Proportion train visit_rank'] * 100
 
     # Plot the data
     fig, ax1 = plt.subplots(figsize=(14, 8))
 
     # Bar plot for proportions
     bar1 = sns.barplot(x='Category ', y='Proportion train visit_rank', data=df, color='red', alpha=0.8, label='Train Proportion', ax=ax1, dodge=False)
-    bar2 = sns.barplot(x='Category ', y='Proportion syntheticvisit_rank', data=df, color='blue', alpha=0.4, label='Synthetic Proportion', ax=ax1, dodge=False)
+    bar2 = sns.barplot(x='Category ', y='Proportion synthetic visit_rank', data=df, color='blue', alpha=0.4, label='Synthetic Proportion', ax=ax1, dodge=False)
 
     # Add proportions on top of each bar
-    for p in bar1.patches:
+    for p in bar1.patches[:5]: 
         ax1.text(p.get_x() + p.get_width() / 2., p.get_height(), '{0:.2f}'.format(p.get_height()), 
             fontsize=12, color='black', ha='center', va='bottom')
 
-    for p in bar2.patches:
+    for p in bar2.patches[:5]:
         ax1.text(p.get_x() + p.get_width() / 2., p.get_height(), '{0:.2f}'.format(p.get_height()), 
             fontsize=12, color='black', ha='center', va='bottom')
 
     ax1.set_xlabel('Visit Number ')
     ax1.set_ylabel('Proportion')
     ax1.set_title('Proportion Comparison of Train and Synthetic Data by Visit Number')
-    ax1.legend(loc='upper left')
+    ax1.legend(loc='upper right')
 
-    
-    # Adding legends and titles
+       # Adding legends and titles
     fig.tight_layout()
     fig.legend(loc='upper right', bbox_to_anchor=(0.5, -0.05))
 
     plt.show()    
-    save_plot_as_svg(fig, path_img, "pie_char_vist")
-def get_proportions(df,type_st):
 
+    save_plot_as_svg(fig, path_img, "pie_char_vist")
+    plt.close()
+def get_proportions(df,type_st):
     # Suponiendo que df es tu DataFrame y que contiene columnas categóricas
 
 
     # Lista para almacenar los DataFrames de cada categoría
     tablas_proporciones = []
-
     # Iterar sobre las columnas categóricas
     for column in df.columns:
         # Calcular recuento y proporciones para la columna actual
         recuento = df[column].value_counts()
         proporciones = recuento / len(df)
-
         # Crear DataFrame de proporciones para la columna actual
         tabla_actual = pd.DataFrame({
             'Category ': recuento.index,
@@ -2356,6 +2461,191 @@ def value_couts_visit(df,type_d):
     # Calculate the total codes per patient across all visits
  
 #train_ehr_dataset, synthetic_ehr_dataset, i, "Marginal_distribution",path_img,self.num_visit_count,self.patient_visit
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import gaussian_kde
+
+from scipy.optimize import minimize_scalar
+
+# A light red for the Wasserstein distance plot
+import numpy as np
+import pandas as pd
+from scipy.stats import pearsonr
+
+def calculate_pcd(real_df, synthetic_df):
+    """
+    Calculate the Pairwise Correlation Difference (PCD) between real and synthetic data.
+    
+    Parameters:
+    real_df (pd.DataFrame): DataFrame containing real data
+    synthetic_df (pd.DataFrame): DataFrame containing synthetic data
+    
+    Returns:
+    float: The PCD value
+    """
+    # Eliminar columnas con el mismo valor en todas sus filas
+    synthetic_df = synthetic_df.loc[:, (synthetic_df != synthetic_df.iloc[0]).any()]
+    real_df = real_df.loc[:, (real_df != real_df.iloc[0]).any()]
+    # Ensure both DataFrames have the same columns
+    common_columns = list(set(real_df.columns) & set(synthetic_df.columns))
+    real_df = real_df[common_columns]
+    synthetic_df = synthetic_df[common_columns]
+    corr_real = real_df.corr()
+    corr_synthetic = synthetic_df.corr()
+     
+    pcd = np.linalg.norm(corr_real - corr_synthetic, ord='fro')
+        
+    
+    
+    return pcd
+
+
+
+
+def plot_correlation_matrices(real_df, synthetic_df):
+    """
+    Plot correlation matrices for real and synthetic data side by side.
+    """
+    common_columns = list(set(real_df.columns) & set(synthetic_df.columns))
+    real_df = real_df[common_columns]
+    synthetic_df = synthetic_df[common_columns]
+    
+    corr_real = real_df.corr()
+    corr_synthetic = synthetic_df.corr()
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))
+    
+    sns.heatmap(corr_real, ax=ax1, cmap='coolwarm', vmin=-1, vmax=1, center=0)
+    ax1.set_title("Real Data Correlation Matrix")
+    
+    sns.heatmap(corr_synthetic, ax=ax2, cmap='coolwarm', vmin=-1, vmax=1, center=0)
+    ax2.set_title("Synthetic Data Correlation Matrix")
+    
+    plt.tight_layout()
+    plt.show()
+    plt.close()
+
+# Uncomment the following line to plot correlation matrices
+# plot_correlation_matrices(real_df, synthetic_df)
+def wasserstein_distance(u_values, v_values):
+    return np.abs(np.sort(u_values) - np.sort(v_values)).mean()
+def plot_kernel_wasseteint(real_df, synthetic_df, col, path_img):
+    dark_blue = "#00008B"   # A dark blue for real data
+    dark_green = "#006400"  # A dark green for synthetic data
+    light_red = "#FF6666"   
+# Create a figure with two subplots
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 8), gridspec_kw={'height_ratios': [3, 1]})
+
+    # Calculate the kernel density estimate for real and synthetic data
+    real_data = real_df[col].dropna()
+    synthetic_data = synthetic_df[col].dropna()
+
+    # Gaussian KDE for real and synthetic data
+    kde_real = gaussian_kde(real_data)
+    kde_synthetic = gaussian_kde(synthetic_data)
+
+    # Generate x-values for the kernel density plots
+    x_values = np.linspace(min(real_data.min(), synthetic_data.min()), 
+                        max(real_data.max(), synthetic_data.max()), 1000)
+
+    # Plotting the KDE for real and synthetic data
+    ax1.plot(x_values, kde_real(x_values), color=dark_blue, label='Real Data KDE')
+    ax1.plot(x_values, kde_synthetic(x_values), color=dark_green, label='Synthetic Data KDE')
+
+    # Calculate Wasserstein distance
+    wasserstein_dist = wasserstein_distance(real_data, synthetic_data)
+
+    # Generate cumulative distribution functions (CDFs)
+    cdf_real = np.cumsum(kde_real(x_values)) / np.sum(kde_real(x_values))
+    cdf_synthetic = np.cumsum(kde_synthetic(x_values)) / np.sum(kde_synthetic(x_values))
+
+    # Calculate the absolute difference between CDFs (which relates to Wasserstein distance)
+    cdf_difference = np.abs(cdf_real - cdf_synthetic)
+
+    # Plotting the CDF difference
+    ax2.fill_between(x_values, cdf_difference, color=light_red, alpha=0.5)
+    ax2.plot(x_values, cdf_difference, color=light_red, label=f'CDF Difference\nWasserstein Distance: {wasserstein_dist:.4f}')
+
+    # Set labels and titles
+    col = limpiar_lista(col)
+    ax1.set_title(f'Kernel Density Plot - {col}')
+    ax1.set_ylabel('Density')
+    ax1.legend()
+    ax1.set_ylim(bottom=0)
+
+    ax2.set_xlabel(col)
+    ax2.set_ylabel('CDF Difference')
+    ax2.set_title('CDF Difference (Related to Wasserstein Distance)')
+    ax2.legend()
+    ax2.set_ylim(bottom=0)
+
+    # Adjust layout
+    plt.tight_layout()
+
+    # Save the plot if a path is provided
+    if path_img is not None:
+        save_plot_as_svg(plt, path_img, 'plot_kernel_syn_with_wasserstein')
+    plt.show()
+    plt.close()
+def plot_kde_with_distance_abs(real_df, synthetic_df, col, path_img):
+    dark_blue = "#00008B"   # A dark blue for real data
+    dark_green = "#006400"  # A dark green for synthetic data
+    light_red = "#FF6666"   # A light red for the distance plot
+
+    # Create a figure with two subplots
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 8), gridspec_kw={'height_ratios': [3, 1]})
+
+    # Calculate the kernel density estimate for real and synthetic data
+    real_data = real_df[col].dropna()
+    synthetic_data = synthetic_df[col].dropna()
+
+    # Gaussian KDE for real and synthetic data
+    kde_real = gaussian_kde(real_data)
+    kde_synthetic = gaussian_kde(synthetic_data)
+
+    # Generate x-values for the kernel density plots
+    x_values = np.linspace(min(real_data.min(), synthetic_data.min()), 
+                           max(real_data.max(), synthetic_data.max()), 1000)
+
+    # Plotting the KDE for real and synthetic data
+    ax1.plot(x_values, kde_real(x_values), color=dark_blue, label='Real Data KDE')
+    ax1.plot(x_values, kde_synthetic(x_values), color=dark_green, label='Synthetic Data KDE')
+
+    # Calculate the absolute difference between the two KDEs
+    kde_difference = np.abs(kde_real(x_values) - kde_synthetic(x_values))
+
+    # Plotting the difference
+    ax2.fill_between(x_values, kde_difference, color=light_red, alpha=0.5)
+    ax2.plot(x_values, kde_difference, color=light_red, label='KDE Difference')
+
+    # Set labels and titles
+    col = limpiar_lista(col)
+    ax1.set_title(f'Kernel Density Plot - {col}')
+    ax1.set_ylabel('Density')
+    ax1.legend()
+    ax1.set_ylim(bottom=0)
+
+    ax2.set_xlabel(col)
+    ax2.set_ylabel('Absolute Difference')
+    ax2.set_title('Absolute Difference between KDEs')
+    ax2.legend()
+    ax2.set_ylim(bottom=0)
+
+    # Adjust layout
+    plt.tight_layout()
+       # Show the plot
+    plt.show()
+    # Save the plot if a path is provided
+    if path_img is not None:
+        save_plot_as_svg(plt, path_img, 'plot_kernel_syn_with_distance')
+
+ 
+    plt.close()
+
+# Assuming you have a function to clean the column names
+
+
+# Usageplot_kde_with_distance(real_df, synthetic_df, 'your_column_name', path_img='path/to/save')
 
 def plot_kernel_syn(real_df, synthetic_df, col ,path_img=None):
     # Set the background style
@@ -2401,9 +2691,11 @@ def plot_kernel_syn(real_df, synthetic_df, col ,path_img=None):
     
     # Show the plot
     plt.show()
+    
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'plot_kernel_syn')
-
+       # Show the plot
+    plt.close()
 # Example usage:
 # Assuming `real_df` and `synthetic_df` are your dataframes and 'Age' is the column of interest
 # plot_age(real_df, synthetic_df, 'Age', 'comparison')
@@ -2470,8 +2762,11 @@ def plot_means(train_ehr_dataset, synthetic_ehr_dataset, columns,  path_img=None
 
     if path_img != None:
         save_plot_as_svg(plt, path_img, 'mean_comparison_'+str(np.random.randint(0,1000)))
+        plt.show()
+        plt.close()
     else:
         plt.show()
+        plt.close()
 
     # Function to attach a text label above each bar in *rects*, displaying its height.
     def autolabel(rects):
@@ -2489,6 +2784,7 @@ def plot_means(train_ehr_dataset, synthetic_ehr_dataset, columns,  path_img=None
     fig.tight_layout()
 
     plt.show()
+    plt.close()
     
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -2534,9 +2830,10 @@ def plot_admission_date_bar_charts2(features, synthetic_ehr_dataset, col,path_im
     # Improve layout and plot the graph
     plt.tight_layout()
     plt.show()
+
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'admission_date_bar')
-
+    plt.close()
 
 
 
@@ -2590,7 +2887,7 @@ def plot_admission_date_histograms(features,synthetic_ehr_dataset,col,path_img=N
     plt.show()
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'admission_date_histagram')
-
+    plt.close()
 
 
 
@@ -2630,7 +2927,7 @@ def plot_histograms_separate_axes2(real_data, synthetic_data, title, xlabel, yla
     plt.show()
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'plot_histogram_seperate')
-
+    plt.close()
 
 
 def plot_histograms_separate_axes3(real_data, synthetic_data, title, xlabel, ylabel,path_img=None):
@@ -2661,7 +2958,7 @@ def plot_histograms_separate_axes3(real_data, synthetic_data, title, xlabel, yla
     plt.show()
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'plot_histogram_separee2')
-
+    plt.close()
 
 
 
@@ -2686,7 +2983,7 @@ def plot_boxplots(real_data, synthetic_data, title, xlabel, ylabel,path_img=None
     plt.show()
     if path_img!= None:
                save_plot_as_svg(plt,path_img,'box_plot')
-
+    plt.close()
     
     
 def plot_outliers( real_data, synthetic_data, column_name, title, xlabel, ylabel_real, ylabel_synthetic,path_img=None):
@@ -2710,7 +3007,7 @@ def plot_outliers( real_data, synthetic_data, column_name, title, xlabel, ylabel
         plt.show()
         if path_img!= None:
                save_plot_as_svg(plt,path_img,'plot_outier')
-
+        plt.close()
 
 # Ejemplo de uso (asegúrate de tener los datos `real_data` y `synthetic_data` preparados):
 # plot_histograms_with_same_axis(real_data['number_of_drugs'], synthetic_data['number_of_drugs'], 'Histogram of Number of Drugs per Patient', 'Number of Drugs', 'Patient Count')
@@ -2821,7 +3118,24 @@ def hist(df,col,title,x_label,lsup=None,label  = ''):
     plt.ylabel('Frequency')
     plt.legend()
     plt.show()
+    plt.close()
 
+def hist_ori(df, col, title, x_label, lsup=None, label='',path_img ="Other"):
+    plt.figure(figsize=(12, 6))
+    vmin = df[col].min()
+    vmax = df[col].max()
+    if lsup is None:
+        plt.hist(df[col], bins=100, alpha=0.3, label=label, color='red')
+    else:
+        plt.hist(df[col], bins=100, range=(vmin, lsup), alpha=0.3, label=label, color='red')
+    plt.title(title)
+    plt.xlabel(x_label)
+    plt.ylabel('Frequency')
+    plt.legend()
+    plt.show()
+    if path_img is not None:
+        save_plot_as_svg(plt, path_img, 'histogram')
+    plt.close()
 def create_plot_count_matrix_for_specific_subject(train_ehr_dataset,subjects,type_data  = 'Train data',path_img=None):
 
 
@@ -2867,16 +3181,199 @@ def create_plot_count_matrix_for_specific_subject(train_ehr_dataset,subjects,typ
         axes[i, 2].set_ylabel('Number of ICD-9 Codes')
 
     plt.tight_layout()
-    plt.show()
-
     if path_img is not None:
         save_plot_as_svg(plt, path_img, "count_matrix_progression")
 
     plt.tight_layout()
     plt.show()
+    plt.close()
 
     if path_img is not None:
         save_plot_as_svg(plt, path_img, "count_matrix_progression")
+        
+        
+def get_proportions_vs_qunatities_drugs(df,type_data,medication_columns,procedure_columns,diagnosis_columns):
+            
+            if type_data == 'train':
+                df['drug_count_per_admission'] = df[medication_columns].sum(axis=1)
+                df['procedure_count_per_admission'] = df[procedure_columns].sum(axis=1)
+                df['diagnosis_count_per_admission'] = df[diagnosis_columns].sum(axis=1)
+
+                # 1. Filtrar por visitas con más de 100 personas
+                visit_counts = df['visit_rank'].value_counts()
+                valid_visits = visit_counts[visit_counts > 100].index
+                df_filtered = df[df['visit_rank'].isin(valid_visits)]
+
+                # 2. Calcular ratios
+                df_filtered['drug_vs_procedure'] = df_filtered['drug_count_per_admission'] / df_filtered['procedure_count_per_admission']
+                df_filtered['drug_vs_diagnosis'] = df_filtered['drug_count_per_admission'] / df_filtered['diagnosis_count_per_admission']
+                df_filtered['procedure_vs_diagnosis'] = df_filtered['diagnosis_count_per_admission'] / df_filtered['procedure_count_per_admission']
+            
+            else:
+         
+
+                df['drug_count'] = df[medication_columns].sum(axis=1)
+                df['procedure_count'] = df[procedure_columns].sum(axis=1)
+                df['diagnosis_count'] = df[diagnosis_columns].sum(axis=1)            
+                df['drug_vs_procedure'] = df['drug_count'] / df['procedure_count']
+                df['drug_vs_diagnosis'] = df['drug_count'] / df['diagnosis_count']
+                df['procedure_vs_diagnosis'] = df['procedure_count'] / df['diagnosis_count']
+                df_filtered = df
+            return df_filtered
+                
+def get_percentage_synthetic(df_filtered_visitunique, columns_to_check, threshold_list):
+                percentages = {}
+                for i, column in enumerate(columns_to_check):
+                    threshold = threshold_list[i]
+                    percentages[column ] = (df_filtered_visitunique[column] <= threshold).mean() * 100
+                    print("Estadísticas por visita:")
+                    
+                    print("\nUmbrales (cuartil 0.75):")
+                    print(threshold)
+                    print("\nPorcentaje que satisface el umbral en datos sintéticos:") 
+                return percentages            
+
+def create_boxplots(real_df, synthetic_df, title):
+    # Initialize the figure with 6 subplots (3 for real data and 3 for synthetic data)
+    fig, axes = plt.subplots(2, 3, figsize=(21, 14))
+    fig.suptitle(title, fontsize=16)
+    
+    # Define the datasets and their labels
+    datasets = [('Real', real_df), ('Synthetic', synthetic_df)]
+    
+    for i, (label, df) in enumerate(datasets):
+        # Plot boxplots for each visit
+        for visit in range(1, 4):
+            ax = axes[i, visit-1]
+            visit_data = df[df['visit_rank'] == visit]
+            
+            sns.boxplot(
+                data=visit_data,
+                x="ratio", y="ratio_type", hue="ratio_type",
+                whis=[0, 100], width=.6, palette="vlag",
+                ax=ax
+            )
+            
+            sns.stripplot(
+                data=visit_data,
+                x="ratio", y="ratio_type", size=4, color=".3",
+                ax=ax
+            )
+            
+            ax.set_title(f'{label} Data - Visit {visit}')
+            ax.set_xlabel('Ratio')
+            ax.set_ylabel('')
+            
+            # Tweak the visual presentation
+            ax.xaxis.grid(True)
+            sns.despine(ax=ax, trim=True, left=True)
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.95])  # Adjust layout to fit title
+    plt.show()            
+def create_ratio_histograms(df, title, is_synthetic=False,path_img = None):
+    # Set up the plot style
+    sns.set_theme(style="ticks")
+    
+    # Create a figure with 3 subplots (one for each visit)
+    fig, axes = plt.subplots(1, 3, figsize=(21, 7))
+    fig.suptitle(title, fontsize=16)
+    
+    # Plot histograms for each visit
+    for visit in range(1, 4):
+        ax = axes[visit-1]
+        visit_data = df[df['visit_rank'] == visit]
+        
+        total_data = len(visit_data)
+        truncated_data = visit_data[visit_data['ratio'] <= 20]
+        percentage_not_plotted = 100 * (total_data - len(truncated_data)) / total_data
+        sns.histplot(
+            data=visit_data,
+            x="ratio", hue="ratio_type",
+            multiple="stack",
+            palette="light:m_r",
+            edgecolor=".3",
+            linewidth=.5,
+            ax=ax,
+            bins = 120
+        )
+        
+        ax.set_title(f'Visit {visit}')
+        ax.set_xlabel('Ratio')
+        ax.set_ylabel('Count')
+        ax.set_xlim(0, 20)
+        # Adjust x-axis to log scale if the ratios span several orders of magnitude
+        #if visit_data['ratio'].max() / visit_data['ratio'].min() > 100:
+        #    ax.set_xscale('log')
+        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.2f}'))
+        # handles, labels = ax.get_legend_handles_labels()
+        # ratio_legend = ax.legend(handles, labels, title="Ratio Type", loc='upper left')
+      
+        # Add a legend to indicate the truncation and percentage not plotted
+        print(title)
+        print(f'number visit {visit} Truncated to ratio <= 20\n{percentage_not_plotted:.2f}% data not plotted')
+        # ax.legend(title=f', loc='upper right')
+        # ax.add_artist(ratio_legend)
+        sns.despine(ax=ax)
+    
+    plt.tight_layout()
+    plt.show()
+    if path_img is not None:
+        save_plot_as_svg(plt, path_img, "creat_ratio_histogram_")
+    plt.close()
+
+def reshape_data(df):
+    df_long = pd.melt(df, 
+                      id_vars=['visit_rank'], 
+                      value_vars=['drug_vs_procedure', 'drug_vs_diagnosis', 'procedure_vs_diagnosis'],
+                      var_name='ratio_type', 
+                      value_name='ratio')
+    return df_long
+            
+def create_ratio_plots(df, title):
+    # Melt the dataframe to get it into the right format
+    df_melted = pd.melt(df, 
+                        id_vars=['visit_rank'], 
+                        value_vars=['drug_vs_procedure', 'drug_vs_diagnosis', 'procedure_vs_diagnosis'],
+                        var_name='ratio_type', 
+                        value_name='ratio')
+
+    # Create the FacetGrid
+    grid = sns.FacetGrid(df_melted, col="ratio_type", hue="ratio_type", 
+                         col_wrap=3, height=3, aspect=1.5,
+                         sharex=False, sharey=False)
+
+    # Draw a horizontal line to show the ratio of 1
+    grid.refline(y=1, linestyle=":")
+
+    # Draw a line plot to show the trajectory of each ratio
+    grid.map(plt.plot, "visit_rank", "ratio", marker="o")
+
+    # Adjust the tick positions and labels
+    grid.set(xticks=range(1, 4), 
+             xlim=(0.5, 3.5),
+             xlabel="Visit", 
+             ylabel="Ratio")
+
+    # Add a title to the entire grid
+    grid.fig.suptitle(title, fontsize=16)
+
+    # Adjust the arrangement of the plots
+    grid.tight_layout(w_pad=1)
+
+    plt.show()
+            
+def get_threshold(df_filtered_visitunique,quartil = '75%'):
+            stats_drug_vs_procedure = df_filtered_visitunique[df_filtered_visitunique['drug_vs_procedure'].notnull() & np.isfinite(df_filtered_visitunique['drug_vs_procedure'])]['drug_vs_procedure'].describe()
+            stats_drug_vs_diagnosis = df_filtered_visitunique[df_filtered_visitunique['drug_vs_diagnosis'].notnull() & np.isfinite(df_filtered_visitunique['drug_vs_diagnosis'])]['drug_vs_diagnosis'].describe()
+            stats_procedure_vs_diagnosis = df_filtered_visitunique[df_filtered_visitunique['procedure_vs_diagnosis'].notnull() & np.isfinite(df_filtered_visitunique['procedure_vs_diagnosis'])]['procedure_vs_diagnosis'].describe()
+            # 3. Calcular estadísticas por visita
+            # 4. Verificar si el cuartil 0.75 coincide en todos los casos
+            
+            quartiles_dp = stats_drug_vs_procedure[quartil ]
+            quartiles_drugsd = stats_drug_vs_diagnosis[ quartil]
+            quartiles_pdiagnosis = stats_procedure_vs_diagnosis[quartil]
+            threshold_list = [quartiles_dp,quartiles_drugsd,quartiles_pdiagnosis]
+            return threshold_list 
         
          
 def plot_visit_trejetory(   train_ehr_dataset,diagnosis_columns,procedure_columns,medication_columns,type_data,num_visit_count = 5, patient_visit = 3,path_img = None ):
@@ -2916,7 +3413,7 @@ def plot_patient_trajectory(df,type_data, patient_id, diagnosis_columns, visit_c
     plt.show()
     if path_img is not None:
         save_plot_as_svg(plt, path_img, "trajectories_patient_")
-
+    plt.close()
 
 import numpy as np
 from scipy import stats

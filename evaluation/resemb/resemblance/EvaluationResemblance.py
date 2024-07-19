@@ -1,10 +1,12 @@
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-import matplotlib.pyplot as plt
 from pacmap import PaCMAP
 import logging
 from scipy.stats import wasserstein_distance
+import random
+from sklearn import preprocessing
+from evaluation_framework import EvaluationFramework
 #os.chdir("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning")
 os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
 import sys
@@ -41,7 +43,12 @@ class EHRResemblanceMetrics:
                     corr_plot_categorical ,
                     corr_plot_codes,
                     num_visit_count,
-                    patient_visit
+                    patient_visit,
+                    d_synthetic_data,
+                    eliminate_variables_generadas_post,
+                    variables_generadas_post,
+                    
+
                     ):
         self.patient_visit = patient_visit
         self.num_visit_count = num_visit_count
@@ -71,9 +78,14 @@ class EHRResemblanceMetrics:
         self.corr_plot_continous = corr_plot_continous
         self.corr_plot_categotical = corr_plot_categorical
         self.corr_plot_codes = corr_plot_codes
-        
+        self.d_synthetic_data = d_synthetic_data
+        self.eliminate_variables_generadas_post = eliminate_variables_generadas_post
+        self.variables_generadas_post = variables_generadas_post
     def evaluate(self):    
         results = {}
+        if "crammer_metric" in self.list_metric_resemblance:
+            logging.info("Executing method: crammer_metric")
+            results.update(self.crammer_fun())
         if "analyse_trajectories" in self.list_metric_resemblance:
             logging.info("Executing method: analyse_trajectories")
             self.plot_count_matrix_for_specific_subject( self.train_ehr_dataset, self.synthetic_ehr_dataset,3)
@@ -181,14 +193,219 @@ class EHRResemblanceMetrics:
         if "get_common_proportions" in self.list_metric_resemblance:
             logging.info("Executing method: get_common_proportions")
             results.update(self.get_common_proportions(self.train_ehr_dataset, self.synthetic_ehr_dataset))
-
+        if "dimenssion_bernoulli" in self.list_metric_resemblance:
+            logging.info("Executing method: dimenssion_bernoulli")
+            self.dimension_bernoulli_metric()    
+        if "pairwisecorrelation" in self.list_metric_resemblance:
+            logging.info("Executing method: pairwisecorrelation")
+            results.update(self.pairwisecorrelation())
+        if "get_progression_quantity_medicamentpe_visit" in self.list_metric_resemblance:
+            logging.info("Executing method: get_progression_quantity_medicamentpe_visit")
+            self.progression_quantity_medicamentpe_visit()  
+            results.update(self.progression_quantity_medicamentpe_visit())    
+            
+        if "get_evaluate_synthetic_data_wassetein_overall" in self.list_metric_resemblance:
+            logging.info("Executing method: get_evaluate_synthetic_data_wassetein_overall")
+            results.update(self.evaluate_synthetic_data_wassetein_overall())
+            
         return results
+    
+    
+    def pairwisecorrelation(self):
+        res  = {}
+        #pcd = calculate_pcd(self.train_ehr_dataset, self.synthetic_ehr_dataset)
+        #res["pair wise correlation overall"] = pcd
+        #continous
+        pcd = calculate_pcd(self.train_ehr_dataset[self.cols], self.synthetic_ehr_dataset[self.cols])
+        res["pair wise correlation continous variables"] = pcd
+        print(f"Pairwise Correlation Difference (PCD): {pcd}")
+        #categorical
+        cols_list = []
+        
+        for i in self.categorical_cols:
+            cols_f = self.synthetic_ehr_dataset.filter(like=i, axis=1).columns
+            cols_list.extend(list(cols_f))
+        pcd = calculate_pcd(self.train_ehr_dataset[cols_list], self.synthetic_ehr_dataset[cols_list])
+        res["pair wise correlation categorical variable"] = pcd
+        print(f"Pairwise Correlation Difference (PCD): {pcd}")
+        #icd-9codes
+        
+        for i in self.keywords:
+            col_prod = [col for col in self.train_ehr_dataset.columns if any(palabra in col for palabra in [i])]
+            pcd = calculate_pcd(self.train_ehr_dataset[col_prod], self.synthetic_ehr_dataset[col_prod])
+            res["pair wise correlation icd-9 codes"] = pcd
+            print(f"Pairwise Correlation Difference (PCD): {pcd}")
+        datafram_res = pd.DataFrame(res, index=[0])    
+        print(datafram_res.to_latex())
+        return res
+           
+     
+        
+    def progression_quantity_medicamentpe_visit(self):
+        columns_to_check = ['drug_vs_procedure', 'drug_vs_diagnosis', 'procedure_vs_diagnosis',]
+        
+        # Asumimos que el dataframe se llama 'df' y tiene las columnas necesarias
+        # Creamos las columnas de conteo
+        #get the train visit that have more than 100 patients per visit
+        #get the ratio for both synthetic and no synthetic
+        #for each visit get a threshol list that is quartil of drugs,diagnos and procedure ratios, see if synthetic data has similar vists
+        df_filtered = get_proportions_vs_qunatities_drugs(self.train_ehr_dataset,"train",medication_columns,procedure_columns,diagnosis_columns)
+        df_synthetic = get_proportions_vs_qunatities_drugs(self.synthetic_ehr_dataset,"synthetic",medication_columns,procedure_columns,diagnosis_columns)
 
+        df_real_reshaped = reshape_data(df_filtered)
+        df_synthetic_reshaped = reshape_data(df_synthetic)
+        create_ratio_histograms(df_real_reshaped, 'Real Data Ratio Distributions',self.path_img)
+        create_ratio_histograms(df_synthetic_reshaped, 'Synthetic Data Ratio Distributions',self.path_img)
+        create_boxplots(df_real_reshaped, df_synthetic_reshaped, 'Box plot of Ratios (Synthetic and Real Data)')
         
-        #outliers
         
         
 
+        results = {}
+        for visit in range(1,7):
+            #for each visit get a threshol list that is quartil of drugs,diagnos and procedure ratios, see if synthetic data has similar vists
+            df_filtered_visitunique = df_filtered[df_filtered['visit_rank'] == visit]
+            threshold_list = get_threshold(df_filtered_visitunique,quartil = '75%')
+       
+            df_filtered_visitunique_synthetic = df_synthetic[df_synthetic['visit_rank'] == visit]
+            percentages = get_percentage_synthetic(df_filtered_visitunique_synthetic, columns_to_check, threshold_list)
+            results[f'Visit_{visit}'] = percentages
+        df_results = pd.DataFrame(results).T
+        df_results.index.name = "Visits"
+        mean_values = df_results.mean()
+        df_results.loc['Mean'] = mean_values
+        print(df_results.to_latex())# Imprimir resultados
+                           
+                    
+
+        return df_results.to_dict()
+    
+    def dimension_bernoulli_metric(self):
+        # Identificar columnas categóricas
+        categorical_columns = self.train_ehr_dataset.select_dtypes(include=['object', 'category']).columns
+
+        # Identificar columnas numéricas discretas (este es un enfoque simple, puede necesitar ajustes)
+        numeric_discrete =  self.train_ehr_dataset.select_dtypes(include=['int64']).columns[ self.train_ehr_dataset.select_dtypes(include=['int64']).nunique() < 10]
+        float_cols = self.train_ehr_dataset.select_dtypes(include=['float64']).columns
+        # Combinar todas las columnas discretas
+        discrete_columns = list(float_cols) + list(numeric_discrete)
+
+        # Extraer características discretas
+        discrete_x =  self.train_ehr_dataset[discrete_columns]
+        discreat_real =  self.train_ehr_dataset[discrete_columns]
+        synthethic_data = self.synthetic_ehr_dataset[discrete_columns]
+        plo_dimensionwisebernoulli(discreat_real,synthethic_data,self.path_img)
+    def evaluate_synthetic_data_wassetein_overall(self,):
+        res_metrics = {}
+        
+        # For keywords (assuming these are continuous)
+        for word in self.keywords:
+            cols_sel = self.train_ehr_dataset.filter(like=word).columns
+            distances = calculate_wasserstein_distance(self.train_ehr_dataset, self.synthetic_ehr_dataset, cols_sel)
+            res_metrics["Wasserstein distance " + word] = np.mean(list(distances.values()))
+            
+            # Create histogram for this keyword group
+            df_distances = pd.DataFrame(list(distances.items()), columns=['Column', 'Distance'])
+            hist_ori(df_distances, 'Distance', f'Wasserstein Distances for {word}', 'Wasserstein Distance', label=word)
+        
+        # For categorical variables
+        
+      
+    
+        cols_categorical = []
+        for i in self.categorical_cols:
+            cols_f = self.synthetic_ehr_dataset.filter(like=i, axis=1).columns
+            cols_categorical.extend(list(cols_f))
+        cramer_v_values = calculate_wasserstein_distance(self.train_ehr_dataset, self.synthetic_ehr_dataset, cols_categorical)
+        res_metrics["Wasserstein Distances for demographics and admission variables"] = np.mean(list(cramer_v_values.values()))
+        
+        # Create histogram for Cramer's V values
+        df_cramer_v = pd.DataFrame(list(cramer_v_values.items()), columns=['Column', 'Cramer_V'])
+        hist_ori(df_cramer_v, 'Cramer_V', 'Wasserstein Distances for demographics and admission variables', 'Wasserstein Distance', label='Categorical')
+        
+        # For continuous variables
+        
+        distances_continuous = calculate_wasserstein_distance(self.train_ehr_dataset, self.synthetic_ehr_dataset, self.cols_continuous)
+        res_metrics["Wasserstein distance numerical"] = np.mean(list(distances_continuous.values()))
+        
+        # Create histogram for continuous variables
+        df_distances_continuous = pd.DataFrame(list(distances_continuous.items()), columns=['Column', 'Distance'])
+        hist_ori(df_distances_continuous, 'Distance', 'Wasserstein Distances for Continuous Variables', 'Wasserstein Distance', label='Continuous')
+        
+        print_latex(res_metrics)
+        return res_metrics
+    def evaluate_synthetic_data_wassetein_overall_(self,):
+        res_metrics = {}
+        
+        # For keywords (assuming these are continuous)
+        for word in self.keywords:
+            cols_sel = self.train_ehr_dataset.filter(like=word).columns
+            res_metrics["Wasserstein distance " + word] = calculate_wasserstein_distance(
+                self.train_ehr_dataset, self.synthetic_ehr_dataset, cols_sel
+            )
+        
+        # For categorical variables
+        cols_categorical = []
+        for i in self.categorical_cols:
+            cols_f = self.synthetic_ehr_dataset.filter(like=i, axis=1).columns
+            cols_categorical.extend(list(cols_f))
+            res_metrics["Wasserstein distance demographics and admission"] = calculate_wasserstein_distance(
+            self.train_ehr_dataset, self.synthetic_ehr_dataset, self.cols_categorical)
+        
+        # For continuous variables
+        res_metrics["Wasserstein distance numerical variables"] = calculate_wasserstein_distance(
+            self.train_ehr_dataset, self.synthetic_ehr_dataset, self.continuous_cols
+        )
+        
+        print_latex(res_metrics)
+        return res_metrics
+
+                    #outliers
+    def crammer_fun(self):
+        #categorical_features=[]
+        
+        categorical_features = identify_categorical_features(self.synthetic_ehr_dataset)
+        common_cols = list(set(self.synthetic_ehr_dataset.columns).intersection(self.train_ehr_dataset.columns))
+        categorical_features = list(set(categorical_features).intersection(common_cols))
+        if self.eliminate_variables_generadas_post:
+           categorical_features = self.synthetic_ehr_dataset[categorical_features].columns[~self.train_ehr_dataset.columns.isin(self.variables_generadas_post)]
+        # categorical_features = [
+        #                         feature for feature in self.synthetic_ehr_dataset.select_dtypes(include="object")]
+
+        # # Label encoder
+        # label_encoder = preprocessing.LabelEncoder()
+        # for feature in categorical_features:
+        #     # Real data
+        #     self.train_ehr_dataset[feature] = label_encoder.fit_transform(self.train_ehr_dataset[feature])
+        #     # Syntheric data
+        #     for dataset in self.d_synthetic_data:
+        #          self.synthetic_ehr_dataset[dataset][feature] = label_encoder.transform(
+        #              self.synthetic_ehr_dataset[dataset][feature]
+        #         )}
+        
+        
+        res = {}
+        
+        # Encuentra columnas en df1 que no están en df2
+        evaluation = EvaluationFramework(self.train_ehr_dataset, self.d_synthetic_data, categorical_features, verbose=True) 
+        score_wasserstein_cramers_v,df_scores_before_aggregation = evaluation.wasserstein_cramers_v_test()
+        
+        
+        print(score_wasserstein_cramers_v)
+        # Novelty test
+        #score_novelty = evaluation.novelty_test()
+        #print(score_novelty)
+        # Anomaly detection test
+        res["wasserstein"] = score_wasserstein_cramers_v['Min_node_15']
+        score_anomaly = evaluation.anomaly_detection()   
+        print(score_anomaly)
+        res["anomaly"] = score_anomaly['Min_node_15_']
+        try:
+            Ranking = evaluation.get_synthesizers_ranking()
+            print(Ranking)
+        except:
+            pass    
+        return res
     def outliers_and_histograms_patients_admissions(self,test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,path_img ):
                
         combined_df = pd.DataFrame()    
@@ -357,6 +574,7 @@ class EHRResemblanceMetrics:
                                 'Test/Train (Outliers)': test_train_outliers_values[0]
                             })
                 combined_df = pd.concat([combined_df, aux], ignore_index=True)
+                combined_df = combined_df.round(2)
         print(combined_df.to_latex())
        
     def metric_outliers(self,train_ehr_dataset,synthetic_ehr_dataset,cols_sel):
@@ -401,6 +619,9 @@ class EHRResemblanceMetrics:
         data.set_index('Source', inplace=True) 
         #data = pd.concat([result.reset_index(drop=True), result1.reset_index(drop=True)], axis=1)
         data = data.transpose()
+        
+        
+        data = data.round(2)
         print(data.to_latex())
         return data.to_dict()
 
@@ -428,7 +649,9 @@ class EHRResemblanceMetrics:
 
     def plot_kerneldis(self,train_ehr_dataset,synthetic_ehr_dataset,cols,path_img):
             for i in cols: 
-                plot_kernel_syn(train_ehr_dataset,synthetic_ehr_dataset, i,path_img)
+                #plot_kernel_syn(train_ehr_dataset,synthetic_ehr_dataset, i,path_img)
+                plot_kernel_wasseteint(train_ehr_dataset,synthetic_ehr_dataset, i,path_img)
+                #plot_kde_with_distance(train_ehr_dataset,synthetic_ehr_dataset, i,path_img)
      
     def plot_count_matrix_for_specific_subject(self,train_ehr_dataset,synthetic_ehr_dataset,num_patient):
         #training patietns
@@ -509,7 +732,7 @@ class EHRResemblanceMetrics:
         print(la)
         res_train.update(res2_synthetic)
         return res_train  
-    def plot_differen_correlation(self,synthetic_ehr_dataset,train_ehr_dataset,cols,categorical_cols,keywords,path_img,all_data_heatmap_diff=False,corr_plot_syn_real=False,corr_plot_continous = True,corr_plot_categotical =True,corr_plot_codes=False):
+    def plot_differen_correlation(self,synthetic_ehr_dataset,train_ehr_dataset,cols,categorical_cols,keywords,path_img,all_data_heatmap_diff=False,corr_plot_syn_real=False,corr_plot_continous = True,corr_plot_categotical =True,corr_plot_codes=True):
 
         # Example usage:
         if all_data_heatmap_diff:
@@ -561,9 +784,7 @@ class EHRResemblanceMetrics:
             cols_list.extend(list(cols_f))
         PACMAP_PLOT(cols_list,synthetic_ehr_dataset,train_ehr_dataset,"Demographic and admission",path_img )    
 
-        cols = [ 'Age_max', 'LOSRD_sum','LOSRD_avg',
-        'visit_rank',
-        'days from last visit']
+    
         PACMAP_PLOT(cols_list,synthetic_ehr_dataset,train_ehr_dataset,"Continuos variables",path_img )    
     
     def temporal_histogram_heatmap(self,synthetic_ehr_dataset,train_ehr_dataset,path_img ):    
@@ -581,11 +802,11 @@ class EHRResemblanceMetrics:
         plot_heatmap_(train_ehr_dataset, name,col, "Real",path_img)
         # age
         name = "Age interval"
-        col =   'Age_max_bins'
-        synthetic_ehr_dataset['Age_max_bins'] = pd.qcut(synthetic_ehr_dataset['Age_max'], q=5, duplicates='drop')
-        hist_d("Age_max",synthetic_ehr_dataset) 
+        col =   'Age_bins'
+        synthetic_ehr_dataset['Age_bins'] = pd.qcut(synthetic_ehr_dataset['Age'], q=5, duplicates='drop')
+        hist_d("Age",synthetic_ehr_dataset) 
         plot_heatmap_(synthetic_ehr_dataset, name,col, "Synthetic",path_img)
-        train_ehr_dataset['Age_max_bins'] = pd.qcut(train_ehr_dataset['Age_max'], q=5, duplicates='drop')
+        train_ehr_dataset['Age_bins'] = pd.qcut(train_ehr_dataset['Age'], q=5, duplicates='drop')
         plot_heatmap_(train_ehr_dataset, name,col,"Real",path_img)
         hist_d("days from last visit",train_ehr_dataset) 
         
@@ -748,9 +969,9 @@ class EHRResemblanceMetrics:
 
     #     plot_data = remove_outliers(plot_data, 'Real')
     #     plot_data = remove_outliers(plot_data, 'Synthetic')
-    #     index_to_drop = ["id_patient","HADM_ID","days from last visit","Age_max","LOSRD_avg"]
+    #     index_to_drop = ["id_patient","HADM_ID","days from last visit","Age","LOSRD_avg"]
         
-    #     #plot_data = plot_data.drop(["days from last visit", "Age_max", "LOSRD_avg"])
+    #     #plot_data = plot_data.drop(["days from last visit", "Age", "LOSRD_avg"])
 
         
         
@@ -807,9 +1028,9 @@ class EHRResemblanceMetrics:
         #train_ehr_dataset_a = cols_todrop(train_ehr_dataset,cols)
         
         result =   mmd_evaluator._evaluate(train_ehr_dataset, synthetic_ehr_dataset)
-        print("MaximumMeanDiscrepancy (flattened):", result)
+        print("Maximum Mean Discrepancy (flattened):", result)
         print_latex(result)
-        return result    
+        return result
 
     # Example usage:
     # X_gt and X_syn are two numpy arrays representing empirical distributions
@@ -877,13 +1098,19 @@ class EHRResemblanceMetrics:
         most_different_cols_tv = chi_df.nlargest(10, 'tv_distance')
         least_different_cols_tv = chi_df.nsmallest(10, 'tv_distance')
 
+        # dic_results = {
+        #     'Most Different by p-value': most_different_cols['column'].tolist() + [''] * (10 - len(most_different_cols)),
+        #     'Least Different by p-value': least_different_cols['column'].tolist() + [''] * (10 - len(least_different_cols)),
+        #     'Most Different by TV Distance': most_different_cols_tv['column'].tolist() + [''] * (10 - len(most_different_cols_tv)),
+        #     'Least Different by TV Distance': least_different_cols_tv['column'].tolist() + [''] * (10 - len(least_different_cols_tv)),
+        # }
+        # # Create the final DataFrame
+        
         dic_results = {
-            'Most Different by p-value': most_different_cols['column'].tolist() + [''] * (10 - len(most_different_cols)),
-            'Least Different by p-value': least_different_cols['column'].tolist() + [''] * (10 - len(least_different_cols)),
-            'Most Different by TV Distance': most_different_cols_tv['column'].tolist() + [''] * (10 - len(most_different_cols_tv)),
+             'Most Different by TV Distance': most_different_cols_tv['column'].tolist() + [''] * (10 - len(most_different_cols_tv)),
             'Least Different by TV Distance': least_different_cols_tv['column'].tolist() + [''] * (10 - len(least_different_cols_tv)),
         }
-        # Create the final DataFrame
+        
         final_df = pd.DataFrame(dic_results)
 
         # Display the DataFrame
@@ -947,13 +1174,16 @@ class EHRResemblanceMetrics:
         categorical_cols = categorical_cols
         for i in categorical_cols:
             cols_f = synthetic_ehr_dataset.filter(like=i, axis=1).columns
+            #col_name = limpiar_col(i)
+            
             tabla_proporciones_final = get_proportions(train_ehr_dataset[cols_f],"train "+ i)
-            tabla_proporciones_final_2= get_proportions(synthetic_ehr_dataset[cols_f],"synthetic"+ i)
+            tabla_proporciones_final_2= get_proportions(synthetic_ehr_dataset[cols_f],"synthetic "+i)
             plot_pie_proportions(cols_f, tabla_proporciones_final, "Train data")
             plot_pie_proportions(cols_f, tabla_proporciones_final_2, "Synthetic data")
             total = pd.merge(tabla_proporciones_final,tabla_proporciones_final_2,  on=["Variable","Category "], how='inner') 
             #total = total['Variable','Category ]+test_ehr_dataset[cols_f],"test "+ i]
             prop_datafram.append(total)
+            total = total.round(5)
             latex_code = total.to_latex( index = "Variable")
             if i == "visit_rank":
                plot_vistis(    total )

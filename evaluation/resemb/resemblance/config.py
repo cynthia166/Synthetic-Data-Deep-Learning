@@ -2,17 +2,72 @@
 import pandas as pd
 import pickle 
 import gzip
+import glob
 # The comment `# save ehr en la primera corrida` is indicating that the variable `save_ehr` is used to
 # determine whether to save Electronic Health Record (EHR) data during the first run of the program.
 # If `save_ehr` is set to `True`, then the EHR data will be saved. Otherwise, if it is set to `False`,
 # the EHR data will not be saved during the first run. This variable controls the behavior related to
 # saving EHR data based on its value.
 # save ehr en la primera corrida
-# TODO Modify*
-save_ehr = True
+
+post_processing = True
+save_ehr = False
+
+#creating subject
+get_synthetic_subject_clustering = True
+make_cosin_sim = False
+get_sample_synthetic_similar_real = False#create subject id from admission
+get_days_grom_visit_histogram = True
 #si se tiene doppleganger con attributes y features
 
-attributes = False
+
+#EVALUATION
+visualization_dimension_wise_distribution_similarity = False
+metric_dimension_wise_distribution_similarity = False
+metric_joint_distribution_similarity_coverage=True
+metric_joint_distribution_similarity_structure = True
+metric_inter_dimensional_similarity=False
+consistency_information = False
+other_metrics = False
+
+
+
+if post_processing:
+    #changig existing values
+    create_visit_rank_col = True   
+    get_admitted_time = True
+    propagate_fistvisit_categoricaldata = True
+    adjust_age_and_dates_get = True
+    get_handle_hospital_expire_flag = True
+    eliminate_negatives_var = True  
+    create_days_between_visits_by_date_var = False  
+    #creating  features
+    if get_days_grom_visit_histogram:
+        get_remove_duplicates = False
+        get_0_first_visit = False
+    else:
+        get_remove_duplicates = True
+        get_0_first_visit = True        
+        
+
+          
+else:    
+    #changig existing values
+    create_visit_rank_col = True 
+    get_admitted_time = False
+    propagate_fistvisit_categoricaldata = False
+    adjust_age_and_dates_get = False
+    get_handle_hospital_expire_flag = False
+    create_days_between_visits_by_date_var = False
+    eliminate_negatives_var = False
+    #creating  features
+    if get_days_grom_visit_histogram:
+        get_remove_duplicates = False
+        get_0_first_visit = False
+    else:
+        get_remove_duplicates = True
+        get_0_first_visit = True    
+        
 if save_ehr:
     read_ehr = False
     # to  make post-processing
@@ -25,49 +80,26 @@ else:
     make_contrains = False
     #save contrains
     save_constrains = False
-
     
-# TODO Modify*
-# si los datos son normalizados continuos
-invert_normalize = False
-# si subject continuo was modeled continous; subject_continous
-subject_continous = False
-
-create_visit_rank_col = True
-post_processing = True
-if post_processing:
-    propagate_fistvisit_categoricaldata = True
-    #considerin th date as principa pivot
-    create_days_between_visits_by_date_var = False
-    adjust_age_and_dates_get = True
-    get_remove_duplicates = True
-    get_handle_hospital_expire_flag = True
-    get_0_first_visit = True
-    eliminate_negatives_var = True
-    get_sample_synthetic_similar_real = False
     
-else:    
-    propagate_fistvisit_categoricaldata = False
-    adjust_age_and_dates_get = False
-    get_remove_duplicates = False
-    get_handle_hospital_expire_flag = False
-    get_0_first_visit = False
-    get_sample_synthetic_similar_real = False
-    #eliminate_negatives_var = False
-# this is only for Dopplganger
 valid_perc = 0.7 # 30 por ciento de los clientes
 num_patient=3
 num_visit_count = 5
-
+name_file_similaritymatrixcos = "cosine_matrix_similarity"
 file_data =     "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"
 name_file_ehr = "ARF_fixedv"
 #folder = "ARF_fixed_v_sin_subject_id/"
-folder = "ARF_fixed_postpros/"
+#folder = "ARF_fixed_postpros/"
+#folder = "ARF_fixed_v/"
+folder = "ARF_fixed_sansvar/cosine_sim_subj/"
+
+
 path_to_folder_syn = file_data+folder
 file =path_to_folder_syn+ "synthetic_data_generative_model_arf_per_fixed_v0.7.pkl"
 #type of model
 type_archivo = 'ARFpkl'
 sample_patients_path =path_to_folder_syn + "sample_patients_fixed_v"
+#read_dict
 
 
 results_df = pd.DataFrame()
@@ -80,6 +112,9 @@ results_df = pd.DataFrame()
 features_path = "data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl"
 make_read_constraints_name = 'synthetic_ehr_dataset_contrainst_ARF_'+name_file_ehr+'.pkl'
 path_to_directory = 'generated_synthcity_tabular/*'  # Asegúrate de incluir el asterisco al final
+csv_files = glob.glob(path_to_directory + '.pkl')
+    
+
 #name of file to be save ehr
 
 # Not modif
@@ -89,15 +124,23 @@ file_path_dataset =   path_to_folder_syn
 #image of path
 path_img = path_to_folder_syn+"img/"
 ## columns
-
+eliminate_variables_generadas_post = True
+variables_generadas_post = [ 'id_patient', 'ADMITTIME', 'visit_rank','days from last visit']
 #cols to drop        
 columns_to_drop = ['LOSRD_sum', 'L_1s_last_p1','HADM_ID']   
 if adjust_age_and_dates_get:
-   columns_to_drop_syn = ['days from last visit_cumsum']
+    if get_synthetic_subject_clustering:
+       columns_to_drop_syn = ['days from last visit_cumsum','similarity_score']
+    else: 
+        columns_to_drop_syn = ['days from last visit_cumsum']   
 else:
-    columns_to_drop_syn = []   
+    if get_synthetic_subject_clustering:
+         columns_to_drop_syn = ['similarity_score']   
+    else:
+        columns_to_drop_syn = [] 
+             
 #cols continous
-cols_continuous = [ 'Age_max', 'LOSRD_avg','days from last visit','id_patient']
+cols_continuous = [ 'Age', 'LOSRD_avg','days from last visit']
 #categorical cols
 categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
                         'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
@@ -106,7 +149,7 @@ categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
 dependant_fist_visit = ['ADMITTIME',  'RELIGION',
                         'MARITAL_STATUS',  'ETHNICITY','GENDER'] 
 # codes icd9 and drugs
-keywords = ['diagnosis', 'procedures', 'drugs']
+keywords = ['_diagnosis', '_procedures', '_drugs']
 #path to synthetic data
 #paths
 def load_data(file_path):
@@ -118,6 +161,15 @@ diagnosis_columns = list(train_ehr_dataset.filter(like="diagnosis").columns)  # 
 procedure_columns = list(train_ehr_dataset.filter(like="procedures").columns)
 medication_columns = list(train_ehr_dataset.filter(like="drugs").columns)
 
+
+
+#not used
+
+ # TODO Modify*
+attributes = False
+invert_normalize = False
+# si subject continuo was modeled continous; subject_continous
+subject_continous = False
 # Dooppleganger
 if attributes:
     path_o = "train_sp/"    
