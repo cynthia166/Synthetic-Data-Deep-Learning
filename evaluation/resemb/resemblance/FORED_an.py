@@ -26,6 +26,14 @@ from collections import Counter
 from evaluation.resemb.resemblance.config_fored  import *
 from config_fored import *
 from scipy.stats import beta, uniform, triang, truncnorm, expon, gamma, lognorm, weibull_min, chi2, f, t
+
+os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
+import sys
+sys.path.append('evaluation/resemb/resemblance/utils_stats/')
+sys.path.append('evaluation')
+from  config import set_graph_settings
+set_graph_settings()
+
 class AnalysisFORED:
     
     def __init__(self,original_data_path ,
@@ -223,13 +231,17 @@ class AnalysisFORED:
         
         
         x_label = "Distribution of variable (patient id) of values per Node"
-        hist(obs_per_node,'value','Number of variable (days from last visit) per node',x_label,100)
-        hist(obs_per_node,'value','Number of variable (days from last visit) per node',x_label,max(obs_per_node["value"]))
+        hist(obs_per_node,'value','Number of variable ('+str("patient id")+') per node',x_label,100)
+        hist(obs_per_node,'value','Number of variable ('+str("patient id")+') per node',x_label,max(obs_per_node["value"]))
         
         #la proporcion de los valores que se tiene de un nodo y todo lo arbol
         print((aux["value"].value_counts() /aux["value"].sum()).describe().to_latex())
         #ciontar el promedio de aquellos con menso de 13 valores
         value_counts_prob = aux.groupby(["tree","nodeid"])["value"].nunique().value_counts()
+        x_label = "Distribution of probability of variable (patient id) of values per Node"
+        hist(aux,'prob','Probability of variable ('+str("patient id")+') per node',x_label,3.846154e-02)
+        
+       
         print("Count of unique values_per node and tree",value_counts_prob)
         df_count_subject_id = aux.groupby(["tree","nodeid"] ,as_index = False).agg( mean = ("value","mean"),count = ("value","count"))
         print("Count of values per node and tree" ,df_count_subject_id)
@@ -314,11 +326,11 @@ class AnalysisFORED:
         # new DataFrame `obs_per_node` that contains the sum of 'count' values for each unique
         # combination of 'tree' and 'nodeid'.
         obs_per_node = aux2.groupby(['tree', 'nodeid'])['count'].sum().reset_index()
-
+        print(obs_per_node["count"].describe().to_latex())
         # Count of valuer per leave and tree        
         x_label = "Distribution of variable (days from last visit) of values per Node"
-        # hist(obs_per_node,'count','Number of variable (days from last visit) per node',x_label,100)
-        # hist(obs_per_node,'count','Number of variable (days from last visit) per node',x_label,max(obs_per_node["count"]))
+        hist(obs_per_node,'count','Number of values per variable (days from last visit) per node',x_label,100)
+        hist(obs_per_node,'count','Number of variable (days from last visit) per node',x_label,max(obs_per_node["count"]))
         if get_fit_dist:
             result_df = fit_distributionsv3(aux2, ks_threshold=0.05, wasserstein_threshold=0.1, js_threshold=0.1)
         else:
@@ -349,6 +361,7 @@ class AnalysisFORED:
         
         cols_ws = list(result_df.filter(like="wasserstein").columns)
         print(result_df[cols_ws].describe().to_latex())
+        print(result_df[cols+cols_ws])
         
         col  ="mean"
         title = "Mean of days parameter mean tcnorm of  visit considering all the nodes and trees"

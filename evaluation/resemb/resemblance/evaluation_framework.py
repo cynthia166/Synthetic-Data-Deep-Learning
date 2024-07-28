@@ -68,6 +68,7 @@ class EvaluationFramework:
                         p-value of the test.
         """
         scores = dict()
+
         scores_before_aggregation = dict()
         for key in self.d_synthetic_data:
             scores_before_aggregation[key] = list()
@@ -91,6 +92,18 @@ class EvaluationFramework:
                     # Store the Wasserstein distance score in the dictionary
                     scores_before_aggregation[key].append(wasserstein_dist)
         df_scores_before_aggregation = pd.DataFrame(scores_before_aggregation)
+        scores_aux = pd.DataFrame()
+
+        aux = df_scores_before_aggregation.T
+        aux.columns = self.d_synthetic_data['Min_node_15'].columns
+        
+
+        scores_aux["Cramer's V"] = aux[self.categorical_features].iloc[0,:]
+        scores_aux["Wasserstein distance"] = -1
+        scores_aux["Wasserstein distance"]  = aux[["Age","days from last visit","LOSRD_avg"]].iloc[0,:]
+        
+        
+        print(scores_aux.to_latex())
         _, _, rankings_avg, _ = friedman_aligned_ranks_test(
             df_scores_before_aggregation
         )
@@ -108,7 +121,7 @@ class EvaluationFramework:
             print("\n")
             
         self.evaluation_metric_scores["wasserstein_cramers_v"] = scores
-        return scores,df_scores_before_aggregation
+        return scores,df_scores_before_aggregation,scores_aux
 
     def novelty_test(self) -> dict[str, float]:
         """

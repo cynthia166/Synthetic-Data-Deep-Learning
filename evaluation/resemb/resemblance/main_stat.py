@@ -45,10 +45,11 @@ if __name__=="__main__":
                 invert_normalize = False,
                 subject_continous = False
            )
-    synthetic_ehr_dataset, train_ehr_dataset, test_ehr_dataset = c.initiate_processing()
+    
        #constrains  
     if get_synthetic_subject_clustering:
         if make_cosin_sim:
+            synthetic_ehr_dataset, train_ehr_dataset, test_ehr_dataset = c.initiate_processing()
             subs = creating_SyntheticSubject(train_ehr_dataset, 
                         test_ehr_dataset,
                         synthetic_ehr_dataset,file_data,folder ,name_file_similaritymatrixcos ) 
@@ -99,41 +100,41 @@ if __name__=="__main__":
     if visualization_dimension_wise_distribution_similarity:
         list_metric_resemblance.extend([
             "plot_kerneldis",
-            "plot_dimension_wise",
-            "plot_prevalence_wise"
+            #"plot_dimension_wise",
+            #"plot_prevalence_wise"
                                    
                                  
         ])
     if metric_dimension_wise_distribution_similarity:
         list_metric_resemblance .extend([
-            "kolmogorov_smirnof_test_chissquare",
-            "get_descriptive_statistics",
-            "dimenssion_bernoulli",
-            "get_proportion_demos",
-            "compare_average_trends_recordlen",
-            "outliers_and_histograms_patients_admissions"
-            ])
+            # "kolmogorov_smirnof_test_chissquare",
+            # "get_descriptive_statistics",
+            #  "dimenssion_bernoulli",
+            #  "get_proportion_demos",
+            #  "compare_average_trends_recordlen",
+              "outliers_and_histograms_patients_admissions"
+             ])
     if metric_joint_distribution_similarity_coverage:
         list_metric_resemblance .extend([
-            # "crammer_metric",
-            "get_evaluate_synthetic_data_wassetein_overall",
-            #"get_MaximumMeanDiscrepancy",
+            #"crammer_metric",
+             "get_evaluate_synthetic_data_wassetein_overall",
+            # "get_MaximumMeanDiscrepancy",
            
         ])
     if metric_joint_distribution_similarity_structure:    
         list_metric_resemblance.extend([
-            "get_progression_quantity_medicamentpe_visit",
+           "get_progression_quantity_medicamentpe_visit",
             #"analyse_trajectories",
             "temporal_histogram_heatmap",
-            #"plot_pacmap"
+           # "plot_pacmap"
         ])
 
     if  metric_inter_dimensional_similarity:
         
         list_metric_resemblance .extend([
-            "pairwisecorrelation",
+            #"pairwisecorrelation",
             "plot_differen_correlation",
-            "metric_outliers"
+            #"metric_outliers"
             ])
         
     if consistency_information:  
@@ -144,13 +145,13 @@ if __name__=="__main__":
         ]       )
     if other_metrics:
         list_metric_resemblance .extend([
-            #"plot_means_continuos_variables",
+            "plot_means_continuos_variables",
             "plot_first_visit",
-            #"get_visit_value_counts",
+            "get_visit_value_counts",
             "compare_descriptive_stadistics",
             "get_top10_different_mean_difference", 
             "obtain_least_frequent", 
-            #"compare_maximum_range",  
+            "compare_maximum_range",  
             "get_jensenshannon_dist",
             "kolmogorov_smirnof_test_chissquare"
             

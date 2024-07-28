@@ -241,7 +241,8 @@ class EHRDataConstraints:
         #if var are continous   
         if self.subject_continous:
             self.subject_continous_fun()
-         # Change the column name 'SUBJECT_ID' to 'id_patient'        
+         # Change the column name 'SUBJECT_ID' to 'id_patient'  
+               
         self.change_subject_id()       
         if self.get_sample_synthetic_similar_real:    
             self.have_same_patients_similar_num_visits() 

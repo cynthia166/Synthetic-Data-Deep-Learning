@@ -10,23 +10,23 @@ import glob
 # saving EHR data based on its value.
 # save ehr en la primera corrida
 
-post_processing = True
-save_ehr = False
+post_processing = False
+save_ehr = True
 
 #creating subject
-get_synthetic_subject_clustering = True
+get_synthetic_subject_clustering = False
 make_cosin_sim = False
 get_sample_synthetic_similar_real = False#create subject id from admission
-get_days_grom_visit_histogram = True
+get_days_grom_visit_histogram = False
 #si se tiene doppleganger con attributes y features
 
 
 #EVALUATION
 visualization_dimension_wise_distribution_similarity = False
 metric_dimension_wise_distribution_similarity = False
-metric_joint_distribution_similarity_coverage=True
-metric_joint_distribution_similarity_structure = True
-metric_inter_dimensional_similarity=False
+metric_joint_distribution_similarity_coverage=False
+metric_joint_distribution_similarity_structure = False
+metric_inter_dimensional_similarity=True
 consistency_information = False
 other_metrics = False
 
@@ -34,6 +34,8 @@ other_metrics = False
 
 if post_processing:
     #changig existing values
+    #cremmer function
+    eliminate_variables_generadas_post = True
     create_visit_rank_col = True   
     get_admitted_time = True
     propagate_fistvisit_categoricaldata = True
@@ -52,9 +54,10 @@ if post_processing:
 
           
 else:    
+    eliminate_variables_generadas_post = False
     #changig existing values
     create_visit_rank_col = True 
-    get_admitted_time = False
+    get_admitted_time = True
     propagate_fistvisit_categoricaldata = False
     adjust_age_and_dates_get = False
     get_handle_hospital_expire_flag = False
@@ -64,10 +67,10 @@ else:
     if get_days_grom_visit_histogram:
         get_remove_duplicates = False
         get_0_first_visit = False
-    else:
-        get_remove_duplicates = True
-        get_0_first_visit = True    
-        
+    
+    get_remove_duplicates = False
+    get_0_first_visit = False    
+    
 if save_ehr:
     read_ehr = False
     # to  make post-processing
@@ -87,11 +90,12 @@ num_patient=3
 num_visit_count = 5
 name_file_similaritymatrixcos = "cosine_matrix_similarity"
 file_data =     "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"
-name_file_ehr = "ARF_fixedv"
+name_file_ehr = "ARF_fixed_v"
 #folder = "ARF_fixed_v_sin_subject_id/"
-#folder = "ARF_fixed_postpros/"
+folder = "ARF_fixed_postpros/"
 #folder = "ARF_fixed_v/"
-folder = "ARF_fixed_sansvar/cosine_sim_subj/"
+#folder = "ARF_fixed_postpros/"
+#folder = "ARF_fixed_sansvar/cosine_sim_subj/"
 
 
 path_to_folder_syn = file_data+folder
@@ -124,7 +128,7 @@ file_path_dataset =   path_to_folder_syn
 #image of path
 path_img = path_to_folder_syn+"img/"
 ## columns
-eliminate_variables_generadas_post = True
+
 variables_generadas_post = [ 'id_patient', 'ADMITTIME', 'visit_rank','days from last visit']
 #cols to drop        
 columns_to_drop = ['LOSRD_sum', 'L_1s_last_p1','HADM_ID']   
@@ -149,7 +153,7 @@ categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
 dependant_fist_visit = ['ADMITTIME',  'RELIGION',
                         'MARITAL_STATUS',  'ETHNICITY','GENDER'] 
 # codes icd9 and drugs
-keywords = ['_diagnosis', '_procedures', '_drugs']
+keywords = ['diagnosis', 'procedures', 'drugs']
 #path to synthetic data
 #paths
 def load_data(file_path):
@@ -183,3 +187,40 @@ if attributes:
     # esta es para agregar la columnas
     dataset_name = 'DATASET_NAME_non_prepo'
     file_name = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/train_sp/non_prepo/DATASET_NAME_non_prepo_non_preprocess.pkl"
+
+
+
+#color pallet
+
+# graph_settings.py
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+def set_graph_settings():
+    # Set default color palette
+    #colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+    #sns.set_palette(colors)
+    sns.color_palette("Blues", as_cmap=True)
+
+    # Set default plot style
+    plt.style.use('seaborn-whitegrid')
+
+    # Set default figure size
+    plt.rcParams['figure.figsize'] = (10, 6)
+
+    # Set default font size
+    plt.rcParams['font.size'] = 12
+
+    # Set default line width
+    plt.rcParams['lines.linewidth'] = 2
+
+    # Set default grid style
+    plt.rcParams['grid.linestyle'] = '--'
+    plt.rcParams['grid.linewidth'] = 0.5
+    plt.rcParams['grid.alpha'] = 0.7
+
+    # Set default legend settings
+    plt.rcParams['legend.frameon'] = True
+    plt.rcParams['legend.fontsize'] = 'medium'
+    plt.rcParams['legend.loc'] = 'best'

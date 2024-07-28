@@ -4,8 +4,8 @@ from sklearn.mixture import GaussianMixture
 from scipy.stats import gaussian_kde
 create_features = False
 get_fit_dist = False
-anal_categotical = True
-#analyze the feature Subject_I
+anal_categotical = False
+#a nalyze the feature Subject_I
 continous_variable_ks_test = False
 if continous_variable_ks_test:
     perform_ks_test = True 
@@ -15,7 +15,7 @@ else:
 get_count_variables_per_node_tree_cont = False
 #get aras nodes descete
 get_long_params_per_node_tree_distcre = False
-get_analysis_continous_fun = False
+get_analysis_continous_fun = True
 #threshol for values in leaves
 threshold = 0
 #obtain mean_per node
