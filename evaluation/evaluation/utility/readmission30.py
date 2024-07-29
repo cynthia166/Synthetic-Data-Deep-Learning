@@ -3,7 +3,8 @@ import sys
 import os
 current_directory = os.getcwd()
 #os.chdir("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning")
-os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
+file_principal = os.getcwd()
+os.chdir(file_principal )
 current_directory = os.getcwd()
 
 import shap

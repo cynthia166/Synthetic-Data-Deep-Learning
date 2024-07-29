@@ -5,9 +5,10 @@ import pandas as pd
 import glob
 from scipy.stats import wasserstein_distance
 #os.chdir("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning")
-os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
+file_principal = os.getcwd()
+os.chdir(file_principal)
 import sys
-sys.path.append('/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/')
+sys.path.append(file_principal)
 from evaluation.resemb.resemblance.EvaluationResemblance import *
 from evaluation.resemb.resemblance.utilsstats import *
 
@@ -112,7 +113,8 @@ if __name__=="__main__":
             #  "dimenssion_bernoulli",
             #  "get_proportion_demos",
             #  "compare_average_trends_recordlen",
-              "outliers_and_histograms_patients_admissions"
+            #  "outliers_and_histograms_patients_admissions",
+              "get_patient_stats"
              ])
     if metric_joint_distribution_similarity_coverage:
         list_metric_resemblance .extend([

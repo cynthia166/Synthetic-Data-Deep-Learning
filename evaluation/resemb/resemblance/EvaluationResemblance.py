@@ -1,20 +1,21 @@
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-from pacmap import PaCMAP
+#from pacmap import PaCMAP
 import logging
 from scipy.stats import wasserstein_distance
 import random
 from sklearn import preprocessing
 from evaluation_framework import EvaluationFramework
 #os.chdir("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning")
-os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
+file_principal = os.getcwd()
+os.chdir(file_principal )
 import sys
 sys.path.append('evaluation/resemb/resemblance/utils_stats/')
 sys.path.append('evaluation')
 from  config import diagnosis_columns,procedure_columns,medication_columns,set_graph_settings
 
-sys.path.append('/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/')
+sys.path.append(file_principal )
 from evaluation.resemb.resemblance.utilsstats import *
 
 ruta_actual = os.getcwd()
@@ -210,9 +211,40 @@ class EHRResemblanceMetrics:
             logging.info("Executing method: get_evaluate_synthetic_data_wassetein_overall")
             results.update(self.evaluate_synthetic_data_wassetein_overall())
             
+        
+
+        if "get_patient_stats" in self.list_metric_resemblance:
+           logging.info("Execition method: get patient codes stats")
+           self.get_stat_patients()
         return results
     
-    
+    def get_stat_patients(self):
+        real_stats, _r = analyze_patient_data(self.train_ehr_dataset,diagnosis_columns,medication_columns, procedure_columns,is_synthetic=False)
+        #real_stats.reset_index(inplace=True)
+        real_stats.index = real_stats.index.to_series().apply(lambda x: x.replace('_', ' '))
+        #real_stats.columns = ['_'.join(col).strip() for col in summary.columns.values]
+        real_stats['value'] = pd.to_numeric(real_stats['value'], errors='coerce')
+        real_stats = real_stats.round(2)
+        print(real_stats.to_latex())
+        
+        synthetic_stats,_s =  analyze_patient_data(self.synthetic_ehr_dataset,diagnosis_columns,medication_columns, procedure_columns,is_synthetic=True)
+        
+        #synthetic_stats.reset_index(inplace=True)
+        synthetic_stats.index = synthetic_stats.index.to_series().apply(lambda x: x.replace('_', ' '))
+        synthetic_stats['value'] = pd.to_numeric(synthetic_stats['value'], errors='coerce')
+        synthetic_stats =synthetic_stats.round(2)
+        print(synthetic_stats.to_latex())
+        
+        #plot_comparative_stats(real_stats, synthetic_stats)
+        summary = create_combined_stats_table(_r, _s)        
+        for column in summary.columns:
+            summary[column] = pd.to_numeric(summary[column], errors='coerce')
+
+        summary =summary.round(2)
+        print(summary.to_latex())
+        return summary
+
+
     def pairwisecorrelation(self):
         res  = {}
         #pcd = calculate_pcd(self.train_ehr_dataset, self.synthetic_ehr_dataset)

@@ -3,6 +3,7 @@ import pandas as pd
 import pickle 
 import gzip
 import glob
+import os
 # The comment `# save ehr en la primera corrida` is indicating that the variable `save_ehr` is used to
 # determine whether to save Electronic Health Record (EHR) data during the first run of the program.
 # If `save_ehr` is set to `True`, then the EHR data will be saved. Otherwise, if it is set to `False`,
@@ -11,7 +12,7 @@ import glob
 # save ehr en la primera corrida
 
 post_processing = False
-save_ehr = True
+save_ehr = False
 
 #creating subject
 get_synthetic_subject_clustering = False
@@ -23,10 +24,10 @@ get_days_grom_visit_histogram = False
 
 #EVALUATION
 visualization_dimension_wise_distribution_similarity = False
-metric_dimension_wise_distribution_similarity = False
+metric_dimension_wise_distribution_similarity = True
 metric_joint_distribution_similarity_coverage=False
 metric_joint_distribution_similarity_structure = False
-metric_inter_dimensional_similarity=True
+metric_inter_dimensional_similarity=False
 consistency_information = False
 other_metrics = False
 
@@ -89,7 +90,8 @@ valid_perc = 0.7 # 30 por ciento de los clientes
 num_patient=3
 num_visit_count = 5
 name_file_similaritymatrixcos = "cosine_matrix_similarity"
-file_data =     "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"
+file_principal = os.getcwd()
+file_data =     file_principal + "/generated_synthcity_tabular/ARF/"
 name_file_ehr = "ARF_fixed_v"
 #folder = "ARF_fixed_v_sin_subject_id/"
 folder = "ARF_fixed_postpros/"
@@ -186,7 +188,7 @@ if attributes:
     
     # esta es para agregar la columnas
     dataset_name = 'DATASET_NAME_non_prepo'
-    file_name = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/train_sp/non_prepo/DATASET_NAME_non_prepo_non_preprocess.pkl"
+    file_name = file_principal + "/train_sp/non_prepo/DATASET_NAME_non_prepo_non_preprocess.pkl"
 
 
 

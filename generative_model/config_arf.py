@@ -91,7 +91,8 @@ valid_perc = 0.7 # 30 por ciento de los clientes
 num_patient=3
 num_visit_count = 5
 
-file_data =     "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"
+file_data =     "C:/Users/cyn_n/Desktop/Synthetic-Data-Deep-Learning/
+generated_synthcity_tabular/ARF/"
 name_file_ehr = "ARF_fixedv"
 #folder = "ARF_fixed_v_sin_subject_id/"
 #folder = "ARF_fixed_postpros/"
@@ -169,4 +170,5 @@ if attributes:
     
     # esta es para agregar la columnas
     dataset_name = 'DATASET_NAME_non_prepo'
-    file_name = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/train_sp/non_prepo/DATASET_NAME_non_prepo_non_preprocess.pkl"
+    file_name = "C:/Users/cyn_n/Desktop/Synthetic-Data-Deep-Learning/
+train_sp/non_prepo/DATASET_NAME_non_prepo_non_preprocess.pkl"

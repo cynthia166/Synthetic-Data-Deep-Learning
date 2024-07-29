@@ -7,13 +7,13 @@ import sys
 import logging
 print(os.getcwd())
 sys.path.append('../../')
-os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
+file_principal = os.getcwd()
+os.chdir(file_principal )
 import gzip
 import pickle
 from pandas import Timedelta
 import sys
-sys.path.append('/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/')
-
+sys.path.append(file_principal)
 #from evaluation.resemb.resemblance.utilsstats import *
 #from evaluation.resemb.resemblance.utilsstats import obtain_dataset_admission_visit_rank, obtain_readmission_ehrs
 
@@ -602,7 +602,7 @@ if __name__ == '__main__':
     features_path = "data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl"
 
     #file = 'generated_synthcity_tabular/arftotal_0.2_epochs.pkl'
-    file = '/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/synthetic_data_generative_model_arf_per_0.7.pkl'
+    file = 'C:/Users/cyn_n/Desktop/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/synthetic_data_generative_model_arf_per_0.7.pkl'
     valid_perc = 0.3
     test_ehr_dataset, train_ehr_dataset, synthetic_ehr_dataset, features = obtain_dataset_admission_visit_rank(sample_patients_path, file, valid_perc, features_path, 'ARFpkl') ###DRAFT
     #remplazar valores negativos con ero

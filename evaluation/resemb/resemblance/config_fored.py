@@ -36,19 +36,28 @@ cols_continuous = ['Age', 'LOSRD_avg','days_between_visits']
 keywords = ['diagnosis', 'procedures', 'drugs']
 
 folder_arf = "ARF_fixed_postpros/"
-fored_fixed = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf + "FORED_fixedr"
+fored_fixed = "C:/Users/cyn_n/Desktop/Synthetic-Data-Deep-Learning/
+generated_synthcity_tabular/ARF/"+folder_arf + "FORED_fixedr"
 
 sample_patients_path = "generated_synthcity_tabular/ARF/"+folder_arf+"sample_patients_fixed_v"
 original_data_path = "data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl"
-ruta_continous_observations = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat"
+ruta_continous_observations = "C:/Users/cyn_n/Desktop/Synthetic-Data-Deep-Learning/
+generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat"
 #save path
-save_path_features = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"features"
-save_path__leaf_coverages = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"leaf_coveerage.pkl"
-save_path_count_features = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat_v2"
-save_path_leaf_coverages = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat_coverage"
-save_path_dist = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat.pkl"
-read_path_dist = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat"
-read_path_dist2 = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat_dist"
+save_path_features = "C:/Users/cyn_n/Desktop/Synthetic-Data-Deep-Learning/
+generated_synthcity_tabular/ARF/"+folder_arf+"features"
+save_path__leaf_coverages = "C:/Users/cyn_n/Desktop/Synthetic-Data-Deep-Learning/
+generated_synthcity_tabular/ARF/"+folder_arf+"leaf_coveerage.pkl"
+save_path_count_features = "C:/Users/cyn_n/Desktop/Synthetic-Data-Deep-Learning/
+generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat_v2"
+save_path_leaf_coverages = "C:/Users/cyn_n/Desktop/Synthetic-Data-Deep-Learning/
+generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat_coverage"
+save_path_dist = "C:/Users/cyn_n/Desktop/Synthetic-Data-Deep-Learning/
+generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat.pkl"
+read_path_dist = "C:/Users/cyn_n/Desktop/Synthetic-Data-Deep-Learning/
+generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat"
+read_path_dist2 = "C:/Users/cyn_n/Desktop/Synthetic-Data-Deep-Learning/
+generated_synthcity_tabular/ARF/"+folder_arf+"result_test_concat_dist"
 
 distributions = {
     

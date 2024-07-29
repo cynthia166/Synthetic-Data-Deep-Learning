@@ -24,7 +24,7 @@ from sklearn.preprocessing import MinMaxScaler
 # third party
 import numpy as np
 import pandas as pd
-import torch
+#import torch
 from pydantic import validate_arguments
 from scipy import stats
 from scipy.stats import entropy
@@ -51,8 +51,8 @@ from xgboost import XGBClassifier
 #sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/')
 #os.chdir('../')
 print(os.getcwd())
-from gretel_synthetics.timeseries_dgan.dgan import DGAN
-from gretel_synthetics.timeseries_dgan.config import DGANConfig
+#from gretel_synthetics.timeseries_dgan.dgan import DGAN
+# # #from gretel_synthetics.timeseries_dgan.config import DGANConfig
 
 print(os.getcwd())
 

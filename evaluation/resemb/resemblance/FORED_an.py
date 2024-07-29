@@ -1,13 +1,11 @@
-# cols_continuous = ['Age', 'LOSRD_avg','days from last visit']     
-# fored = load_pkl("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/FORED")
-# trnorm_modified = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/ARF_tnorm/synthetic_data_generative_model_arf_adjs_per_0.7.pkl"
-# initial_tnorm = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/synthetic_data_generative_model_arf_per_0.7.pkl"
+
 
 import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 import sys
-os.chdir('/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/')
-sys.path.append('/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning')
+file_principal = os.getcwd()
+os.chdir(file_principal )
+sys.path.append(file_principal)
 from generative_model.utils_arf import *
 from evaluation.resemb.resemblance.utilsstats import *
 import numpy as np
@@ -27,7 +25,6 @@ from evaluation.resemb.resemblance.config_fored  import *
 from config_fored import *
 from scipy.stats import beta, uniform, triang, truncnorm, expon, gamma, lognorm, weibull_min, chi2, f, t
 
-os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
 import sys
 sys.path.append('evaluation/resemb/resemblance/utils_stats/')
 sys.path.append('evaluation')

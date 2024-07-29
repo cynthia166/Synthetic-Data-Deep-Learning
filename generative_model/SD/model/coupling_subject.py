@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
 import os
-os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
+file_principal = os.getcwd()
+os.chdir(file_principal )
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics.pairwise import cosine_similarity
 from scipy.optimize import linear_sum_assignment

@@ -8,9 +8,11 @@ from math import sqrt
 # np.random.seed(42)
 import os
 #os.chdir("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning")
-os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
+file_principal = os.getcwd()
+os.chdir(file_principal )
+
 import sys
-sys.path.append('/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/')
+sys.path.append(file_principal)
 current_directory = os.getcwd()
 from scipy.stats import beta, uniform, triang, truncnorm, expon, kstest, gaussian_kde
 from sklearn.mixture import GaussianMixture
@@ -72,8 +74,8 @@ import matplotlib.pyplot as plt
 import math
 #import cairosvg
 from io import BytesIO
-import svgutils.transform as sg
-import svgutils.transform as sg
+## import svgutils.transform as sg
+# import svgutils.transform as sg
 
 
 import pandas as pd
@@ -89,7 +91,7 @@ from  config import set_graph_settings
 set_graph_settings()
 
 
-import svgutils.transform as sg
+# import svgutils.transform as sg
 def plot_custom_histogram(data, title, xlabel, ylabel, bins=None, xlim=None, ylim=None, figsize=(8, 6)):
     plt.figure(figsize=figsize)
     plt.hist(data, bins=bins, edgecolor='black')
@@ -4061,3 +4063,102 @@ def fit_distributionsv3(data, ks_threshold=0.05, wasserstein_threshold=0.1, js_t
                 results.append(column_results)
     
     return pd.DataFrame(results)
+
+
+def analyze_patient_data(data,diagnosis_cols,drug_cols,procedure_cols, is_synthetic=False):
+    # Identify columns for each category
+    # diagnosis_cols = [col for col in data.columns if 'diagnosis' in col.lower()]
+    # drug_cols = [col for col in data.columns if 'drug' in col.lower()]
+    # procedure_cols = [col for col in data.columns if 'procedure' in col.lower()]
+    all_code_cols = diagnosis_cols + drug_cols + procedure_cols
+
+    # Calculate statistics
+    patient_stats = pd.DataFrame()
+    patient_stats['unique_diagnoses'] = (data[diagnosis_cols] != 0).sum(axis=1)
+    patient_stats['total_diagnoses'] = data[diagnosis_cols].sum(axis=1)
+    patient_stats['unique_drugs'] = (data[drug_cols] != 0).sum(axis=1)
+    patient_stats['total_drugs'] = data[drug_cols].sum(axis=1)
+    patient_stats['unique_procedures'] = (data[procedure_cols] != 0).sum(axis=1)
+    patient_stats['total_procedures'] = data[procedure_cols].sum(axis=1)
+    patient_stats['unique_all_codes'] = (data[all_code_cols] != 0).sum(axis=1)
+    patient_stats['total_all_codes'] = data[all_code_cols].sum(axis=1)
+
+    # Calculate additional metrics
+    patient_stats['drug_intensity'] = patient_stats['total_drugs'] / data['visit_rank'].max()
+    patient_stats['diagnosis_intensity'] = patient_stats['total_diagnoses'] / data['visit_rank'].max()
+    patient_stats['procedure_intensity'] = patient_stats['total_procedures'] / data['visit_rank'].max()
+    patient_stats['all_codes_intensity'] = patient_stats['total_all_codes'] / data['visit_rank'].max()
+
+    # Overall statistics
+    overall_stats = {
+        'avg_unique_diagnoses_per_patient': patient_stats['unique_diagnoses'].mean(),
+        'avg_total_diagnoses_per_patient': patient_stats['total_diagnoses'].mean(),
+        'avg_unique_drugs_per_patient': patient_stats['unique_drugs'].mean(),
+        'avg_total_drugs_per_patient': patient_stats['total_drugs'].mean(),
+        'avg_unique_procedures_per_patient': patient_stats['unique_procedures'].mean(),
+        'avg_total_procedures_per_patient': patient_stats['total_procedures'].mean(),
+        'avg_unique_all_codes_per_patient': patient_stats['unique_all_codes'].mean(),
+        'avg_total_all_codes_per_patient': patient_stats['total_all_codes'].mean(),
+        'avg_drug_intensity': patient_stats['drug_intensity'].mean(),
+        'avg_diagnosis_intensity': patient_stats['diagnosis_intensity'].mean(),
+        'avg_procedure_intensity': patient_stats['procedure_intensity'].mean(),
+        'avg_all_codes_intensity': patient_stats['all_codes_intensity'].mean(),
+        'total_unique_diagnoses': len(diagnosis_cols),
+        'total_unique_drugs': len(drug_cols),
+        'total_unique_procedures': len(procedure_cols),
+        'total_unique_all_codes': len(all_code_cols),
+    }
+
+    # Add a column to indicate if the data is synthetic or real
+    for key in overall_stats:
+        overall_stats[key] = {
+            'value': overall_stats[key],
+            'type': 'Synthetic' if is_synthetic else 'Real'
+        }
+
+    return pd.DataFrame(overall_stats).T, patient_stats
+
+def plot_comparative_stats(real_stats, synthetic_stats):
+    # Combine real and synthetic stats
+    combined_stats = pd.concat([real_stats, synthetic_stats])
+    combined_stats = combined_stats.reset_index().rename(columns={'index': 'metric'})
+    combined_stats = combined_stats.melt(id_vars=['metric', 'type'], var_name='stat', value_name='value')
+
+    # Create the plot
+    plt.figure(figsize=(15, 10))
+    sns.set_theme(style="whitegrid")
+    
+    g = sns.catplot(
+        data=combined_stats, kind="bar",
+        x="metric", y="value", hue="type",
+        palette="dark", alpha=0.6, height=6, aspect=2
+    )
+    g.despine(left=True)
+    g.set_axis_labels("Metric", "Value")
+    g.legend.set_title("Data Type")
+    plt.xticks(rotation=45, ha='left')
+    plt.title("Comparison of Real and Synthetic Patient Data Statistics")
+    plt.tight_layout()
+    plt.show()
+    
+
+
+def create_combined_stats_table(real_patient_stats, synthetic_patient_stats):
+    real_combined = real_patient_stats[['unique_all_codes', 'total_all_codes', 'all_codes_intensity']]
+    real_combined.columns = ['Unique Codes', 'Total Codes', 'Code Intensity']
+    real_combined['Data Type'] = 'Real'
+
+    synthetic_combined = synthetic_patient_stats[['unique_all_codes', 'total_all_codes', 'all_codes_intensity']]
+    synthetic_combined.columns = ['Unique Codes', 'Total Codes', 'Code Intensity']
+    synthetic_combined['Data Type'] = 'Synthetic'
+
+    combined_stats = pd.concat([real_combined, synthetic_combined])
+    
+    summary = combined_stats.groupby('Data Type').agg({
+        'Unique Codes': ['mean', 'std', 'min', 'max'],
+        'Total Codes': ['mean', 'std', 'min', 'max'],
+        'Code Intensity': ['mean', 'std', 'min', 'max']
+    })
+    
+    summary.columns = ['_'.join(col).strip() for col in summary.columns.values]
+    return summary

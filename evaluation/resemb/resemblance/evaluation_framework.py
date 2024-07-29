@@ -4,8 +4,8 @@ from scipy.stats import chi2_contingency, wasserstein_distance
 from sklearn.model_selection import cross_validate, StratifiedKFold
 from non_parametric_tests import statistical_analysis, friedman_aligned_ranks_test
 from sklearn.ensemble import IsolationForest
-from sdv.metadata import SingleTableMetadata
-from sdmetrics.single_table import NewRowSynthesis
+#from sdv.metadata import SingleTableMetadata
+#from sdmetrics.single_table import NewRowSynthesis
 
 
 class EvaluationFramework:

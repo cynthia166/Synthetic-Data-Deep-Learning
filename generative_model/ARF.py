@@ -1,6 +1,7 @@
 import sys
 import os
-os.chdir('/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/')
+os.chdir('C:/Users/cyn_n/Desktop/Synthetic-Data-Deep-Learning/
+')
 sys.path.append('/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning')
 from arfpy import arf
 from generative_model.utils_arf import *
@@ -25,7 +26,8 @@ if remote:
     train_data_features = load_data("generative_input/entire_ceros_tabular_data.pkl")
 else:
     train_data_features = load_data("data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl")
-    path_arf = "/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF_local/todas_var_cat/"
+    path_arf = "C:/Users/cyn_n/Desktop/Synthetic-Data-Deep-Learning/
+generated_synthcity_tabular/ARF_local/todas_var_cat/"
 
 
 

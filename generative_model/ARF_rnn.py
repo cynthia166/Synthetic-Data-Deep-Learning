@@ -2,10 +2,12 @@ import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
+import os
 from collections import Counter
-os.chdir("/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/")
+file_principal = os.getcwd()
+os.chdir(file_principal )
 import sys
-sys.path.append('/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning/')
+sys.path.append(file_principal)
 from evaluation.resemb.resemblance.EvaluationResemblance import *
 from evaluation.resemb.resemblance.utilsstats import *
 
