@@ -1,7 +1,6 @@
 import sys
 import os
-os.chdir('C:/Users/cyn_n/Desktop/Synthetic-Data-Deep-Learning/
-')
+os.chdir('C:/Users/cyn_n/Desktop/Synthetic-Data-Deep-Learning/')
 sys.path.append('/Users/cgarciay/Desktop/Laval_Master_Computer/research/Synthetic-Data-Deep-Learning')
 from arfpy import arf
 from generative_model.utils_arf import *
@@ -13,6 +12,7 @@ import pandas as pd
 from utils_arf import *
 import scipy.stats
 from ARF_GMM  import arfgmm
+
 
 remote = False
 percentage_to_sample = 0.7

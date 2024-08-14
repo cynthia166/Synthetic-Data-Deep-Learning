@@ -45,47 +45,66 @@ def replace_zero_days_mean(row, mean_days_per_patient):
     else:
         return row['days from last visit']
     
+
+
+
 import numpy as np
 import pandas as pd
+import logging
 
-def generate_patient_ids(real_df, synthetic_df):
-    # Analizar la distribución de visitas por paciente en el conjunto de datos real
-    visits_per_patient = real_df.groupby('id_patient').size().sort_values(ascending=False)
+def generate_patient_ids(train_ehr_dataset, synthetic_ehr_dataset):
+    # Get the distribution of visits per patient from the real data
+    real_visits_per_patient = train_ehr_dataset.groupby('id_patient').size()
+    total_real_patients = len(real_visits_per_patient)
+    total_synthetic_visits = len(synthetic_ehr_dataset)
     
-    # Calcular cuántas veces necesitamos repetir el patrón
-    total_synthetic_visits = len(synthetic_df)
-    total_real_visits = visits_per_patient.sum()
-    repetitions = total_synthetic_visits // total_real_visits
-    remaining_visits = total_synthetic_visits % total_real_visits
+    # Create a histogram of visits per patient
+    hist, bin_edges = np.histogram(real_visits_per_patient, bins='auto', density=True)
+    bin_midpoints = (bin_edges[1:] + bin_edges[:-1]) / 2
     
-    # Generar IDs de paciente
-    patient_ids = []
-    current_id = 1
+    # Create CDF
+    cdf = np.cumsum(hist)
+    cdf /= cdf[-1]
     
-    # Repetir el patrón de visitas exactamente
-    for _ in range(repetitions):
-        for patient, num_visits in visits_per_patient.items():
-            patient_ids.extend([current_id] * num_visits)
-            current_id += 1
+    # Generate random values
+    random_values = np.random.rand(total_real_patients)
     
-    # Manejar las visitas restantes
-    if remaining_visits > 0:
-        remaining_pattern = visits_per_patient.head(remaining_visits)
-        for patient, num_visits in remaining_pattern.items():
-            patient_ids.extend([current_id] * num_visits)
-            current_id += 1
+    # Find which bin each random value belongs to
+    value_bins = np.searchsorted(cdf, random_values)
     
-    # Asegurarse de que tenemos exactamente el número correcto de IDs
-    patient_ids = patient_ids[:total_synthetic_visits]
+    # Generate number of visits for each synthetic patient
+    visits_per_patient = np.round(bin_midpoints[value_bins]).astype(int)
     
-    # Asignar estos IDs al conjunto de datos sintético
-    synthetic_df['id_patient'] = patient_ids
+    # Adjust visits_per_patient to match total_synthetic_visits
+    total_visits = np.sum(visits_per_patient)
+    while total_visits != total_synthetic_visits:
+        if total_visits < total_synthetic_visits:
+            # Add visits to random patients
+            indices = np.random.choice(range(len(visits_per_patient)), total_synthetic_visits - total_visits)
+            visits_per_patient[indices] += 1
+        else:
+            # Remove visits from patients with more than 1 visit
+            eligible_indices = np.where(visits_per_patient > 1)[0]
+            indices = np.random.choice(eligible_indices, total_visits - total_synthetic_visits)
+            visits_per_patient[indices] -= 1
+        total_visits = np.sum(visits_per_patient)
     
-    print(f"Generados {current_id - 1} IDs de paciente únicos para {total_synthetic_visits} visitas sintéticas.")
-    print(f"El conjunto de datos original tenía {len(visits_per_patient)} pacientes para {total_real_visits} visitas.")
-    print(f"El patrón de visitas por paciente se repitió {repetitions} veces con {remaining_visits} visitas extra.")
+    # Generate patient IDs
+    patient_ids = np.repeat(np.arange(1, len(visits_per_patient) + 1), visits_per_patient)
     
-    return synthetic_df
+    # Assign patient IDs to synthetic dataset
+    synthetic_ehr_dataset['id_patient'] = patient_ids
+    
+    # Generate visit ranks
+    synthetic_ehr_dataset['visit_rank'] = synthetic_ehr_dataset.groupby('id_patient').cumcount() + 1
+    
+    # Log some information
+    logging.info(f"Generated {len(np.unique(patient_ids))} unique patient IDs for {len(synthetic_ehr_dataset)} synthetic visits.")
+    logging.info(f"The original dataset had {total_real_patients} patients.")
+    logging.info(f"Distribution of visits per patient in synthetic data: {np.bincount(visits_per_patient)}")
+
+    return synthetic_ehr_dataset
+
 
 # Función adicional para verificar la distribución
 def verify_distribution(real_df, synthetic_df):

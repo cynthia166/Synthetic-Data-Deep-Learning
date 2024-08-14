@@ -56,10 +56,23 @@ import pandas as pd
 import dill
 import numpy as np
 from collections import defaultdict
-from rdkit import Chem
-from rdkit.Chem import BRICS
+#from rdkit import Chem
+#from rdkit.Chem import BRICS
 from config import *
+import pickle
+import gzip 
 
+def load_data(file_path):
+    try:
+        with gzip.open(file_path, 'rb') as f:
+            return pickle.load(f)
+    except:
+        with open(file_path, 'rb') as f:
+             data = pickle.load(f)    
+             return data
+def save_pickle(data, file_path):
+    with open(file_path, 'wb') as f:
+        pickle.dump(data, f)
 
 def med_process(med_file):
     med_pd = pd.read_csv(med_file, dtype={"NDC": "category"})

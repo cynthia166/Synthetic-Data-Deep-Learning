@@ -697,7 +697,23 @@ def fit_distributions(data, n_components=3):
     
     return pd.DataFrame(results).to_dict()
 
+def propor_demos(cols_to_analyze,type_data,dataframe):
+    groups ={}
+    for i in cols_to_analyze:
+        cols_names = list(dataframe.filter(like= i, axis=1).columns)
+        groups[i] = cols_names
 
+
+    df_visits, df_overall = analyze_demographics(dataframe,groups)
+    
+    df_visits['Characteristics'] = df_visits['Characteristics'].apply(lambda x: x.replace('_', ' '))
+    df_overall['Category'] = df_overall['Category'].apply(lambda x: x.replace('_', ' '))
+    df_visits = df_visits.round(2)
+    df_visits["type_data"] = type_data
+    df_overall = df_overall.round(2)
+    df_overall["type_data"] = type_data
+    print(df_visits.to_latex())
+    print(df_overall.to_latex())
 
 def expand_dict_column(row):
     expanded_data = {}
@@ -749,7 +765,631 @@ def cols_todrop(total_features_synthethic,cols):
     except:
         pass    
     return total_features_synthethic
-       
+
+
+def analyze_continuous_variables(synthetic_data, real_data, columns):
+    """
+    Analyze and compare statistics for continuous variables for the first 3 visits of synthetic and real data.
+    
+    :param synthetic_data: DataFrame containing synthetic visit data
+    :param real_data: DataFrame containing real visit data
+    :param columns: List of column names to analyze
+    :return: DataFrame with comparative statistics and percentage changes
+    """
+    
+    def calculate_stats(df, column):
+        return {
+            'mean': df[column].mean(),
+            'std': df[column].std(),
+            'min': df[column].min(),
+            'max': df[column].max(),
+            '0.25 Quantile': df[column].quantile(0.25),
+            '0.5 Quantile': df[column].quantile(0.5),
+            '0.75 Quantile': df[column].quantile(0.75)
+        }
+    
+    def format_value(value):
+        return f"{value:.2f}" if pd.notnull(value) else ""
+    
+    results = []
+    
+    for column in columns:
+        results.append({'Characteristic': column})
+        for stat in ['mean', 'std', 'min', 'max', '0.25 Quantile', '0.5 Quantile', '0.75 Quantile']:
+            row = {'Characteristic': f"{stat}"}
+            
+            for visit in range(1, 4):
+                synthetic_visit = synthetic_data[synthetic_data['visit_rank'] == visit]
+                real_visit = real_data[real_data['visit_rank'] == visit]
+                
+                synthetic_stats = calculate_stats(synthetic_visit, column)
+                real_stats = calculate_stats(real_visit, column)
+                
+                synthetic_value = synthetic_stats[stat]
+                real_value = real_stats[stat]
+                
+                if visit == 1:
+                    row['Visit 1 Real'] = format_value(real_value)
+                    row['Visit 1 Synthetic'] = format_value(synthetic_value)
+                elif visit == 2:
+                    row['Visit 2 Real'] = format_value(real_value)
+                    row['Visit 2 Synthetic'] = format_value(synthetic_value)
+                else:
+                    row['Visit 3 Real'] = format_value(real_value)
+                    row['Visit 3 Synthetic'] = format_value(synthetic_value)
+                     
+                if real_value != 0:
+                    percentage_diff = ((synthetic_value - real_value) / real_value) * 100
+                    row[f'Change (%) Visit {visit}'] = format_value(percentage_diff) + '%'
+                else:
+                    row[f'Change (%) Visit {visit}'] = 'N/A'
+            
+            results.append(row)
+    
+    df_results = pd.DataFrame(results)
+
+    return df_results
+
+import pandas as pd
+import numpy as np
+
+import regex as re
+def process_latex_table(latex_table):
+    # Replace '\%' with '%'
+    processed_table = latex_table.replace('%', '\%')
+    
+    # Function to simplify percentages
+    def simplify_percentage(match):
+        value = float(match.group(1))
+        if value.is_integer():
+            return f"{int(value)}%"
+        return f"{value:.2f}%".rstrip('0').rstrip('.')
+
+    # Use regex to find and simplify percentages
+    pattern = r'(-?\d+\.?\d*)%'
+    processed_table = re.sub(pattern, simplify_percentage, processed_table)
+    
+    return processed_table
+
+def generate_latex_table(df, caption, label):
+    """
+    Generate a LaTeX table from the DataFrame with the specified format.
+    
+    :param df: DataFrame with the structure as shown in the example
+    :param caption: Caption for the LaTeX table
+    :param label: Label for the LaTeX table
+    :return: String containing LaTeX code for the table
+    """
+    # Start building the LaTeX table
+    latex_output = [
+        "\\begin{table}[H]",
+        "\\centering",
+        f"\\caption{{{caption}}}",
+        f"\\label{{{label}}}",
+        "\\begin{adjustbox}{max width=\\textwidth}",
+        "\\begin{tabular}{lrrrrrr}",
+        "\\toprule",
+        "Characteristic & Visit 1 Real & Visit 1 Synthetic & Visit 2 Synthetic & Change (\\%) Visit 2 & Visit 3 Synthetic & Change (\\%) Visit 3 \\\\",
+        "\\midrule"
+    ]
+
+    current_characteristic = ""
+    for _, row in df.iterrows():
+        characteristic = row['Characteristic']
+        if pd.isna(row['Visit 1 Real']):
+            # This is a main characteristic row
+            latex_output.append(f"\\multicolumn{{7}}{{l}}{{\\textbf{{{characteristic}}}}} \\\\")
+            current_characteristic = characteristic
+        else:
+            # This is a statistic row
+            stat = characteristic if current_characteristic != characteristic else characteristic.split()[-1]
+            values = [
+                format_value(row['Visit 1 Real']),
+                format_value(row['Visit 1 Synthetic']),
+                format_value(row['Visit 2 Synthetic']),
+                format_percentage(row['Change (%) Visit 2']),
+                format_value(row['Visit 3 Synthetic']),
+                format_percentage(row['Change (%) Visit 3'])
+            ]
+            latex_output.append(f"{stat} & {' & '.join(values)} \\\\")
+
+    # Close the table
+    latex_output.extend([
+        "\\bottomrule",
+        "\\end{tabular}",
+        "\\end{adjustbox}",
+        "\\end{table}"
+    ])
+
+    return '\n'.join(latex_output)
+
+def format_value(value):
+    if pd.isna(value) or value == 'NaN':
+        return 'N/A'
+    try:
+        float_value = float(value)
+        if float_value == 0 or (abs(float_value) >= 0.01 and abs(float_value) < 100000):
+            return f"{float_value:.2f}".rstrip('0').rstrip('.')
+        else:
+            return f"{float_value:.2e}"
+    except ValueError:
+        return str(value)
+
+def format_percentage(value):
+    if pd.isna(value) or value == 'NaN' or value == 'N/A':
+        return 'N/A'
+    try:
+        float_value = float(value)
+        if float_value.is_integer():
+            return f"{int(float_value)}\\%"
+        else:
+            return f"{float_value:.2f}\\%"
+    except ValueError:
+        return str(value).replace('%', '\\%')
+
+from collections import Counter
+
+
+
+import pandas as pd
+
+def format_continuous_variables_to_latex_(df, caption, label):
+    """
+    Format the output of analyze_overall_continuous_variables into a LaTeX table.
+    
+    :param df: DataFrame output from analyze_overall_continuous_variables
+    :param caption: String for the table caption
+    :param label: String for the table label
+    :return: String containing the LaTeX code for the table
+    """
+    # Start the table
+    latex_output = [
+        "\\begin{table}[H]",
+        "\\centering",
+        f"\\caption{{{caption}}}",
+        f"\\label{{{label}}}",
+        "\\begin{adjustbox}{max width=\\textwidth}",
+        "\\begin{tabular}{llll}",
+        "\\toprule",
+        "Characteristic & Synthetic & Real & Percentage Change \\\\",
+        "\\midrule"
+    ]
+
+    # Format each row
+    for _, row in df.iterrows():
+        latex_row = f"{row['Characteristic']} & {row['Synthetic']} & {row['Real']} & {row['Percentage Change']} \\\\"
+        latex_output.append(latex_row)
+
+    # Close the table
+    latex_output.extend([
+        "\\bottomrule",
+        "\\end{tabular}",
+        "\\end{adjustbox}",
+        "\\end{table}"
+    ])
+
+    return '\n'.join(latex_output)
+
+
+# Example usage:
+# df = pd.DataFrame(...)  # Your DataFrame here
+# latex_table = format_dataframe_to_latex(df, 
+#                                         "Statistics of demographic variables with Percentage Changes",
+#                                         "tab:stats_table_1")
+# print(latex_table)
+
+def generate_latex_table_(df_comparative, caption, label):
+
+
+    
+    def percentage_to_float(value):
+        
+        import pandas as pd
+        import numpy as np
+
+        if isinstance(value, str):
+            if value == 'N/A':
+                return np.nan
+            elif '%' in value:
+                return float(value.strip('%')) / 100
+        return float(value) if pd.notna(value) else np.nan
+
+    def format_percentage(value):
+        if pd.isna(value):
+            return 'N/A'
+        return f"{value:.2%}"
+
+    # Convert percentage strings to floats
+    for col in df_comparative.columns:
+        if col != 'Characteristic':
+            df_comparative[col] = df_comparative[col].apply(percentage_to_float)
+    # Prepare the data
+    characteristics = df_comparative['Characteristic'].tolist()
+    synthetic_data = df_comparative[[ 'Visit 1 Synthetic',
+        'Visit 2 Synthetic',
+        'Visit 3 Synthetic',
+      ] ].values
+    real_data = df_comparative[[ 'Visit 1 Real', 'Visit 2 Real', 'Visit 3 Real']].values
+    percentage_diff = df_comparative[['Percentage Change Visit 1', 'Percentage Change Visit 2', 'Percentage Change Visit 3']].values
+
+    # Start building the LaTeX table
+    latex_output = [
+        "\\begin{table}[H]",
+        "\\centering",
+        f"\\caption{{{caption}}}",
+        f"\\label{{{label}}}",
+        "\\begin{adjustbox}{max width=\\textwidth}",
+        "\\begin{tabular}{lrrrlllrrr}",
+        "\\toprule",
+        "              Characteristics &  Visit 1 &  Visit 2 &  Visit 3 & Visit 1 & Visit 2 & Visit 3 & \\multicolumn{3}{c}{Percentage Change} \\\\",
+        "              & \\multicolumn{3}{c}{Synthetic (\\%)} & \\multicolumn{3}{c}{Real (\\%)} & \\multicolumn{1}{c}{Visit 1} & \\multicolumn{1}{c}{Visit 2} & \\multicolumn{1}{c}{Visit 3} \\\\",
+        "\\midrule"
+    ]
+
+    # Add data rows
+    # Add data rows
+    # Add data rows
+    for i, char in enumerate(characteristics):
+        synthetic_vals = ' & '.join([f"{val:.2f}" for val in synthetic_data[i]])
+        real_vals = ' & '.join([f"{val:.2f}" for val in real_data[i]])
+        diff_vals = ' & '.join([f"{val:.2f}\\%" for val in percentage_diff[i]])
+        
+        row = f"{char} & {synthetic_vals} & {real_vals} & {diff_vals} \\\\"
+        latex_output.append(row)
+
+    # Close the table
+    latex_output.extend([
+        "\\bottomrule",
+        "\\end{tabular}",
+        "\\end{adjustbox}",
+        "\\end{table}"
+    ])
+
+    return '\n'.join(latex_output)
+
+    import pandas as pd
+import numpy as np
+from collections import Counter
+
+def analyze_admission_dates(synthetic_data, real_data, date_column):
+    """
+    Analyze and compare admission date statistics for synthetic and real data.
+    
+    :param synthetic_data: DataFrame containing synthetic data
+    :param real_data: DataFrame containing real data
+    :param date_column: Name of the column containing admission dates
+    :return: DataFrame with comparative statistics and percentage Changes
+    """
+    
+    def calculate_stats(df, column):
+        dates = pd.to_datetime(df[column])
+        return {
+            'mode': dates.mode().iloc[0],
+            'min_date': dates.min(),
+            'max_date': dates.max(),
+            'year_freq': Counter(dates.dt.year),
+            'month_freq': Counter(dates.dt.month)
+        }
+    
+    def format_value(value):
+        if isinstance(value, (pd.Timestamp, np.datetime64)):
+            return value.strftime('%Y-%m-%d')
+        elif isinstance(value, (int, float)):
+            return f"{value:.2f}"
+        else:
+            return str(value)
+    
+    synthetic_stats = calculate_stats(synthetic_data, date_column)
+    real_stats = calculate_stats(real_data, date_column)
+    
+    results = []
+    
+    # Year frequency
+    year_results = []
+    all_years = set(synthetic_stats['year_freq'].keys()) | set(real_stats['year_freq'].keys())
+    for year in sorted(all_years):
+        synthetic_freq = synthetic_stats['year_freq'].get(year, 0)
+        real_freq = real_stats['year_freq'].get(year, 0)
+        
+        row = {
+            'Characteristic': f"{date_column} - Year {year} frequency",
+            'Synthetic': synthetic_freq,
+            'Real': real_freq
+        }
+        
+        if real_freq != 0:
+            percentage_diff = ((synthetic_freq - real_freq) / real_freq) * 100
+            row['Percentage Change'] = percentage_diff
+        else:
+            row['Percentage Change'] = np.nan
+        
+        year_results.append(row)
+    
+    # Sort years by absolute percentage Change and get top 10
+    year_results.sort(key=lambda x: abs(x['Percentage Change']) if not np.isnan(x['Percentage Change']) else -np.inf, reverse=True)
+    results.extend(year_results[:10])
+    
+    # Month frequency
+    for month in range(1, 13):
+        synthetic_freq = synthetic_stats['month_freq'].get(month, 0)
+        real_freq = real_stats['month_freq'].get(month, 0)
+        
+        row = {
+            'Characteristic': f"{date_column} - Month {month} frequency",
+            'Synthetic': synthetic_freq,
+            'Real': real_freq
+        }
+        
+        if real_freq != 0:
+            percentage_diff = ((synthetic_freq - real_freq) / real_freq) * 100
+            row['Percentage Change'] = percentage_diff
+        else:
+            row['Percentage Change'] = np.nan
+        
+        results.append(row)
+    
+    df_results = pd.DataFrame(results)
+    
+    # Format the percentage Change
+    df_results['Percentage Change'] = df_results['Percentage Change'].apply(
+        lambda x: f"{x:.2f}%" if not pd.isna(x) else 'N/A'
+    )
+    
+    return df_results
+
+# Example usage:
+# synthetic_data = ... # Your synthetic DataFrame
+# real_data = ... # Your real DataFrame
+# date_column = 'admission_date'  # Replace with your actual date column name
+# df_comparative = analyze_admission_dates_sin(synthetic_data, real_data, date_column)
+# print(df_comparative)
+
+def analyze_admission_dates_sin(synthetic_data, real_data, date_column):
+    """
+    Analyze and compare admission date statistics for synthetic and real data.
+    
+    :param synthetic_data: DataFrame containing synthetic data
+    :param real_data: DataFrame containing real data
+    :param date_column: Name of the column containing admission dates
+    :return: DataFrame with comparative statistics and percentage Changes
+    """
+    
+    def calculate_stats(df, column):
+        dates = pd.to_datetime(df[column])
+        return {
+            'mode': dates.mode().iloc[0],
+            'min_date': dates.min(),
+            'max_date': dates.max(),
+            'year_freq': Counter(dates.dt.year),
+            'month_freq': Counter(dates.dt.month)
+        }
+    
+    def format_value(value):
+        if isinstance(value, (pd.Timestamp, np.datetime64)):
+            return value.strftime('%Y-%m-%d')
+        elif isinstance(value, (int, float)):
+            return f"{value:.2f}"
+        else:
+            return str(value)
+    
+    synthetic_stats = calculate_stats(synthetic_data, date_column)
+    real_stats = calculate_stats(real_data, date_column)
+    
+    results = []
+    
+    for stat in ['mode', 'min_date', 'max_date']:
+        synthetic_value = synthetic_stats[stat]
+        real_value = real_stats[stat]
+        
+        row = {
+            'Characteristic': f"{date_column} - {stat}",
+            'Synthetic': format_value(synthetic_value),
+            'Real': format_value(real_value)
+        }
+        
+        results.append(row)
+    
+    # Year frequency
+    all_years = set(synthetic_stats['year_freq'].keys()) | set(real_stats['year_freq'].keys())
+    for year in sorted(all_years):
+        synthetic_freq = synthetic_stats['year_freq'].get(year, 0)
+        real_freq = real_stats['year_freq'].get(year, 0)
+        
+        row = {
+            'Characteristic': f"{date_column} - Year {year} frequency",
+            'Synthetic': synthetic_freq,
+            'Real': real_freq
+        }
+        
+        if real_freq != 0:
+            percentage_diff = ((synthetic_freq - real_freq) / real_freq) * 100
+            row['Percentage Change'] = f"{percentage_diff:.2f}%"
+        else:
+            row['Percentage Change'] = 'N/A'
+        
+        results.append(row)
+    
+    # Month frequency
+    for month in range(1, 13):
+        synthetic_freq = synthetic_stats['month_freq'].get(month, 0)
+        real_freq = real_stats['month_freq'].get(month, 0)
+        
+        row = {
+            'Characteristic': f"{date_column} - Month {month} frequency",
+            'Synthetic': synthetic_freq,
+            'Real': real_freq
+        }
+        
+        if real_freq != 0:
+            percentage_diff = ((synthetic_freq - real_freq) / real_freq) * 100
+            row['Percentage Change'] = f"{percentage_diff:.2f}%"
+        else:
+            row['Percentage Change'] = 'N/A'
+        
+        results.append(row)
+    
+    df_results = pd.DataFrame(results)
+    return df_results
+
+# Example usage:
+
+import pandas as pd
+import numpy as np
+
+def analyze_overall_continuous_variables(synthetic_data, real_data, columns):
+    """
+    Analyze and compare overall statistics for continuous variables of synthetic and real data.
+    
+    :param synthetic_data: DataFrame containing synthetic data
+    :param real_data: DataFrame containing real data
+    :param columns: List of column names to analyze
+    :return: DataFrame with comparative statistics and percentage changes
+    """
+    
+    def calculate_stats(df, column):
+        return {
+            'mean': df[column].mean(),
+            'std': df[column].std(),
+            'min': df[column].min(),
+            'max': df[column].max(),
+            '0.25 Quantile': df[column].quantile(0.25),
+            '0.5 Quantile': df[column].quantile(0.5),
+            '0.75 Quantile': df[column].quantile(0.75)
+        }
+    
+    def format_value(value):
+        if pd.isnull(value):
+            return ""
+        elif value == 0 or (abs(value) >= 0.01 and abs(value) < 100000):
+            return f"{value:.2f}".rstrip('0').rstrip('.')
+        else:
+            return f"{value:.2e}"
+    
+    results = []
+    
+    for column in columns:
+        synthetic_stats = calculate_stats(synthetic_data, column)
+        real_stats = calculate_stats(real_data, column)
+        
+        for stat in ['mean', 'std', 'min', 'max', '0.25 Quantile', '0.5 Quantile', '0.75 Quantile']:
+            synthetic_value = synthetic_stats[stat]
+            real_value = real_stats[stat]
+            
+            row = {
+                'Age': column,
+                'Characteristic': stat,
+                'Real': format_value(real_value),
+                'Synthetic': format_value(synthetic_value)
+            }
+            
+            if real_value != 0:
+                percentage_diff = ((synthetic_value - real_value) / real_value) * 100
+                row['Percentage Change'] = format_value(percentage_diff) + '%'
+            else:
+                row['Percentage Change'] = 'N/A'
+            
+            results.append(row)
+    
+    df_results = pd.DataFrame(results)
+    return df_results
+
+def format_continuous_variables_to_latex(df, caption, label):
+    """
+    Format the output of analyze_overall_continuous_variables into a LaTeX table.
+    
+    :param df: DataFrame output from analyze_overall_continuous_variables
+    :param caption: String for the table caption
+    :param label: String for the table label
+    :return: String containing the LaTeX code for the table
+    """
+    # Start the table
+    latex_output = [
+        "\\begin{table}[H]",
+        "\\centering",
+        f"\\caption{{{caption}}}",
+        f"\\label{{{label}}}",
+        "\\begin{adjustbox}{max width=\\textwidth}",
+        "\\begin{tabular}{lllll}",
+        "\\toprule",
+        "Age & Characteristic & Real & Synthetic & Percentage Change \\\\",
+        "\\midrule"
+    ]
+
+    # Group by Age
+    grouped = df.groupby('Age')
+
+    # Format each group
+    for age, group in grouped:
+        latex_output.append(f"\\multicolumn{{5}}{{l}}{{\\textbf{{{age}}}}} \\\\")
+        for _, row in group.iterrows():
+            latex_row = f"& {row['Characteristic']} & {row['Real']} & {row['Synthetic']} & {row['Percentage Change']} \\\\"
+            latex_output.append(latex_row)
+        latex_output.append("\\midrule")
+
+    # Remove the last \midrule
+    latex_output.pop()
+
+    # Close the table
+    latex_output.extend([
+        "\\bottomrule",
+        "\\end{tabular}",
+        "\\end{adjustbox}",
+        "\\end{table}"
+    ])
+
+    return '\n'.join(latex_output)
+
+def analyze_overall_continuous_variables_(synthetic_data, real_data, columns):
+    """
+    Analyze and compare overall statistics for continuous variables of synthetic and real data.
+    
+    :param synthetic_data: DataFrame containing synthetic data
+    :param real_data: DataFrame containing real data
+    :param columns: List of column names to analyze
+    :return: DataFrame with comparative statistics and percentage Changes
+    """
+    
+    def calculate_stats(df, column):
+        return {
+            'mean': df[column].mean(),
+            'std': df[column].std(),
+            'min': df[column].min(),
+            'max': df[column].max(),
+            '0.25 Quantile': df[column].quantile(0.25),
+            '0.5 Quantile': df[column].quantile(0.5),
+            '0.75 Quantile': df[column].quantile(0.75)
+        }
+    
+    def format_value(value):
+        return f"{value:.2f}" if pd.notnull(value) else ""
+    
+    results = []
+    
+    for column in columns:
+        synthetic_stats = calculate_stats(synthetic_data, column)
+        real_stats = calculate_stats(real_data, column)
+        
+        for stat in ['mean', 'std', 'min', 'max', '0.25 Quantile', '0.5 Quantile', '0.75 Quantile']:
+            synthetic_value = synthetic_stats[stat]
+            real_value = real_stats[stat]
+            
+            row = {
+                'Characteristic': f"{column} - {stat}",
+                'Synthetic': format_value(synthetic_value),
+                'Real': format_value(real_value)
+            }
+            
+            if real_value != 0:
+                percentage_diff = ((synthetic_value - real_value) / real_value) * 100
+                row['Percentage Change'] = format_value(percentage_diff) + '%'
+            else:
+                row['Percentage Change'] = 'N/A'
+            
+            results.append(row)
+    
+    df_results = pd.DataFrame(results)
+    return df_results
+
 def plot_admission_date_bar_charts(color_dict, color_dict_, grouped, grouped_synthetic, col, save=False,path_img=None):
             # Create the figure with two subplots side by side
             fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(20, 6), sharey=True)
@@ -893,11 +1533,20 @@ def calculate_binary_prevalence(df):
             return prevalences
 
 # Función para calcular la diferencia media absoluta para variables de conteo
-def calculate_relative_frequencies(df):
+def calculate_relative_frequencies_(df):
     frequencies = df.sum() / df.sum().sum()
     return frequencies
 
-def calculate_mean_absolute_difference(real_frequencies, synthetic_frequencies):
+def calculate_relative_frequencies(df):
+    # Vectorized operation to check for presence (any value >= 1) in each cell
+    presence_df = df.applymap(lambda x: np.any(x >= 1) if isinstance(x, np.ndarray) else x >= 1)
+    
+    # Calculate the percentage of presence for each column
+    frequencies = presence_df.mean()
+    
+    return frequencies
+
+def calculate_mean_absolute_Change(real_frequencies, synthetic_frequencies):
     mad = np.mean(abs(real_frequencies - synthetic_frequencies))
     return mad
 
@@ -1277,11 +1926,11 @@ def heatmap_diff_corr(df1, df2,path_img):
             corr_matrix1 = df1.corr()
             corr_matrix2 = df2.corr()
 
-            # Calculate the absolute difference of the correlation matrices
+            # Calculate the absolute Change of the correlation matrices
             diff_corr_matrix = corr_matrix1 - corr_matrix2
             abs_diff_corr_matrix = np.abs(diff_corr_matrix)
 
-            # Create a mask to find the top 10 differences
+            # Create a mask to find the top 10 Changes
             # Flatten the matrix, sort the absolute values, and get the top 10
             k = 10  # Number of top elements to highlight
             indices = np.unravel_index(np.argsort(-abs_diff_corr_matrix.values, axis=None)[:k], abs_diff_corr_matrix.shape)
@@ -1294,12 +1943,12 @@ def heatmap_diff_corr(df1, df2,path_img):
             # Create the figure and axis
             fig, ax = plt.subplots(figsize=(20, 16))
 
-            # Create a heatmap for the matrix of differences
+            # Create a heatmap for the matrix of Changes
             sns.heatmap(abs_diff_corr_matrix, cmap='coolwarm', center=0, ax=ax)
 
             # Configure the axis labels
            
-                # Only show labels for the rows with top 10 highest differences
+                # Only show labels for the rows with top 10 highest Changes
             #y_labels = [column_names[i] if top_diff_mask[i].any() else '' for i in range(len(column_names))]
             
             #ax.set_yticks(np.arange(len(column_names)))  # Set y-tick positions
@@ -1328,18 +1977,18 @@ def heatmap_diff_corr(df1, df2,path_img):
         
 
             # Show and save the graph
-            plt.title('Heatmap of Correlation Matrix Differences')
-            plt.savefig('difference_heatmap.svg')
+            plt.title('Heatmap of Correlation Matrix Changes')
+            plt.savefig('Change_heatmap.svg')
             plt.tight_layout()
             #plt.show()
             
             if path_img!= None:
-               save_plot_as_svg(plt,path_img,'difference_heatmap_correaltion')
+               save_plot_as_svg(plt,path_img,'Change_heatmap_correaltion')
             y_labels = [item for item in y_labels if item != '']
             plt.close()
             return y_labels
     
-def plot_histograms_separate_axes22(real_data, synthetic_data, title, xlabel, ylabel,label_s,path_img=None):
+def plot_histograms_separate_axes22_v(real_data, synthetic_data, title, xlabel, ylabel,label_s,path_img=None):
             set_graph_settings()
             # Definir bins comunes con más intervalos para hacer los bins más pequeños
            # max_value = max(real_data.max(), synthetic_data.max())
@@ -1394,7 +2043,50 @@ def plot_histograms_separate_axes22(real_data, synthetic_data, title, xlabel, yl
             plt.close()   
             return wd
 
-def plot_histograms_separate_axes22____(real_data, synthetic_data, title, xlabel, ylabel, label_s, path_img=None):
+def plot_histograms_separate_axes22(real_data, synthetic_data, title, xlabel, ylabel, label_s, path_img=None):
+    # Define common bins with more intervals to make bins smaller
+    max_value = max(real_data.max(), synthetic_data.max())
+    min_value = min(0, real_data.min(), synthetic_data.min())  # Ensure minimum is at least 0
+    bins = np.linspace(min_value, max_value, 101)  # 101 bins to create 100 smaller intervals
+    
+    plt.figure(figsize=(12, 6))
+    
+    # Histogram for real data
+    sns.histplot(real_data, color='blue', label='Real', bins=bins, stat='count', alpha=0.5)
+    
+    # Histogram for synthetic data
+    sns.histplot(synthetic_data, color='#B8860B', label='Synthetic', bins=bins, stat='count', alpha=0.5)
+    
+    real_counts, bin_edges = np.histogram(real_data, bins=bins)
+    synthetic_counts, _ = np.histogram(synthetic_data, bins=bins)
+    
+    # Calculate bin centers
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    
+    # Calculate Wasserstein distance using bin centers
+    wd = wasserstein_distance(bin_centers, bin_centers, u_weights=real_counts, v_weights=synthetic_counts)
+    
+    # Add title and labels
+    plt.title(f'{title}\nWasserstein Distance: {wd:.4f}')
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.legend(title='Data Type')
+    
+    # Ensure axes start at 0
+    plt.xlim(left=0)
+    plt.ylim(bottom=0)
+    
+    # Show or save the plot
+    if path_img is not None:
+        save_plot_as_svg(plt, path_img, 'plot_histograms_separate_axes22')
+  
+    plt.show()
+    
+    plt.close()
+    
+    return wd
+
+def plot_histograms_separate_axes22_v2(real_data, synthetic_data, title, xlabel, ylabel, label_s, path_img=None):
     # Definir bins comunes con más intervalos para hacer los bins más pequeños
     max_value = max(real_data.max(), synthetic_data.max())
     min_value = min(0, real_data.min(), synthetic_data.min())  # Ensure minimum is at least 0
@@ -2371,23 +3063,23 @@ def compare_descriptive_statistics_fun(test_ehr_dataset, syn_ehr):
         data2 (pd.DataFrame): Second dataset.
 
     Returns:
-        dict: A dictionary containing differences in descriptive statistics between the two datasets.
+        dict: A dictionary containing Changes in descriptive statistics between the two datasets.
     """
     # Calculating descriptive statistics for both datasets
     stats1 = descriptive_statistics_matrix_dif(test_ehr_dataset,"Train")
     stats2 = descriptive_statistics_matrix_dif(syn_ehr ,"Synthetic")
 
-    # Dictionary to store the differences
-    stats_differences = {}
+    # Dictionary to store the Changes
+    stats_Changes = {}
 
-    # Compute differences only for keys that exist in both dictionaries
+    # Compute Changes only for keys that exist in both dictionaries
     common_keys = set(stats1.keys()).intersection(set(stats2.keys()))
     for key in common_keys:
         if isinstance(stats1[key], (int, float)) and isinstance(stats2[key], (int, float)):
-            # Calculate the difference and store it
-            stats_differences[f'diff_{key}'] = abs(stats1[key] - stats2[key])
+            # Calculate the Change and store it
+            stats_Changes[f'diff_{key}'] = abs(stats1[key] - stats2[key])
 
-    return stats_differences
+    return stats_Changes
 import pandas as pd
 
 def extract_relevant_part(subset):
@@ -2465,7 +3157,7 @@ def plot_pie_proportions(variables, filtered_df, type_data):
          
 def plot_vistis(    df ):    
     
-    df['Percentage Difference'] = (df['Proportion synthetic visit_rank'] - df['Proportion train visit_rank']) / df['Proportion train visit_rank'] * 100
+    df['Percentage Change'] = (df['Proportion synthetic visit_rank'] - df['Proportion train visit_rank']) / df['Proportion train visit_rank'] * 100
 
     # Plot the data
     fig, ax1 = plt.subplots(figsize=(14, 8))
@@ -2540,10 +3232,10 @@ def get_proportions(df,type_st):
 
 def compare_proportions_and_return_dictionary(real_data, synthetic_data):
     """
-        dict: A dictionary with column names as keys and proportion differences as values.
+        dict: A dictionary with column names as keys and proportion Changes as values.
     """
-    # Initialize a dictionary to hold the differences in proportions
-    proportion_differences = {}
+    # Initialize a dictionary to hold the Changes in proportions
+    proportion_Changes = {}
 
     # Ensure that both DataFrames have the same columns
     if not real_data.columns.equals(synthetic_data.columns):
@@ -2554,10 +3246,10 @@ def compare_proportions_and_return_dictionary(real_data, synthetic_data):
         real_proportion = real_data[column].mean()
         synthetic_proportion = synthetic_data[column].mean()
         
-        # Calculate the absolute difference in proportions and store it
-        proportion_differences[column] = abs(real_proportion - synthetic_proportion)
+        # Calculate the absolute Change in proportions and store it
+        proportion_Changes[column] = abs(real_proportion - synthetic_proportion)
 
-    return proportion_differences
+    return proportion_Changes
 
 
 def compare_data_ranges(real_data, synthetic_data, columns,type_col):
@@ -2589,7 +3281,7 @@ def compare_data_ranges(real_data, synthetic_data, columns,type_col):
     top_diff = range_diff.sort_values(ascending=False).head(10)
 
     # Crear un DataFrame con las columnas y sus diferencias
-    result ={'Column '+type_col: top_diff.index.tolist(), 'Range Difference '+ type_col: top_diff.values.tolist()}
+    result ={'Column '+type_col: top_diff.index.tolist(), 'Range Change '+ type_col: top_diff.values.tolist()}
 
 
     return result
@@ -2645,7 +3337,7 @@ from scipy.stats import pearsonr
 
 def calculate_pcd(real_df, synthetic_df):
     """
-    Calculate the Pairwise Correlation Difference (PCD) between real and synthetic data.
+    Calculate the Pairwise Correlation Change (PCD) between real and synthetic data.
     
     Parameters:
     real_df (pd.DataFrame): DataFrame containing real data
@@ -2730,12 +3422,12 @@ def plot_kernel_wasseteint_(real_df, synthetic_df, col, path_img):
     cdf_real = np.cumsum(kde_real(x_values)) / np.sum(kde_real(x_values))
     cdf_synthetic = np.cumsum(kde_synthetic(x_values)) / np.sum(kde_synthetic(x_values))
 
-    # Calculate the absolute difference between CDFs (which relates to Wasserstein distance)
-    cdf_difference = np.abs(cdf_real - cdf_synthetic)
+    # Calculate the absolute Change between CDFs (which relates to Wasserstein distance)
+    cdf_Change = np.abs(cdf_real - cdf_synthetic)
 
-    # Plotting the CDF difference
-    ax2.fill_between(x_values, cdf_difference, color=light_red, alpha=0.5)
-    ax2.plot(x_values, cdf_difference, color=light_red, label=f'CDF Difference\nWasserstein Distance: {wasserstein_dist:.4f}')
+    # Plotting the CDF Change
+    ax2.fill_between(x_values, cdf_Change, color=light_red, alpha=0.5)
+    ax2.plot(x_values, cdf_Change, color=light_red, label=f'CDF Change\nWasserstein Distance: {wasserstein_dist:.4f}')
 
     # Set labels and titles
     col = limpiar_lista(col)
@@ -2745,8 +3437,8 @@ def plot_kernel_wasseteint_(real_df, synthetic_df, col, path_img):
     ax1.set_ylim(bottom=0)
 
     ax2.set_xlabel(col)
-    ax2.set_ylabel('CDF Difference')
-    ax2.set_title('CDF Difference (Related to Wasserstein Distance)')
+    ax2.set_ylabel('CDF Change')
+    ax2.set_title('CDF Change (Related to Wasserstein Distance)')
     ax2.legend()
     ax2.set_ylim(bottom=0)
 
@@ -2833,12 +3525,12 @@ def plot_kernel_wasseteint(real_df, synthetic_df, col, path_img):
     cdf_real = np.cumsum(kde_real(x_values)) / np.sum(kde_real(x_values))
     cdf_synthetic = np.cumsum(kde_synthetic(x_values)) / np.sum(kde_synthetic(x_values))
 
-    # Calculate the absolute difference between CDFs (which relates to Wasserstein distance)
-    cdf_difference = np.abs(cdf_real - cdf_synthetic)
+    # Calculate the absolute Change between CDFs (which relates to Wasserstein distance)
+    cdf_Change = np.abs(cdf_real - cdf_synthetic)
 
-    # Plotting the CDF difference
-    ax2.fill_between(x_values, cdf_difference, color=light_red, alpha=0.5)
-    ax2.plot(x_values, cdf_difference, color=light_red, label=f'CDF Difference\nWasserstein Distance: {wasserstein_dist:.4f}')
+    # Plotting the CDF Change
+    ax2.fill_between(x_values, cdf_Change, color=light_red, alpha=0.5)
+    ax2.plot(x_values, cdf_Change, color=light_red, label=f'CDF Change\nWasserstein Distance: {wasserstein_dist:.4f}')
 
     # Set labels and titles
     col_name = str(col).replace('_', ' ').title()  # Simple column name cleaning
@@ -2848,8 +3540,8 @@ def plot_kernel_wasseteint(real_df, synthetic_df, col, path_img):
     ax1.set_ylim(bottom=0)
 
     ax2.set_xlabel(col_name)
-    ax2.set_ylabel('CDF Difference')
-    ax2.set_title('CDF Difference (Related to Wasserstein Distance)')
+    ax2.set_ylabel('CDF Change')
+    ax2.set_title('CDF Change (Related to Wasserstein Distance)')
     ax2.legend()
     ax2.set_ylim(bottom=0)
 
@@ -2893,12 +3585,12 @@ def plot_kde_with_distance_abs(real_df, synthetic_df, col, path_img):
     ax1.plot(x_values, kde_real(x_values), color=dark_blue, label='Real Data KDE')
     ax1.plot(x_values, kde_synthetic(x_values), color=dark_green, label='Synthetic Data KDE')
 
-    # Calculate the absolute difference between the two KDEs
-    kde_difference = np.abs(kde_real(x_values) - kde_synthetic(x_values))
+    # Calculate the absolute Change between the two KDEs
+    kde_Change = np.abs(kde_real(x_values) - kde_synthetic(x_values))
 
-    # Plotting the difference
-    ax2.fill_between(x_values, kde_difference, color=light_red, alpha=0.5)
-    ax2.plot(x_values, kde_difference, color=light_red, label='KDE Difference')
+    # Plotting the Change
+    ax2.fill_between(x_values, kde_Change, color=light_red, alpha=0.5)
+    ax2.plot(x_values, kde_Change, color=light_red, label='KDE Change')
 
     # Set labels and titles
     col = limpiar_lista(col)
@@ -2908,8 +3600,8 @@ def plot_kde_with_distance_abs(real_df, synthetic_df, col, path_img):
     ax1.set_ylim(bottom=0)
 
     ax2.set_xlabel(col)
-    ax2.set_ylabel('Absolute Difference')
-    ax2.set_title('Absolute Difference between KDEs')
+    ax2.set_ylabel('Absolute Change')
+    ax2.set_title('Absolute Change between KDEs')
     ax2.legend()
     ax2.set_ylim(bottom=0)
 
@@ -4065,7 +4757,7 @@ def fit_distributionsv3(data, ks_threshold=0.05, wasserstein_threshold=0.1, js_t
     return pd.DataFrame(results)
 
 
-def analyze_patient_data(data,diagnosis_cols,drug_cols,procedure_cols, is_synthetic=False):
+def analyze_patient_data(data,diagnosis_cols,drug_cols,procedure_cols,type_level, is_synthetic=False):
     # Identify columns for each category
     # diagnosis_cols = [col for col in data.columns if 'diagnosis' in col.lower()]
     # drug_cols = [col for col in data.columns if 'drug' in col.lower()]
@@ -4084,25 +4776,38 @@ def analyze_patient_data(data,diagnosis_cols,drug_cols,procedure_cols, is_synthe
     patient_stats['total_all_codes'] = data[all_code_cols].sum(axis=1)
 
     # Calculate additional metrics
-    patient_stats['drug_intensity'] = patient_stats['total_drugs'] / data['visit_rank'].max()
-    patient_stats['diagnosis_intensity'] = patient_stats['total_diagnoses'] / data['visit_rank'].max()
-    patient_stats['procedure_intensity'] = patient_stats['total_procedures'] / data['visit_rank'].max()
-    patient_stats['all_codes_intensity'] = patient_stats['total_all_codes'] / data['visit_rank'].max()
+    if type_level == "Visit level":
+            patient_stats['drug_intensity'] = 0
+            patient_stats['diagnosis_intensity'] = 0
+            patient_stats['procedure_intensity'] = 0
+            patient_stats['all_codes_intensity'] = 0
+    else:
+            patient_stats['drug_intensity'] = patient_stats['total_drugs'] / data['visit_rank'].max()
+            patient_stats['diagnosis_intensity'] = patient_stats['total_diagnoses'] / data['visit_rank'].max()
+            patient_stats['procedure_intensity'] = patient_stats['total_procedures'] / data['visit_rank'].max()
+            patient_stats['all_codes_intensity'] = patient_stats['total_all_codes'] / data['visit_rank'].max()
 
     # Overall statistics
     overall_stats = {
         'avg_unique_diagnoses_per_patient': patient_stats['unique_diagnoses'].mean(),
-        'avg_total_diagnoses_per_patient': patient_stats['total_diagnoses'].mean(),
         'avg_unique_drugs_per_patient': patient_stats['unique_drugs'].mean(),
-        'avg_total_drugs_per_patient': patient_stats['total_drugs'].mean(),
         'avg_unique_procedures_per_patient': patient_stats['unique_procedures'].mean(),
+
+        'avg_total_diagnoses_per_patient': patient_stats['total_diagnoses'].mean(),
+        'avg_total_drugs_per_patient': patient_stats['total_drugs'].mean(),  
         'avg_total_procedures_per_patient': patient_stats['total_procedures'].mean(),
+
+        'avg_diagnosis_intensity': patient_stats['diagnosis_intensity'].mean(),
+        'avg_drug_intensity': patient_stats['drug_intensity'].mean(),
+        'avg_procedure_intensity': patient_stats['procedure_intensity'].mean(),
+
+
         'avg_unique_all_codes_per_patient': patient_stats['unique_all_codes'].mean(),
         'avg_total_all_codes_per_patient': patient_stats['total_all_codes'].mean(),
-        'avg_drug_intensity': patient_stats['drug_intensity'].mean(),
-        'avg_diagnosis_intensity': patient_stats['diagnosis_intensity'].mean(),
-        'avg_procedure_intensity': patient_stats['procedure_intensity'].mean(),
         'avg_all_codes_intensity': patient_stats['all_codes_intensity'].mean(),
+        
+        
+        
         'total_unique_diagnoses': len(diagnosis_cols),
         'total_unique_drugs': len(drug_cols),
         'total_unique_procedures': len(procedure_cols),
@@ -4113,11 +4818,53 @@ def analyze_patient_data(data,diagnosis_cols,drug_cols,procedure_cols, is_synthe
     for key in overall_stats:
         overall_stats[key] = {
             'value': overall_stats[key],
-            'type': 'Synthetic' if is_synthetic else 'Real'
+            'type': 'Synthetic' if is_synthetic else 'Real',
+            'level': type_level +' level'
         }
+
+
 
     return pd.DataFrame(overall_stats).T, patient_stats
 
+
+def ger_stat_per_vist(data,diagnosis_columns,medication_columns,procedure_columns,type_level,is_synthetic= True):
+    visit_stats = {}
+    all_code_cols = diagnosis_columns + medication_columns + procedure_columns
+    for visit in range(1, 6):
+        visit_data = data[data['visit_rank'] == visit]
+        if len(visit_data) > 0:
+            visit_stats[f'visit {visit}'] = {
+                'unique diagnoses': (visit_data[diagnosis_columns] != 0).sum(axis=1).mean(),
+                'total diagnoses': visit_data[diagnosis_columns].sum(axis=1).mean(),
+                'unique drugs': (visit_data[medication_columns] != 0).sum(axis=1).mean(),
+                'total drugs': visit_data[medication_columns].sum(axis=1).mean(),
+                'unique procedures': (visit_data[procedure_columns] != 0).sum(axis=1).mean(),
+                'total procedures': visit_data[procedure_columns].sum(axis=1).mean(),
+                'unique all codes': (visit_data[all_code_cols] != 0).sum(axis=1).mean(),
+                'total all codes': visit_data[all_code_cols].sum(axis=1).mean(),
+            }
+            for key in visit_stats[f'visit {visit}']:
+                visit_stats[f'visit {visit}'][key] = {
+                    'value': visit_stats[f'visit {visit}'][key],
+                    'type': 'Synthetic' if is_synthetic else 'Real',
+                    'level': 'Visit level'
+                }
+
+    df_visit_stats = pd.DataFrame(visit_stats).T
+
+    # Extract 'value' from each cell and create new columns
+    for col in df_visit_stats.columns:
+        df_visit_stats[f'{col} {type_level}'] = df_visit_stats[col].apply(lambda x: x['value'])
+       
+    # Drop the original columns containing dictionaries
+    df_visit_stats = df_visit_stats.drop(columns=df_visit_stats.columns[:8])
+    df_visit_stats = df_visit_stats.round(2)
+    print(df_visit_stats.to_latex())
+            
+    return       df_visit_stats
+
+      
+    
 def plot_comparative_stats(real_stats, synthetic_stats):
     # Combine real and synthetic stats
     combined_stats = pd.concat([real_stats, synthetic_stats])
@@ -4162,3 +4909,1061 @@ def create_combined_stats_table(real_patient_stats, synthetic_patient_stats):
     
     summary.columns = ['_'.join(col).strip() for col in summary.columns.values]
     return summary
+
+
+def print_latex_genrate_stats(train_ehr_dataset,synthetic_ehr_dataset,diagnosis_columns,medication_columns, procedure_columns,type_level,is_synthetic=False):
+    real_stats, _r = analyze_patient_data(train_ehr_dataset,diagnosis_columns,medication_columns, procedure_columns,type_level,is_synthetic=False)
+    #real_stats.reset_index(inplace=True)
+    real_stats.index = real_stats.index.to_series().apply(lambda x: x.replace('_', ' '))
+    #real_stats.columns = ['_'.join(col).strip() for col in summary.columns.values]
+    real_stats['value'] = pd.to_numeric(real_stats['value'], errors='coerce')
+    real_stats = real_stats.round(2)
+    #print(real_stats.to_latex())
+    
+    synthetic_stats,_s =  analyze_patient_data(synthetic_ehr_dataset,diagnosis_columns,medication_columns, procedure_columns,type_level,is_synthetic=True)
+    
+    #synthetic_stats.reset_index(inplace=True)
+    synthetic_stats.index = synthetic_stats.index.to_series().apply(lambda x: x.replace('_', ' '))
+    synthetic_stats['value'] = pd.to_numeric(synthetic_stats['value'], errors='coerce')
+    synthetic_stats =synthetic_stats.round(2)
+    #print(synthetic_stats.to_latex())
+    
+    #plot_comparative_stats(real_stats, synthetic_stats)
+    summary = create_combined_stats_table(_r, _s)   
+    print(summary.to_latex())     
+    for column in summary.columns:
+        summary[column] = pd.to_numeric(summary[column], errors='coerce')
+    
+    summary =summary.round(2)
+    print(summary.to_latex())
+    df_latex =    latex_general(summary,"","")
+    print(df_latex)
+    return summary
+    
+def analyze_patient_data_(data, level='admission', is_synthetic=False):
+    diagnosis_cols = [col for col in data.columns if 'diagnosis' in col.lower()]
+    drug_cols = [col for col in data.columns if 'drug' in col.lower()]
+    procedure_cols = [col for col in data.columns if 'procedure' in col.lower()]
+    all_code_cols = diagnosis_cols + drug_cols + procedure_cols
+
+    if level == 'admission':
+        grouped_data = data.groupby('visit_rank').sum()
+    elif level == 'visit':
+        grouped_data = data.groupby(['id_patient', 'visit_rank']).sum().reset_index()
+    else:
+        raise ValueError("Level must be either 'admission' or 'visit'")
+
+    stats = pd.DataFrame()
+    stats['unique_diagnoses'] = (grouped_data[diagnosis_cols] != 0).sum(axis=1)
+    stats['total_diagnoses'] = grouped_data[diagnosis_cols].sum(axis=1)
+    stats['unique_drugs'] = (grouped_data[drug_cols] != 0).sum(axis=1)
+    stats['total_drugs'] = grouped_data[drug_cols].sum(axis=1)
+    stats['unique_procedures'] = (grouped_data[procedure_cols] != 0).sum(axis=1)
+    stats['total_procedures'] = grouped_data[procedure_cols].sum(axis=1)
+    stats['unique_all_codes'] = (grouped_data[all_code_cols] != 0).sum(axis=1)
+    stats['total_all_codes'] = grouped_data[all_code_cols].sum(axis=1)
+
+    if level == 'admission':
+        stats['visits'] = grouped_data['visit_rank']
+    else:
+        stats['visits'] = 1
+
+    stats['drug_intensity'] = stats['total_drugs'] / stats['visits']
+    stats['diagnosis_intensity'] = stats['total_diagnoses'] / stats['visits']
+    stats['procedure_intensity'] = stats['total_procedures'] / stats['visits']
+    stats['all_codes_intensity'] = stats['total_all_codes'] / stats['visits']
+
+    summary_stats = stats.describe().T
+    summary_stats['data_type'] = 'Synthetic' if is_synthetic else 'Real'
+    summary_stats['level'] = level
+
+    return summary_stats, stats
+
+def create_combined_stats_table_(real_stats, synthetic_stats):
+    combined_stats = pd.concat([real_stats, synthetic_stats])
+    combined_stats = combined_stats.reset_index().rename(columns={'index': 'metric'})
+    return combined_stats
+
+def plot_comparative_stats_(combined_stats, level):
+    set_graph_settings()
+    
+    plt.figure(figsize=(15, 10))
+    
+    metrics_to_plot = ['unique_all_codes', 'total_all_codes', 'all_codes_intensity']
+    
+    for i, metric in enumerate(metrics_to_plot):
+        plt.subplot(1, 3, i+1)
+        sns.barplot(
+            data=combined_stats[combined_stats['metric'] == metric], 
+            x='data_type', 
+            y='mean',
+            palette="Blues"
+        )
+        plt.title(f'{metric.replace("_", " ").title()}')
+        plt.ylabel('Mean')
+        plt.xlabel('')
+    
+    plt.tight_layout()
+    plt.suptitle(f'Comparison of Real and Synthetic Patient Data Statistics - {level.title()} Level', y=1.02)
+    plt.show()
+
+def analyze_demographics(data, column_groups):
+    """
+    Analyze demographics from one-hot encoded columns for the first 3 visits and overall.
+    
+    :param data: DataFrame containing one-hot encoded demographic data
+    :param column_groups: Dict of lists, where each list contains related one-hot encoded columns
+    :return: Two DataFrames - one for first 3 visits, one for overall proportions
+    """
+    def calculate_proportion(df, columns):
+        total = df[columns].sum(axis=1)
+        return df[columns].div(total, axis=0) * 100
+    # First 3 visits DataFrame
+    visits_data = []
+    for visit in range(1, 4):
+        visit_data = data[data['visit_rank'] == visit]
+        visit_proportions = {}
+        for category, columns in column_groups.items():
+            props = calculate_proportion(visit_data, columns).mean()
+            for col, prop in props.items():
+                visit_proportions[f"{category}_{col.split('_')[-1]}"] = prop
+        visits_data.append(visit_proportions)
+    
+    df_visits = pd.DataFrame(visits_data, index=['Visit 1', 'Visit 2', 'Visit 3']).T.reset_index()
+    df_visits.columns = ['Characteristics'] + list(df_visits.columns[1:])
+    # Overall proportions DataFrame
+    overall_data = []
+    for category, columns in column_groups.items():
+        props = calculate_proportion(data, columns).mean()
+        for col, prop in props.items():
+            overall_data.append({
+                'Category': category,
+                'Characteristic': col.split('_')[-1],
+                'Proportion': prop
+            })
+    
+    df_overall = pd.DataFrame(overall_data)
+    
+    return df_visits, df_overall
+
+
+
+
+def analyze_patient_data2(data, diagnosis_cols, drug_cols, procedure_cols, type_level, is_synthetic=False):
+    all_code_cols = diagnosis_cols + drug_cols + procedure_cols
+
+    patient_stats = pd.DataFrame()
+    patient_stats['unique_diagnoses'] = (data[diagnosis_cols] != 0).sum(axis=1)
+    patient_stats['total_diagnoses'] = data[diagnosis_cols].sum(axis=1)
+    patient_stats['unique_drugs'] = (data[drug_cols] != 0).sum(axis=1)
+    patient_stats['total_drugs'] = data[drug_cols].sum(axis=1)
+    patient_stats['unique_procedures'] = (data[procedure_cols] != 0).sum(axis=1)
+    patient_stats['total_procedures'] = data[procedure_cols].sum(axis=1)
+    patient_stats['unique_all_codes'] = (data[all_code_cols] != 0).sum(axis=1)
+    patient_stats['total_all_codes'] = data[all_code_cols].sum(axis=1)
+
+    if type_level != "Visit level":
+        patient_stats['drug_intensity'] = patient_stats['total_drugs'] / data['visit_rank'].max()
+        patient_stats['diagnosis_intensity'] = patient_stats['total_diagnoses'] / data['visit_rank'].max()
+        patient_stats['procedure_intensity'] = patient_stats['total_procedures'] / data['visit_rank'].max()
+        patient_stats['all_codes_intensity'] = patient_stats['total_all_codes'] / data['visit_rank'].max()
+    else:
+        patient_stats['drug_intensity'] = 0
+        patient_stats['diagnosis_intensity'] = 0
+        patient_stats['procedure_intensity'] = 0
+        patient_stats['all_codes_intensity'] = 0
+
+    overall_stats = {
+        'avg_unique_diagnoses_per_admission': patient_stats['unique_diagnoses'].mean(),
+        'avg_unique_drugs_per_admission': patient_stats['unique_drugs'].mean(),
+        'avg_unique_procedures_per_admission': patient_stats['unique_procedures'].mean(),
+        'avg_total_diagnoses_per_admission': patient_stats['total_diagnoses'].mean(),
+        'avg_total_drugs_per_admission': patient_stats['total_drugs'].mean(),
+        'avg_total_procedures_per_admission': patient_stats['total_procedures'].mean(),
+    }
+
+    return pd.DataFrame(overall_stats, index=['value']).T, patient_stats
+
+def generate_colored_latex_table(combined_stats, caption="", label=""):
+    latex_table = f"\\begin{{table}}[H]\n\\centering\n"
+    latex_table += f"\\caption{{{caption}}}\n\\label{{{label}}}\n"
+    latex_table += "\\begin{tabular}{lrrr}\n\\toprule\n"
+    latex_table += "Metric & Real & Synthetic & Change (\\%) \\\\\n\\midrule\n"
+    
+    def color_diff(diffs):
+        numeric_diffs = [float(d.strip('%')) for d in diffs]
+
+        
+        colored_diffs = []
+        for diff in numeric_diffs:
+
+                
+             colored_diffs.append(f"{diff:.2f}\\%")
+        return colored_diffs
+
+    # Group the DataFrame by the first word of each index
+    grouped = combined_stats.groupby(combined_stats.index.str.split().str[0])
+
+    for group_name, group_data in grouped:
+        latex_table += f"\\multicolumn{{4}}{{l}}{{\\textbf{{{group_name}}}}}\\\\\n"
+        
+        diffs = group_data['Change (%)'].tolist()
+        colored_diffs = color_diff(diffs)
+        
+        for (index, row), colored_diff in zip(group_data.iterrows(), colored_diffs):
+            metric_name = ' '.join(index.split()[1:])  # Remove the group name from the metric
+            latex_table += f"{metric_name} & {row['Real']:.2f} & {row['Synthetic']:.2f} & {colored_diff} \\\\\n"
+        
+        latex_table += "\\midrule\n"
+    
+    latex_table = latex_table.rstrip('\n\\midrule\n') + "\\\n"  # Remove the last \midrule
+    latex_table += "\\bottomrule\n\\end{tabular}\n\\end{table}\n"
+    
+    return latex_table
+
+def create_combined_stats_table2(real_stats, synthetic_stats):
+    combined_stats = pd.DataFrame({
+        'Real': real_stats['value'],
+        'Synthetic': synthetic_stats['value'],
+        
+    })
+    combined_stats['Change (%)'] = ((combined_stats['Synthetic'].round(2) - combined_stats['Real'].round(2)) / combined_stats['Real'].round(2) * 100).round(2).astype(str) + '%'
+    combined_stats.index = combined_stats.index.str.replace('_', ' ').str.capitalize()
+    latex_table = generate_colored_latex_table(combined_stats)
+    return latex_table
+
+def print_latex_generate_stats2(train_ehr_dataset, synthetic_ehr_dataset, diagnosis_columns, medication_columns, procedure_columns, type_level):
+    # Admission Level Stats
+    real_stats, _r = analyze_patient_data2(train_ehr_dataset, diagnosis_columns, medication_columns, procedure_columns, type_level, is_synthetic=False)
+    synthetic_stats, _s = analyze_patient_data2(synthetic_ehr_dataset, diagnosis_columns, medication_columns, procedure_columns, type_level, is_synthetic=True)
+    
+    admission_level_stats = create_combined_stats_table2(real_stats, synthetic_stats)
+    print("Admission Level Statistics:")
+    print(admission_level_stats)
+
+    # Patient Level Stats
+    patient_level_stats = pd.DataFrame(index=['Real', 'Synthetic', 'Change (%)'])
+    
+    for dataset, name in [(_r, 'Real'), (_s, 'Synthetic')]:
+        unique_codes = dataset[['unique_diagnoses', 'unique_drugs', 'unique_procedures']].sum(axis=1)
+        total_codes = dataset[['total_diagnoses', 'total_drugs', 'total_procedures']].sum(axis=1)
+        
+        patient_level_stats.loc[name, 'Avg Unique Codes Stats_mean'] = unique_codes.mean()
+        patient_level_stats.loc[name, 'Avg Unique Codes Stats_std'] = unique_codes.std()
+        patient_level_stats.loc[name, 'Avg Unique Codes Stats_min'] = unique_codes.min()
+        patient_level_stats.loc[name, 'Avg Unique Codes Stats_max'] = unique_codes.max()
+        
+        patient_level_stats.loc[name, 'Avg Total Codes Stats_mean'] = total_codes.mean()
+        patient_level_stats.loc[name, 'Avg Total Codes Stats_std'] = total_codes.std()
+        patient_level_stats.loc[name, 'Avg Total Codes Stats_min'] = total_codes.min()
+        patient_level_stats.loc[name, 'Avg Total Codes Stats_max'] = total_codes.max()
+
+    # Calculate Changes
+    for col in patient_level_stats.columns:
+        real_val = patient_level_stats.loc['Real', col]
+        syn_val = patient_level_stats.loc['Synthetic', col]
+        diff = ((syn_val - real_val) / real_val * 100)
+        patient_level_stats.loc['Change (%)', col] = f"{diff:.2f}%"
+
+    # Reformat the DataFrame
+    patient_level_stats = patient_level_stats.T
+    patient_level_stats.index = pd.MultiIndex.from_tuples([idx.split('_') for idx in patient_level_stats.index])
+    patient_level_stats = patient_level_stats.sort_index(level=0)
+
+    print("\nPatient Level Statistics:")
+    df_latex = latex_general(patient_level_stats,"Statistic of codes at Admission Level.","",["Real","Synthetic"])
+    print(df_latex)
+    for col in ["Real","Synthetic"]:
+        patient_level_stats[col] = patient_level_stats[col].astype(int)
+    print(patient_level_stats.to_latex(caption="Sorted Table with Visit Rank of admissions per admission", label="tab:stats_p"))
+
+    return patient_level_stats
+
+
+
+def get_stat_per_visit3(data, diagnosis_columns, medication_columns, procedure_columns, type_level, is_synthetic=True):
+    visit_stats = {}
+    all_code_cols = diagnosis_columns + medication_columns + procedure_columns
+    for visit in range(1, 6):
+        visit_data = data[data['visit_rank'] == visit]
+        if len(visit_data) > 0:
+            visit_stats[f'visit {visit}'] = {
+                'UD': (visit_data[diagnosis_columns] != 0).sum(axis=1).mean(),
+                'TD': visit_data[diagnosis_columns].sum(axis=1).mean(),
+                'UDr': (visit_data[medication_columns] != 0).sum(axis=1).mean(),
+                'TDr': visit_data[medication_columns].sum(axis=1).mean(),
+                'UP': (visit_data[procedure_columns] != 0).sum(axis=1).mean(),
+                'TP': visit_data[procedure_columns].sum(axis=1).mean(),
+                'unique all codes': (visit_data[all_code_cols] != 0).sum(axis=1).mean(),
+                'total all codes': visit_data[all_code_cols].sum(axis=1).mean(),
+            }
+
+    df_visit_stats = pd.DataFrame(visit_stats).T.round(2)
+    
+    return df_visit_stats
+
+def generate_latex_table3(real_data, synthetic_data, caption, label):
+    columns = ['UD', 'TD', 'UDr', 'TDr', 'UP', 'TP']
+    
+    latex_table = f"\\begin{{table}}[H]\n\\centering\n"
+    latex_table += f"\\caption{{{caption}}}\n\\label{{{label}}}\n"
+    latex_table += "\\begin{adjustbox}{max width=\\textwidth}\n"
+    latex_table += "\\begin{tabular}{l" + "r" * (len(columns) * 3) + "}\n\\toprule\n"
+    
+    # Header
+    latex_table += "Visit & " + " & ".join([f"\\multicolumn{{3}}{{c}}{{{col}}}" for col in columns]) + " \\\\\n"
+    latex_table += "Count & " + " & ".join(["Real & Synth & Change (\%)" for _ in columns]) + " \\\\\n"
+    latex_table += "\\midrule\n"
+    
+    def color_max_diff(diffs):
+        max_diff = max(diffs, key=abs)
+        colored_diffs = []
+        for diff in diffs:
+            if abs(diff) == abs(max_diff):
+                colored_diffs.append(f"\\textcolor{{red}}{{{diff:.2f}}}")
+            else:
+                colored_diffs.append(f"{diff:.2f}")
+        return colored_diffs
+    
+    # Data rows
+    for i in range(len(real_data)):
+        visit = real_data.index[i].split()[-1]
+        real_row = real_data.iloc[i]
+        synth_row = synthetic_data.iloc[i]
+        diff_row = (synth_row - real_row) / real_row * 100
+        colored_diffs = color_max_diff(diff_row[columns])
+        
+        row_data = []
+        for col in columns:
+            row_data.extend([f"{real_row[col]:.2f}", f"{synth_row[col]:.2f}", colored_diffs[columns.index(col)]])
+        
+        latex_table += f"{visit} & " + " & ".join(row_data) + " \\\\\n"
+        
+        #if i < len(real_data) - 1:
+        #    latex_table += "\\midrule\n"
+    
+    latex_table += "\\bottomrule\n\\end{tabular}\n\\end{adjustbox}\n\\end{table}\n"
+    
+    return latex_table    
+
+def generate_latex_table3_v2(real_data, synthetic_data, caption, label):
+    columns = ['UD', 'TD', 'UDr', 'TDr', 'UP', 'TP']
+    
+    latex_table = f"\\begin{{table}}[H]\n\\centering\n"
+    latex_table += f"\\caption{{{caption}}}\n\\label{{{label}}}\n"
+    latex_table += "\\begin{adjustbox}{max width=\\textwidth}\n"
+    latex_table += "\\begin{tabular}{l" + "r" * (len(columns) * 2) + "}\n\\toprule\n"
+    
+    # Header
+    latex_table += "Visit & " + " & ".join([f"\\multicolumn{{2}}{{c}}{{{col}}}" for col in columns]) + " \\\\\n"
+    latex_table += "Count & " + " & ".join(["Real & Synth" for _ in columns]) + " \\\\\n"
+    latex_table += "\\midrule\n"
+    
+    def color_max_diff(real_values, synth_values):
+        diffs = [(synth - real) / real * 100 for real, synth in zip(real_values, synth_values)]
+        max_diff = max(diffs, key=abs)
+        colored_values = []
+        for diff, synth in zip(diffs, synth_values):
+            if abs(diff) == abs(max_diff):
+                colored_values.append(f"\\textcolor{{red}}{{{synth:.2f}}}")
+            else:
+                colored_values.append(f"{synth:.2f}")
+        return colored_values
+    
+    # Data rows
+    for i in range(len(real_data)):
+        visit = real_data.index[i].split()[-1]
+        real_row = real_data.iloc[i]
+        synth_row = synthetic_data.iloc[i]
+        colored_synth = color_max_diff(real_row[columns], synth_row[columns])
+        
+        row_data = []
+        for col, colored_val in zip(columns, colored_synth):
+            row_data.extend([f"{real_row[col]:.2f}", colored_val])
+        
+        latex_table += f"{visit} & " + " & ".join(row_data) + " \\\\\n"
+        
+        #if i < len(real_data) - 1:
+        #    latex_table += "\\midrule\n"
+    
+    latex_table += "\\bottomrule\n\\end{tabular}\n\\end{adjustbox}\n\\end{table}\n"
+    
+    return latex_table    
+
+def generate_latex_table3_anterior(real_data, synthetic_data, caption, label):
+    columns = ['UD', 'TD', 'UDr', 'TDr', 'UP', 'TP']
+    
+    latex_table = f"\\begin{{table}}[H]\n\\centering\n"
+    latex_table += f"\\caption{{{caption}}}\n\\label{{{label}}}\n"
+    latex_table += "\\begin{tabular}{lrrrrrr}\n\\toprule\n"
+    latex_table += "Visit Count& " + " & ".join(columns) + "\\\\\n\\midrule\n"
+    
+    # Real data
+    latex_table += "\\multicolumn{7}{c}{Real}\\\\\n"
+    for i, row in real_data.iterrows():
+        latex_table += f"{i.split()[-1]}& " + " & ".join([f"{row[col]:.2f}" for col in columns]) + " \\\\\n"
+    
+    # Synthetic data
+    latex_table += "\\midrule\n\\multicolumn{7}{c}{Synthetic}\\\\\n"
+    for i, row in synthetic_data.iterrows():
+        latex_table += f"{i.split()[-1]}& " + " & ".join([f"{row[col]:.2f}" for col in columns]) + " \\\\\n"
+    
+    # Change
+    latex_table += "\\midrule\n\\multicolumn{7}{c}{Change (\\%)}\\\\\n"
+    
+    def color_max_diff(diffs):
+        max_diff = max(diffs, key=abs)
+        colored_diffs = []
+        for diff in diffs:
+            if diff == max_diff:
+                colored_diffs.append(f"\\textcolor{{red}}{{{diff:.2f}\\%}}")
+            else:
+                colored_diffs.append(f"{diff:.2f}\\%")
+        return colored_diffs
+
+    for i in range(5):
+        diff_row = (synthetic_data.iloc[i] - real_data.iloc[i]) / real_data.iloc[i] * 100
+        colored_diffs = color_max_diff(diff_row[columns])
+        latex_table += f"{i+1}& " + " & ".join(colored_diffs) + " \\\\\n"
+    
+    latex_table += "\\bottomrule\n\\end{tabular}\n\\end{table}\n"
+    
+    return latex_table
+
+def generate_latex_table3_pmt(real_data, synthetic_data, caption, label):
+    columns = ['UD', 'TD', 'UDr', 'TDr', 'UP', 'TP']
+    
+    latex_table = f"\\begin{{table}}[H]\n\\centering\n"
+    latex_table += f"\\caption{{{caption}}}\n\\label{{{label}}}\n"
+    latex_table += "\\begin{tabular}{lrrrrrr}\n\\toprule\n"
+    latex_table += "Visit Count& " + " & ".join(columns) + "\\\\\n\\midrule\n"
+    
+    # Real data
+    latex_table += "\\multicolumn{7}{c}{Real}\\\\\n"
+    for i, row in real_data.iterrows():
+        latex_table += f"{i.split()[-1]}& " + " & ".join([f"{row[col]:.2f}" for col in columns]) + " \\\\\n"
+    
+    # Synthetic data
+    latex_table += "\\midrule\n\\multicolumn{7}{c}{Synthetic}\\\\\n"
+    for i, row in synthetic_data.iterrows():
+        latex_table += f"{i.split()[-1]}& " + " & ".join([f"{row[col]:.2f}" for col in columns]) + " \\\\\n"
+    
+    # Change
+    latex_table += "\\midrule\n\\multicolumn{7}{c}{Change (\\%)}\\\\\n"
+    
+    def color_diff(diffs):
+        sorted_diffs = sorted(diffs)
+        lowest = sorted_diffs[0]
+        second_lowest = sorted_diffs[1]
+        highest = sorted_diffs[-1]
+        
+        colored_diffs = []
+        for diff in diffs:
+            if diff == lowest or diff == second_lowest:
+                colored_diffs.append(f"\\textcolor{{red}}{{{diff:.2f}\\%}}")
+            elif diff == highest:
+                colored_diffs.append(f"\\textcolor{{blue}}{{{diff:.2f}\\%}}")
+            else:
+                colored_diffs.append(f"{diff:.2f}\\%")
+        return colored_diffs
+
+    for i in range(5):
+        diff_row = (synthetic_data.iloc[i] - real_data.iloc[i]) / real_data.iloc[i] * 100
+        colored_diffs = color_diff(diff_row[columns])
+        latex_table += f"{i+1}& " + " & ".join(colored_diffs) + " \\\\\n"
+    
+    latex_table += "\\bottomrule\n\\end{tabular}\n\\end{table}\n"
+    
+    return latex_table
+
+def generate_latex_table_all_codes3_sincolor(real_data, synthetic_data, caption, label):
+    columns = ['unique all codes', 'total all codes']
+    
+    latex_table = f"\\begin{{table}}[H]\n\\centering\n"
+    latex_table += f"\\caption{{{caption}}}\n\\label{{{label}}}\n"
+    latex_table += "\\begin{tabular}{lrr}\n\\toprule\n"
+    latex_table += "Visit Count& " + " & ".join(columns) + " \\\\\n\\midrule\n"
+    
+    # Real data
+    latex_table += "Real&& \\\\\n"
+    for i, row in real_data.iterrows():
+        latex_table += f"{i.split()[-1]}& " + " & ".join([f"{row[col]:.2f}" for col in columns]) + " \\\\\n"
+    
+    # Synthetic data
+    latex_table += "\\midrule\nSynthetic&& \\\\\n"
+    for i, row in synthetic_data.iterrows():
+        latex_table += f"{i.split()[-1]}& " + " & ".join([f"{row[col]:.2f}" for col in columns]) + " \\\\\n"
+    
+    # Change
+    latex_table += "\\midrule\nChange (\\%)&& \\\\\n"
+    for i in range(5):
+        diff_row = (synthetic_data.iloc[i] - real_data.iloc[i]) / real_data.iloc[i] * 100
+        latex_table += f"{i+1}& " + " & ".join([f"{diff:.2f}\\%" for diff in diff_row[columns]]) + " \\\\\n"
+    
+    latex_table += "\\bottomrule\n\\end{tabular}\n\\end{table}\n"
+    
+    return latex_table
+
+def generate_latex_table_all_codes3(real_data, synthetic_data, caption, label):
+    columns = ['unique all codes', 'total all codes']
+    
+    latex_table = f"\\begin{{table}}[H]\n\\centering\n"
+    latex_table += f"\\caption{{{caption}}}\n\\label{{{label}}}\n"
+    latex_table += "\\begin{tabular}{lrr}\n\\toprule\n"
+    latex_table += "Visit Count& " + " & ".join(columns) + " \\\\\n\\midrule\n"
+    
+    # Real data
+    latex_table += "Real&& \\\\\n"
+    for i, row in real_data.iterrows():
+        latex_table += f"{i.split()[-1]}& " + " & ".join([f"{row[col]:.2f}" for col in columns]) + " \\\\\n"
+    
+    # Synthetic data
+    latex_table += "\\midrule\nSynthetic&& \\\\\n"
+    for i, row in synthetic_data.iterrows():
+        latex_table += f"{i.split()[-1]}& " + " & ".join([f"{row[col]:.2f}" for col in columns]) + " \\\\\n"
+    
+    # Change
+    latex_table += "\\midrule\nChange (\\%)&& \\\\\n"
+    
+    # Calculate all Changes first
+    all_diffs = []
+    for i in range(5):
+        diff_row = (synthetic_data.iloc[i] - real_data.iloc[i]) / real_data.iloc[i] * 100
+        all_diffs.extend(diff_row[columns])
+    
+    # Sort Changes to find highest and lowest
+    sorted_diffs = sorted(all_diffs)
+    highest = sorted_diffs[-1]
+    second_highest = sorted_diffs[-2]
+    lowest = sorted_diffs[0]
+
+    def color_diff(diff):
+        if diff == highest:
+            return f"\\textcolor{{red}}{{\\textbf{{{diff:.2f}\\%}}}}"
+        elif diff == second_highest:
+            return f"\\textcolor{{red}}{{{diff:.2f}\\%}}"
+        elif diff == lowest:
+            return f"\\textcolor{{blue}}{{{diff:.2f}\\%}}"
+        else:
+            return f"{diff:.2f}\\%"
+
+    for i in range(5):
+        diff_row = (synthetic_data.iloc[i] - real_data.iloc[i]) / real_data.iloc[i] * 100
+        colored_diffs = [color_diff(diff) for diff in diff_row[columns]]
+        latex_table += f"{i+1}& " + " & ".join(colored_diffs) + " \\\\\n"
+    
+    latex_table += "\\bottomrule\n\\end{tabular}\n\\end{table}\n"
+    
+    return latex_table
+
+def generate_latex_table_all_codes3(real_data, synthetic_data, caption, label):
+    columns = ['unique all codes', 'total all codes']
+    
+    latex_table = f"\\begin{{table}}[H]\n\\centering\n"
+    latex_table += f"\\caption{{{caption}}}\n\\label{{{label}}}\n"
+    latex_table += "\\begin{tabular}{lrr}\n\\toprule\n"
+    latex_table += "Visit Count& " + " & ".join(columns) + " \\\\\n\\midrule\n"
+    
+    # Real data
+    latex_table += "Real&& \\\\\n"
+    for i, row in real_data.iterrows():
+        latex_table += f"{i.split()[-1]}& " + " & ".join([f"{row[col]:.2f}" for col in columns]) + " \\\\\n"
+    
+    # Synthetic data
+    latex_table += "\\midrule\nSynthetic&& \\\\\n"
+    for i, row in synthetic_data.iterrows():
+        latex_table += f"{i.split()[-1]}& " + " & ".join([f"{row[col]:.2f}" for col in columns]) + " \\\\\n"
+    
+    # Change
+    latex_table += "\\midrule\nChange (\\%)&& \\\\\n"
+    
+    # Calculate all Changes first
+    all_diffs = []
+    for i in range(5):
+        diff_row = (synthetic_data.iloc[i] - real_data.iloc[i]) / real_data.iloc[i] * 100
+        all_diffs.extend(diff_row[columns])
+    
+    # Sort Changes to find highest and lowest
+    sorted_diffs = sorted(all_diffs)
+    highest = sorted_diffs[-1]
+    second_highest = sorted_diffs[-2]
+    lowest = sorted_diffs[0]
+
+    def color_diff(diff):
+        if diff == highest:
+            return f"\\textcolor{{red}}{{\\textbf{{{diff:.2f}\\%}}}}"
+        elif diff == second_highest:
+            return f"\\textcolor{{red}}{{{diff:.2f}\\%}}"
+        elif diff == lowest:
+            return f"\\textcolor{{blue}}{{{diff:.2f}\\%}}"
+        else:
+            return f"{diff:.2f}\\%"
+
+    for i in range(5):
+        diff_row = (synthetic_data.iloc[i] - real_data.iloc[i]) / real_data.iloc[i] * 100
+        colored_diffs = [color_diff(diff) for diff in diff_row[columns]]
+        latex_table += f"{i+1}& " + " & ".join(colored_diffs) + " \\\\\n"
+    
+    latex_table += "\\bottomrule\n\\end{tabular}\n\\end{table}\n"
+    
+    return latex_table
+
+def analyze_demographics2(data, column_groups):
+    """
+    Analyze demographics from one-hot encoded columns for the first 3 visits.
+    
+    :param data: DataFrame containing one-hot encoded demographic data
+    :param column_groups: Dict of lists, where each list contains related one-hot encoded columns
+    :return: DataFrame with proportions for first 3 visits
+    """
+    def calculate_proportion(df, columns):
+        total = df[columns].sum(axis=1)
+        return df[columns].div(total, axis=0) * 100
+
+    visits_data = []
+    for visit in range(1, 4):
+        visit_data = data[data['visit_rank'] == visit]
+        visit_proportions = {}
+        for category, columns in column_groups.items():
+            props = calculate_proportion(visit_data, columns).mean()
+            for col, prop in props.items():
+                visit_proportions[f"{category}_{col.split('_')[-1]}"] = prop
+        visits_data.append(visit_proportions)
+    
+    df_visits = pd.DataFrame(visits_data, index=['Visit 1', 'Visit 2', 'Visit 3']).T.reset_index()
+    df_visits.columns = ['Characteristics'] + list(df_visits.columns[1:])
+    df_visits['Characteristics'] = df_visits['Characteristics'].apply(lambda x: x.replace('_', ' '))
+    
+    return df_visits
+
+def generate_demographics_latex_table2(synthetic_data, real_data, caption, label):
+    """
+    Generate a LaTeX table comparing synthetic and real demographic data.
+    synthetic_data
+    :param synthetic_data: DataFrame with synthetic data proportions
+    :param real_data: DataFrame with real data proportions
+    :param caption: String for table caption
+    :param label: String for table label
+    :return: String containing LaTeX code for the table
+    """
+    synthetic_data["Characteristics"] = synthetic_data['Characteristics'].apply(lambda x: x.lower())
+    real_data["Characteristics"] = real_data['Characteristics'].apply(lambda x: x.lower())
+    latex_table = f"\\begin{{table}}[H]\n\\centering\n"
+    latex_table += f"\\caption{{{caption}}}\n\\label{{{label}}}\n"
+    latex_table += f"\\begin{{adjustbox}}{{max width=\\textwidth}}\n"
+    latex_table += "\\begin{tabular}{lrrrlllrrr}\n\\toprule\n"
+    latex_table += "              Characteristics &  Visit 1 &  Visit 2 &  Visit 3 & Visit 1 & Visit 2 & Visit 3 & \\multicolumn{3}{c}{Percentage Change} \\\\\n"
+    latex_table += "              & \\multicolumn{3}{c}{Synthetic (\\%)} & \\multicolumn{3}{c}{Real (\\%)} & \\multicolumn{1}{c}{Visit 1} & \\multicolumn{1}{c}{Visit 2} & \\multicolumn{1}{c}{Visit 3} \\\\\n"
+    latex_table += "\\midrule\n"
+
+    for _, row in synthetic_data.iterrows():
+        char = row['Characteristics']
+      
+        real_row = real_data[real_data['Characteristics'] == char].iloc[0]
+        
+        synthetic_values = [f"{row[f'Visit {i}']:.2f}\\%" for i in range(1, 4)]
+        real_values = [f"{real_row[f'Visit {i}']:.2f}\\%" for i in range(1, 4)]
+        
+        diff_values = []
+        for i in range(1, 4):
+            synth = row[f'Visit {i}']
+            real = real_row[f'Visit {i}']
+            if real == 0:
+                diff = "\\text{N/A}" if synth == 0 else f"{synth:.2f}\\%"
+            else:
+                diff = f"{((synth - real) / real * 100):.2f}\\%"
+            diff_values.append(diff)
+        
+        latex_table += f"{char:>30} & {' & '.join(synthetic_values)} & {' & '.join(real_values)} & {' & '.join(diff_values)} \\\\\n"
+
+    latex_table += "\\bottomrule\n\\end{tabular}\n\\end{adjustbox}\n\\end{table}\n"
+    
+    return latex_table
+
+def main(synthetic_dataset, real_dataset, cols_to_analyze):
+    groups = {col: list(synthetic_dataset.filter(like=col, axis=1).columns) for col in cols_to_analyze}
+    
+    synthetic_df = analyze_demographics2(synthetic_dataset, groups)
+    real_df = analyze_demographics2(real_dataset, groups)
+    
+    latex_table = generate_demographics_latex_table2(
+        synthetic_df, real_df,
+        "Statistics of static variables with Percentage Changes",
+        "tab:stats_table_1"
+    )
+
+import pandas as pd
+
+import pandas as pd
+
+def latex_general(df, caption, label, integer_columns=None, no_decimal_columns=None, num_decimales=2, no_percentage_float=None):
+    """
+    Generate a LaTeX table from a given DataFrame, with options to specify integer columns
+    and columns without decimal places. Columns with integer names will not have percentage signs added.
+    
+    :param df: DataFrame to convert to LaTeX
+    :param caption: String for table caption
+    :param label: String for table label
+    :param integer_columns: List of column names to be treated as integers (no decimals, no percentage)
+    :param no_decimal_columns: List of column names to be treated as percentages without decimal places
+    :param num_decimales: Number of decimal places for float values
+    :param no_percentage_float: List of column names to be treated as floats without percentage
+    :return: String containing LaTeX code for the table
+    """
+    if integer_columns is None:
+        integer_columns = []
+    if no_decimal_columns is None:
+        no_decimal_columns = []
+    if no_percentage_float is None:
+        no_percentage_float = []
+
+    # Start LaTeX table
+    latex_table = f"\\begin{{table}}[H]\n\\centering\n"
+    latex_table += f"\\caption{{{caption}}}\n\\label{{{label}}}\n"
+    latex_table += f"\\begin{{adjustbox}}{{max width=\\textwidth}}\n"
+    
+    # Create tabular environment
+    columns = "l" + "r" * (len(df.columns) - 1)
+    latex_table += f"\\begin{{tabular}}{{{columns}}}\n\\toprule\n"
+    
+    # Add header
+    header = " & ".join(df.columns)
+    latex_table += f"{header} \\\\\n\\midrule\n"
+    
+    # Add data rows
+    for _, row in df.iterrows():
+        row_values = []
+        for col, value in row.items():
+            if col in integer_columns:
+                row_values.append(f"{int(value)}" if isinstance(value, (int, float)) else str(value))
+            elif col in no_decimal_columns:
+                row_values.append(f"{int(value)}\\%" if isinstance(value, (int, float)) else f"{value}\\%")
+            elif col in no_percentage_float or str(col).isdigit():  # New condition for integer column names
+                if isinstance(value, (int, float)):
+                    row_values.append(f"{value:.{num_decimales}f}")
+                else:
+                    row_values.append(str(value))
+            else:
+                try:
+                    float_value = float(value)
+                    row_values.append(f"{float_value:.{num_decimales}f}\\%")
+                except ValueError:
+                    # If conversion to float fails, add "\%" if it's not already there
+                    if isinstance(value, str) and not value.endswith("\\%"):
+                        row_values.append(f"{value}\\%")
+                    else:
+                        row_values.append(str(value))
+        
+        latex_table += " & ".join(row_values) + " \\\\\n"
+    
+    # Close LaTeX table
+    latex_table += "\\bottomrule\n\\end{tabular}\n\\end{adjustbox}\n\\end{table}\n"
+    
+    return latex_table
+
+def latex_general_2(df, caption, label, integer_columns=None, no_decimal_columns=None, num_decimales=2, no_percentage_float=None):
+    """
+    Generate a LaTeX table from a given DataFrame, with options to specify integer columns
+    and columns without decimal places.
+    
+    :param df: DataFrame to convert to LaTeX
+    :param caption: String for table caption
+    :param label: String for table label
+    :param integer_columns: List of column names to be treated as integers (no decimals, no percentage)
+    :param no_decimal_columns: List of column names to be treated as percentages without decimal places
+    :param num_decimales: Number of decimal places for float values
+    :param no_percentage_float: List of column names to be treated as floats without percentage
+    :return: String containing LaTeX code for the table
+    """
+    if integer_columns is None:
+        integer_columns = []
+    if no_decimal_columns is None:
+        no_decimal_columns = []
+    if no_percentage_float is None:
+        no_percentage_float = []
+
+    # Start LaTeX table
+    latex_table = f"\\begin{{table}}[H]\n\\centering\n"
+    latex_table += f"\\caption{{{caption}}}\n\\label{{{label}}}\n"
+    latex_table += f"\\begin{{adjustbox}}{{max width=\\textwidth}}\n"
+    
+    # Create tabular environment
+    columns = "l" + "r" * (len(df.columns) - 1)
+    latex_table += f"\\begin{{tabular}}{{{columns}}}\n\\toprule\n"
+    
+    # Add header
+    header = " & ".join(df.columns)
+    latex_table += f"{header} \\\\\n\\midrule\n"
+    
+    # Add data rows
+    for _, row in df.iterrows():
+        row_values = []
+        for col, value in row.items():
+            if col in integer_columns:
+                row_values.append(f"{int(value)}" if isinstance(value, (int, float)) else str(value))
+            elif col in no_decimal_columns:
+                row_values.append(f"{int(value)}\\%" if isinstance(value, (int, float)) else f"{value}\\%")
+            elif col in no_percentage_float:
+                if isinstance(value, (int, float)):
+                    row_values.append(f"{value:.{num_decimales}f}")
+                else:
+                    row_values.append(str(value))
+            else:
+                try:
+                    float_value = float(value)
+                    row_values.append(f"{float_value:.{num_decimales}f}\\%")
+                except ValueError:
+                    # If conversion to float fails, add "\%" if it's not already there
+                    if isinstance(value, str) and not value.endswith("\\%"):
+                        row_values.append(f"{value}\\%")
+                    else:
+                        row_values.append(str(value))
+        
+        latex_table += " & ".join(row_values) + " \\\\\n"
+    
+    # Close LaTeX table
+    latex_table += "\\bottomrule\n\\end{tabular}\n\\end{adjustbox}\n\\end{table}\n"
+    
+    return latex_table
+
+def latex_general_(df, caption, label, integer_columns=None, no_decimal_columns=None,num_decimales = 2, no_percentage_float = []):
+    """
+    Generate a LaTeX table from a given DataFrame, with options to specify integer columns
+    and columns without decimal places.
+    
+    :param df: DataFrame to convert to LaTeX
+    :param caption: String for table caption
+    :param label: String for table label
+    :param integer_columns: List of column names to be treated as integers (no decimals, no percentage)
+    :param no_decimal_columns: List of column names to be treated as percentages without decimal places
+    :return: String containing LaTeX code for the table
+    """
+    if integer_columns is None:
+        integer_columns = []
+    if no_decimal_columns is None:
+        no_decimal_columns = []
+
+    # Start LaTeX table
+    latex_table = f"\\begin{{table}}[H]\n\\centering\n"
+    latex_table += f"\\caption{{{caption}}}\n\\label{{{label}}}\n"
+    latex_table += f"\\begin{{adjustbox}}{{max width=\\textwidth}}\n"
+    
+    # Create tabular environment
+    columns = "l" + "r" * (len(df.columns) - 1)
+    latex_table += f"\\begin{{tabular}}{{{columns}}}\n\\toprule\n"
+    
+    # Add header
+    header = " & ".join(df.columns)
+    latex_table += f"{header} \\\\\n\\midrule\n"
+    
+    # Add data rows
+    for _, row in df.iterrows():
+        row_values = []
+        for col, value in row.items():
+            if col in integer_columns:
+                row_values.append(f"{int(value)}" if isinstance(value, (int, float)) else str(value))
+            elif col in no_decimal_columns:
+                row_values.append(f"{int(value)}\\%" if isinstance(value, (int, float)) else str(value))
+            elif col in no_percentage_float:
+                 row_values.append(str(value))    
+            elif isinstance(value, (int, float)):
+                #row_values.append(f"{value:.2f}\\%")
+                row_values.append(f"{value:.{num_decimales}f}\\\%")
+
+            else:
+                try:
+                     row_values.append(f"{value:.{num_decimales}f}\\\%")
+                except:
+                      row_values.append(str(value))
+        latex_table += " & ".join(row_values) + " \\\\\n"
+    
+    # Close LaTeX table
+    latex_table += "\\bottomrule\n\\end{tabular}\n\\end{adjustbox}\n\\end{table}\n"
+    
+    return latex_table
+
+def print_latex_generate_stats2_concolor(train_ehr_dataset, synthetic_ehr_dataset, diagnosis_columns, medication_columns, procedure_columns, type_level):
+    # Admission Level Stats
+    real_stats, _r = analyze_patient_data2(train_ehr_dataset, diagnosis_columns, medication_columns, procedure_columns, type_level, is_synthetic=False)
+    synthetic_stats, _s = analyze_patient_data2(synthetic_ehr_dataset, diagnosis_columns, medication_columns, procedure_columns, type_level, is_synthetic=True)
+    
+    admission_level_stats = create_combined_stats_table2(real_stats, synthetic_stats)
+    print("Admission Level Statistics:")
+    print(admission_level_stats)
+
+    # Patient Level Stats
+    patient_level_stats = pd.DataFrame(index=['Real', 'Synthetic', 'Change (%)'])
+    
+    for dataset, name in [(_r, 'Real'), (_s, 'Synthetic')]:
+        unique_codes = dataset[['unique_diagnoses', 'unique_drugs', 'unique_procedures']].sum(axis=1)
+        total_codes = dataset[['total_diagnoses', 'total_drugs', 'total_procedures']].sum(axis=1)
+        
+        patient_level_stats.loc[name, 'Avg Unique Codes Stats_mean'] = unique_codes.mean()
+        patient_level_stats.loc[name, 'Avg Unique Codes Stats_std'] = unique_codes.std()
+        patient_level_stats.loc[name, 'Avg Unique Codes Stats_min'] = unique_codes.min()
+        patient_level_stats.loc[name, 'Avg Unique Codes Stats_max'] = unique_codes.max()
+        
+        patient_level_stats.loc[name, 'Avg Total Codes Stats_mean'] = total_codes.mean()
+        patient_level_stats.loc[name, 'Avg Total Codes Stats_std'] = total_codes.std()
+        patient_level_stats.loc[name, 'Avg Total Codes Stats_min'] = total_codes.min()
+        patient_level_stats.loc[name, 'Avg Total Codes Stats_max'] = total_codes.max()
+
+    # Calculate Changes
+    Changes = []
+    for col in patient_level_stats.columns:
+        real_val = patient_level_stats.loc['Real', col]
+        syn_val = patient_level_stats.loc['Synthetic', col]
+        diff = ((syn_val - real_val) / real_val * 100).round(2)
+        patient_level_stats.loc['Change (%)', col] = f"{diff:.2f}%"
+        Changes.append(diff)
+
+    # Reformat the DataFrame
+    patient_level_stats = patient_level_stats.T
+    patient_level_stats.index = pd.MultiIndex.from_tuples([idx.split('_') for idx in patient_level_stats.index])
+    patient_level_stats = patient_level_stats.sort_index(level=0)
+
+    # Function to color the cells
+    def color_cell(val):
+        if isinstance(val, str) and '%' in val:
+            num_val = float(val.strip('%').replace('+', ''))
+            if num_val == max(Changes):
+                return r'\textcolor{red}{\textbf{' + val + '}}'
+
+            elif num_val == min(Changes):
+                return r'\textcolor{red}{' + val + '}'
+        return val
+
+    # Apply coloring to the 'Change (%)' column
+    patient_level_stats['Change (%)'] = patient_level_stats['Change (%)'].apply(color_cell)
+
+    # Generate LaTeX table
+    latex_table = "\\begin{table}[h]\n\\centering\n"
+    latex_table += "\\caption{Sorted Table with Visit Rank of admissions per admission}\n"
+    latex_table += "\\label{tab:stats_p}\n"
+    latex_table += "\\begin{tabular}{llrrr}\n\\toprule\n"
+    latex_table += "& & Real & Synthetic & Change (\\%) \\\\\n\\midrule\n"
+
+    for (stat_type, stat_name), row in patient_level_stats.iterrows():
+        latex_table += f"{stat_type} & {stat_name} & {row['Real']:.2f} & {row['Synthetic']:.2f} & {row['Change (%)']} \\\\\n"
+
+    latex_table += "\\bottomrule\n\\end{tabular}\n\\end{table}\n"
+
+    print("\nPatient Level Statistics:")
+    print(latex_table)
+
+    return patient_level_stats
+
+
+
+
+import pandas as pd
+import numpy as np
+
+def calculate_proportions_one_hot(data, column_groups):
+    """
+    Calculate proportions for one-hot encoded columns.
+    
+    :param data: DataFrame with one-hot encoded columns
+    :param column_groups: Dict of lists, where each list contains related one-hot encoded columns
+    :return: DataFrame with proportions
+    """
+    results = []
+    for category, columns in column_groups.items():
+        category_data = data[columns]
+        total = category_data.sum().sum()
+        for col in columns:
+            characteristic = col.split('_')[-1]
+            count = category_data[col].sum()
+            proportion = (count / total) * 100
+            results.append({
+                'Category': category,
+                'Characteristic': characteristic,
+                'Count': count,
+                'Proportion': proportion
+            })
+    df =   pd.DataFrame(results)
+    df["Category"] =  df["Category"].apply(lambda x: x.lower())
+    df["Characteristic"] =df["Characteristic"].apply(lambda x: x.lower())
+
+    return df
+
+def generate_demographics_latex_table(real_data, synthetic_data, column_groups, caption, label):
+    """
+    Generate a LaTeX table comparing synthetic and real demographic data with percentage.
+    
+    :param real_data: DataFrame with real data (one-hot encoded)
+    :param synthetic_data: DataFrame with synthetic data (one-hot encoded)
+    :param column_groups: Dict of lists, where each list contains related one-hot encoded columns
+    :param caption: String for table caption
+    :param label: String for table label
+    :return: DataFrame with combined data
+    """
+    # Calculate proportions
+    real_proportions = calculate_proportions_one_hot(real_data, column_groups)
+    synthetic_proportions = calculate_proportions_one_hot(synthetic_data, column_groups)
+    
+    # Merge the real and synthetic proportions
+    combined_data = pd.merge(real_proportions, synthetic_proportions, 
+                             on=['Category', 'Characteristic'], 
+                             suffixes=('_Real', '_Synthetic'))
+    combined_data["Category"] = combined_data["Category"].apply(lambda x: x.replace('_', ' '))
+    combined_data['Characteristic'] = combined_data['Characteristic'].apply(lambda x: x.replace('_', ' '))
+    # Calculate percentage Change
+    combined_data['Change (%)'] = ((combined_data['Proportion_Synthetic'] - combined_data['Proportion_Real']) / 
+                                       combined_data['Proportion_Real'] * 100).round(2)
+
+    # Convert strings to lowercase
+    combined_data['Category'] = combined_data['Category'].str.lower()
+    combined_data['Characteristic'] = combined_data['Characteristic'].str.lower()
+
+    latex_table = f"\\begin{{table}}[H]\n\\centering\n"
+    latex_table += f"\\caption{{{caption}}}\n\\label{{{label}}}\n"
+    latex_table += "\\begin{tabular}{llrrrr}\n\\toprule\n"
+    latex_table += "category & characteristic & proportion real (\\%) & proportion synthetic (\\%) & Change (\\%) \\\\\n"
+    latex_table += "\\midrule\n"
+
+    for _, row in combined_data.iterrows():
+        latex_table += f"{row['Category']} & {row['Characteristic']} & "
+        latex_table += f"{row['Proportion_Real']:.2f}\\% & {row['Proportion_Synthetic']:.2f}\\% & "
+        
+        # Handle division by zero
+        if row['Proportion_Real'] == 0:
+            if row['Proportion_Synthetic'] == 0:
+                latex_table += "n/a"
+            else:
+                latex_table += f"{row['Proportion_Synthetic']:.2f}\\%"
+        else:
+            latex_table += f"{row['Change (%)']:.2f}\\%"
+        
+        latex_table += " \\\\\n"
+
+    latex_table += "\\bottomrule\n\\end{tabular}\n\\end{table}\n"
+    
+    print(latex_table)  # Print the LaTeX table
+    return combined_data  # Return the DataFrame for further analysis if needed
+
+# Example usage:
+# real_data = pd.DataFrame({
+#     'gender_m': [1, 0, 1, ...],
+#     'gender_f': [0, 1, 0, ...],
+#     'religion_catholic': [1, 0, 0, ...],
+#     'religion_other': [0, 1, 0, ...],
+#     'religion_unknown': [0, 0, 1, ...],
+#     ...
+# })
+# synthetic_data = pd.DataFrame({
+#     'gender_m': [0, 1, 1, ...],
+#     'gender_f': [1, 0, 0, ...],
+#     'religion_catholic': [0, 1, 0, ...],
+#     'religion_other': [1, 0, 0, ...],
+#     'religion_unknown': [0, 0, 1, ...],
+#     ...
+# })
+# column_groups = {
+#     'gender': ['gender_m', 'gender_f'],
+#     'religion': ['religion_catholic', 'religion_other', 'religion_unknown'],
+#     ...
+# }
+# caption = "statistics of static variables"
+# label = "tab:stats_table"
+# result_df = generate_demographics_latex_table(real_data, synthetic_data, column_groups, caption, label)

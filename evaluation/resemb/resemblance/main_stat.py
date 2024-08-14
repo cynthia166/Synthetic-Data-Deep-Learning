@@ -100,7 +100,7 @@ if __name__=="__main__":
     list_metric_resemblance = [] 
     if visualization_dimension_wise_distribution_similarity:
         list_metric_resemblance.extend([
-            "plot_kerneldis",
+            #"plot_kerneldis",
             #"plot_dimension_wise",
             #"plot_prevalence_wise"
                                    
@@ -111,10 +111,13 @@ if __name__=="__main__":
             # "kolmogorov_smirnof_test_chissquare",
             # "get_descriptive_statistics",
             #  "dimenssion_bernoulli",
-            #  "get_proportion_demos",
+            #   "get_proportion_demos",
             #  "compare_average_trends_recordlen",
-            #  "outliers_and_histograms_patients_admissions",
-              "get_patient_stats"
+             "outliers_and_histograms_patients_admissions",
+            # "get_patient_stats",
+             
+           # "get_analyze_one_hot_encoding_var",
+            #"get_get_analyze_continous"
              ])
     if metric_joint_distribution_similarity_coverage:
         list_metric_resemblance .extend([
@@ -128,7 +131,7 @@ if __name__=="__main__":
            "get_progression_quantity_medicamentpe_visit",
             #"analyse_trajectories",
             "temporal_histogram_heatmap",
-           # "plot_pacmap"
+           # "plot_pacmap". I
         ])
 
     if  metric_inter_dimensional_similarity:

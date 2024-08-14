@@ -38,7 +38,9 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
-
+def load_data(file_path):
+    with gzip.open(file_path, 'rb') as f:
+        return pickle.load(f)
 
 
 def preprocess(X, prep):

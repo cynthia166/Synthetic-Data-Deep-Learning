@@ -216,33 +216,224 @@ class EHRResemblanceMetrics:
         if "get_patient_stats" in self.list_metric_resemblance:
            logging.info("Execition method: get patient codes stats")
            self.get_stat_patients()
+        if "get_analyze_one_hot_encoding_var" in self.list_metric_resemblance:
+            logging.info("get_analyze_demographics(self)")
+            self.get_analyze_demographics()   
+        if "get_get_analyze_continous" in self.list_metric_resemblance:
+            logging.info("get_analyze_continous")
+            self.get_analyze_continous()    
         return results
-    
-    def get_stat_patients(self):
-        real_stats, _r = analyze_patient_data(self.train_ehr_dataset,diagnosis_columns,medication_columns, procedure_columns,is_synthetic=False)
-        #real_stats.reset_index(inplace=True)
-        real_stats.index = real_stats.index.to_series().apply(lambda x: x.replace('_', ' '))
-        #real_stats.columns = ['_'.join(col).strip() for col in summary.columns.values]
-        real_stats['value'] = pd.to_numeric(real_stats['value'], errors='coerce')
-        real_stats = real_stats.round(2)
-        print(real_stats.to_latex())
-        
-        synthetic_stats,_s =  analyze_patient_data(self.synthetic_ehr_dataset,diagnosis_columns,medication_columns, procedure_columns,is_synthetic=True)
-        
-        #synthetic_stats.reset_index(inplace=True)
-        synthetic_stats.index = synthetic_stats.index.to_series().apply(lambda x: x.replace('_', ' '))
-        synthetic_stats['value'] = pd.to_numeric(synthetic_stats['value'], errors='coerce')
-        synthetic_stats =synthetic_stats.round(2)
-        print(synthetic_stats.to_latex())
-        
-        #plot_comparative_stats(real_stats, synthetic_stats)
-        summary = create_combined_stats_table(_r, _s)        
-        for column in summary.columns:
-            summary[column] = pd.to_numeric(summary[column], errors='coerce')
 
-        summary =summary.round(2)
-        print(summary.to_latex())
-        return summary
+    def get_analyze_continous(self):
+        columns_to_analyze = self.cols_continuous
+
+        df_comparative = analyze_continuous_variables(self.synthetic_ehr_dataset, self.train_ehr_dataset, columns_to_analyze)
+
+        print("LaTeX table for comparative statistics of continuous variables:")
+        print(df_comparative.to_latex(index=False, escape=False))  
+
+        latex_table = latex_general(df_comparative,"",""
+                                   ,no_percentage_float=['Visit 1 Real', 'Visit 1 Synthetic','Visit 2 Real','Visit 3 Real',
+        'Visit 2 Synthetic',
+       'Visit 3 Synthetic', ])
+        print(latex_table)
+
+  
+
+        df_comparative_overall = analyze_overall_continuous_variables(self.synthetic_ehr_dataset, self.train_ehr_dataset, columns_to_analyze)
+
+        print("LaTeX table for overall comparative statistics of continuous variables:")
+        print(df_comparative_overall.to_latex(index=False, escape=False))
+        latex_table = format_continuous_variables_to_latex(df_comparative_overall, 
+                                        "Statistics of demographic variables with Percentage Differences",
+                                        "tab:stats_table_1")
+        print(latex_table)
+
+
+
+        # Assuming 'synthetic_df' and 'real_df' are your DataFrames with the required column
+        df_comparative_admission = analyze_admission_dates(self.synthetic_ehr_dataset, self.train_ehr_dataset, 'ADMITTIME')
+        print("LaTeX table for comparative statistics of admission dates:")
+        print(df_comparative_admission.to_latex(index=False, escape=False))
+
+
+
+            
+    def get_analyze_demographics(self):
+
+        # static columns
+        type_data = "Real"
+        cols_to_analyze = self.dependant_fist_visit
+        cols_to_analyze = [i for i in cols_to_analyze if i != "ADMITTIME"]
+        dataframe = self.train_ehr_dataset
+        propor_demos(cols_to_analyze,type_data,dataframe)
+
+
+        type_data = "Synthetic"
+        cols_to_analyze = self.dependant_fist_visit
+        cols_to_analyze = [i for i in cols_to_analyze if i != "ADMITTIME"]
+        dataframe = self.synthetic_ehr_dataset
+        propor_demos(cols_to_analyze,type_data,dataframe)
+
+        groups = {col: list(self.synthetic_ehr_dataset.filter(like=col, axis=1).columns) for col in cols_to_analyze}
+    
+        synthetic_df = analyze_demographics2(self.synthetic_ehr_dataset, groups)
+        real_df = analyze_demographics2(self.train_ehr_dataset, groups)
+        
+        latex_table = generate_demographics_latex_table2(
+            synthetic_df, real_df,
+            "Statistics of demographic variables with Percentage Differences",
+            "tab:stats_table_1"
+        )
+     
+        print(latex_table)
+
+        generate_demographics_latex_table(self.train_ehr_dataset,self.synthetic_ehr_dataset,groups,"","")
+                # static columns
+        type_data = "Real"
+        cols_to_analyze = self.categorical_cols
+        cols_to_analyze = [i for i in cols_to_analyze if i not in  self.dependant_fist_visit]
+        dataframe = self.train_ehr_dataset
+        propor_demos(cols_to_analyze,type_data,dataframe)
+
+
+        type_data = "Synthetic"
+        cols_to_analyze = self.categorical_cols
+        cols_to_analyze = [i for i in cols_to_analyze if i not in  self.dependant_fist_visit]
+        dataframe = self.synthetic_ehr_dataset
+        propor_demos(cols_to_analyze,type_data,dataframe)
+
+        groups = {col: list(self.synthetic_ehr_dataset.filter(like=col, axis=1).columns) for col in cols_to_analyze}
+    
+        synthetic_df = analyze_demographics2(self.synthetic_ehr_dataset, groups)
+        real_df = analyze_demographics2(self.train_ehr_dataset, groups)
+        
+        latex_table = generate_demographics_latex_table2(
+            synthetic_df, real_df,
+            "Statistics of demographic variables with Percentage Differences",
+            "tab:stats_table_1"
+        )
+     
+        print(latex_table)
+
+        generate_demographics_latex_table(self.train_ehr_dataset,self.synthetic_ehr_dataset,groups,"","")
+
+
+    def get_stat_patients(self):
+        #patient_level
+        all_code_cols = diagnosis_columns + medication_columns + procedure_columns
+        columns_for_max = ['visit_rank']
+ 
+        # Group by 'id_patient'
+        grouped_data_patietn = self.train_ehr_dataset.groupby('id_patient').agg({
+            **{col: 'sum' for col in all_code_cols},  # Sum all columns except 'visit_Rank'
+            **{col: 'max' for col in columns_for_max}  # Max for 'visit_Rank'
+        })
+
+        grouped_data_patietn_synthetic = self.synthetic_ehr_dataset.groupby('id_patient').agg({
+            **{col: 'sum' for col in all_code_cols},  # Sum all columns except 'visit_Rank'
+            **{col: 'max' for col in columns_for_max}  # Max for 'visit_Rank'
+        })
+        
+        result = print_latex_generate_stats2(grouped_data_patietn, grouped_data_patietn_synthetic, diagnosis_columns, medication_columns, procedure_columns, "Admission level")
+        #print_latex_genrate_stats(grouped_data_patietn,grouped_data_patietn_synthetic,diagnosis_columns,medication_columns, procedure_columns,"Patient ")
+
+
+
+              # admission level (general)
+        #stats for the first 4 visits:
+        
+
+        grouped_data_patietn = self.train_ehr_dataset.groupby('id_patient').agg({
+            **{col: 'sum' for col in all_code_cols},  # Sum all columns except 'visit_Rank'
+            **{col: 'max' for col in columns_for_max}  # Max for 'visit_Rank'
+        })
+
+        grouped_data_patietn_synthetic = self.synthetic_ehr_dataset.groupby('id_patient').agg({
+            **{col: 'sum' for col in all_code_cols},  # Sum all columns except 'visit_Rank'
+            **{col: 'max' for col in columns_for_max}  # Max for 'visit_Rank'
+        })
+        print("patient_leve")
+        real_data = get_stat_per_visit3(grouped_data_patietn, diagnosis_columns, medication_columns, procedure_columns, "Real", is_synthetic=False)
+        synthetic_data = get_stat_per_visit3(grouped_data_patietn_synthetic, diagnosis_columns, medication_columns, procedure_columns, "Synthetic", is_synthetic=True)
+
+        table1 = generate_latex_table3(real_data, synthetic_data, 
+                                        "Statistics for first five admissions, UD - unique diagnosis. TD - total diagnosis. UDr - unique drugs. TDr - total drugs. UP - unique procedures. TP - total procedures.",
+                                        "tab:stats_p_5")
+        print(table1)
+
+        table1 = generate_latex_table3_v2(real_data, synthetic_data, 
+                                        "Statistics for first five admissions, UD - unique diagnosis. TD - total diagnosis. UDr - unique drugs. TDr - total drugs. UP - unique procedures. TP - total procedures.",
+                                        "tab:stats_p_5")
+        print(table1)
+
+        table2 = generate_latex_table_all_codes3(real_data, synthetic_data,
+                                                "Statistics for first five admissions",
+                                                "tab:stats_p_6")
+        print(table2)
+
+
+        #real_stats = ger_stat_per_vist(grouped_data_patietn,diagnosis_columns,medication_columns,procedure_columns,"Real",is_synthetic= False)
+        
+        #syn_stats = ger_stat_per_vist(grouped_data_patietn_synthetic,diagnosis_columns,medication_columns,procedure_columns,"Synthetic",is_synthetic= True)
+
+         #stats for the first 4 visits:
+        print("admission_level")
+
+        grouped_data_admission_leve = self.train_ehr_dataset.groupby(['id_patient', 'visit_rank']).sum().reset_index()
+        grouped_data_admission_leve_synthetic = self.synthetic_ehr_dataset.groupby(['id_patient', 'visit_rank']).sum().reset_index()
+        print_latex_genrate_stats(grouped_data_admission_leve,grouped_data_admission_leve_synthetic,diagnosis_columns,medication_columns, procedure_columns,"Admission ")
+        result = print_latex_generate_stats2(grouped_data_admission_leve, grouped_data_admission_leve_synthetic, diagnosis_columns, medication_columns, procedure_columns, "Admission level")
+        
+        result = print_latex_generate_stats2(self.train_ehr_dataset, self.synthetic_ehr_dataset, diagnosis_columns, medication_columns, procedure_columns, "Admission level")
+        
+        print_latex_genrate_stats(self.train_ehr_dataset,self.synthetic_ehr_dataset,diagnosis_columns,medication_columns, procedure_columns,"Admission general")
+ 
+        real_data = get_stat_per_visit3(grouped_data_admission_leve, diagnosis_columns, medication_columns, procedure_columns, "Real", is_synthetic=False)
+        synthetic_data = get_stat_per_visit3(grouped_data_admission_leve_synthetic, diagnosis_columns, medication_columns, procedure_columns, "Synthetic", is_synthetic=True)
+
+        table1 = generate_latex_table3_v2(real_data, synthetic_data, 
+                                        "Statistics for first five admissions, UD - unique diagnosis. TD - total diagnosis. UDr - unique drugs. TDr - total drugs. UP - unique procedures. TP - total procedures.",
+                                        "tab:stats_p_5")
+        print(table1)
+
+
+        table1 = generate_latex_table3(real_data, synthetic_data, 
+                                        "Statistics for first five admissions, UD - unique diagnosis. TD - total diagnosis. UDr - unique drugs. TDr - total drugs. UP - unique procedures. TP - total procedures.",
+                                        "tab:stats_p_5")
+        print(table1)
+
+        table2 = generate_latex_table_all_codes3(real_data, synthetic_data,
+                                                "Statistics for first five admissions",
+                                                "tab:stats_p_6")
+        print(table2)
+
+
+        real_data = get_stat_per_visit3(self.train_ehr_dataset, diagnosis_columns, medication_columns, procedure_columns, "Real", is_synthetic=False)
+        synthetic_data = get_stat_per_visit3(self.synthetic_ehr_dataset, diagnosis_columns, medication_columns, procedure_columns, "Synthetic", is_synthetic=True)
+        table1 = generate_latex_table3_v2(real_data, synthetic_data, 
+                                        "Statistics for first five admissions, UD - unique diagnosis. TD - total diagnosis. UDr - unique drugs. TDr - total drugs. UP - unique procedures. TP - total procedures.",
+                                        "tab:stats_p_5")
+        print(table1)
+
+        table1 = generate_latex_table3(real_data, synthetic_data, 
+                                        "Statistics for first five admissions, UD - unique diagnosis. TD - total diagnosis. UDr - unique drugs. TDr - total drugs. UP - unique procedures. TP - total procedures.",
+                                        "tab:stats_p_5")
+        print(table1)
+
+        table2 = generate_latex_table_all_codes3(real_data, synthetic_data,
+                                                "Statistics for first five admissions",
+                                                "tab:stats_p_6")
+        print(table2)
+
+
+        #real_stats = ger_stat_per_vist(grouped_data_admission_leve,diagnosis_columns,medication_columns,procedure_columns,"Real",is_synthetic= False)
+        
+        #syn_stats = ger_stat_per_vist(grouped_data_admission_leve_synthetic,diagnosis_columns,medication_columns,procedure_columns,"Synthetic",is_synthetic= True)
+
+        #real_stats = ger_stat_per_vist(self.train_ehr_dataset,diagnosis_columns,medication_columns,procedure_columns,"Real",is_synthetic= False)
+        
+        #syn_stats = ger_stat_per_vist(self.synthetic_ehr_dataset,diagnosis_columns,medication_columns,procedure_columns,"Synthetic",is_synthetic= True)
 
 
     def pairwisecorrelation(self):
@@ -961,15 +1152,15 @@ class EHRResemblanceMetrics:
         
         real_diagnosis_frequencies = calculate_relative_frequencies(train_ehr_dataset[diagnosis_features])
         synthetic_diagnosis_frequencies = calculate_relative_frequencies(synthetic_ehr_dataset[diagnosis_features])
-        mad_diagnosis = calculate_mean_absolute_difference(real_diagnosis_frequencies, synthetic_diagnosis_frequencies)
+        #mad_diagnosis = calculate_mean_absolute_difference(real_diagnosis_frequencies, synthetic_diagnosis_frequencies)
         
         real_drug_frequencies = calculate_relative_frequencies(train_ehr_dataset[drug_features])
         synthetic_drug_frequencies = calculate_relative_frequencies(synthetic_ehr_dataset[drug_features])
-        mad_drugs = calculate_mean_absolute_difference(real_drug_frequencies, synthetic_drug_frequencies)
+        #mad_drugs = calculate_mean_absolute_difference(real_drug_frequencies, synthetic_drug_frequencies)
         
         real_procedure_frequencies = calculate_relative_frequencies(train_ehr_dataset[procedure_features])
         synthetic_procedure_frequencies = calculate_relative_frequencies(synthetic_ehr_dataset[procedure_features])
-        mad_procedures = calculate_mean_absolute_difference(real_procedure_frequencies, synthetic_procedure_frequencies)
+        #mad_procedures = calculate_mean_absolute_difference(real_procedure_frequencies, synthetic_procedure_frequencies)
         
         # Crear DataFrame combinado para el gráfico
         plot_data = pd.DataFrame({
@@ -982,8 +1173,8 @@ class EHRResemblanceMetrics:
             )
         })
 
-        plot_data = remove_outliers(plot_data, 'Real')
-        plot_data = remove_outliers(plot_data, 'Synthetic')
+        #plot_data = remove_outliers(plot_data, 'Real')
+        #plot_data = remove_outliers(plot_data, 'Synthetic')
 
         # Encontrar los límites máximos para ajustar los ejes
         max_real = plot_data['Real'].max()
@@ -998,16 +1189,16 @@ class EHRResemblanceMetrics:
         plt.plot([0, axis_limit], [0, axis_limit], ls="--", c=".3")
 
         # Añadir los valores de MAD al gráfico
-        plt.text(0.05, axis_limit * 0.95, f'MAD (Diagnosis) = {mad_diagnosis:.2f}', horizontalalignment='left', size='medium', color='black', weight='semibold')
-        plt.text(0.05, axis_limit * 0.90, f'MAD (Drugs) = {mad_drugs:.2f}', horizontalalignment='left', size='medium', color='black', weight='semibold')
-        plt.text(0.05, axis_limit * 0.85, f'MAD (Procedures) = {mad_procedures:.2f}', horizontalalignment='left', size='medium', color='black', weight='semibold')
+        # plt.text(0.05, axis_limit * 0.95, f'MAD (Diagnosis) = {mad_diagnosis:.2f}', horizontalalignment='left', size='medium', color='black', weight='semibold')
+        # plt.text(0.05, axis_limit * 0.90, f'MAD (Drugs) = {mad_drugs:.2f}', horizontalalignment='left', size='medium', color='black', weight='semibold')
+        # plt.text(0.05, axis_limit * 0.85, f'MAD (Procedures) = {mad_procedures:.2f}', horizontalalignment='left', size='medium', color='black', weight='semibold')
 
         # Ajustar los límites de los ejes
         plt.xlim(0, axis_limit)
         plt.ylim(0, axis_limit)
 
         # Añadir títulos y etiquetas
-        plt.title('Comparison of Feature Mean in Real and Synthetic Data')
+        plt.title('Comparison of unique code mean in real and synthetic data')
         plt.xlabel('Real Features Mean')
         plt.ylabel('Synthetic Features Mean')
 
@@ -1267,7 +1458,14 @@ class EHRResemblanceMetrics:
             latex_code = total.to_latex( index = "Variable")
             if i == "visit_rank":
                plot_vistis(    total )
+               total.drop(columns= "Variable",inplace = True)
+               total.columns = [col.replace('visit_rank', '') for col in total.columns]
+               general_l = latex_general(total,"Count number of visist and proportioncs between real and synthetic data","tab:visit_counts_1",integer_columns = ["Category ","Count train ","Count synthetic "],num_decimales =2 )
+               print(general_l)
             print(latex_code)
+            general_l = latex_general(total,"Count number of visist and proportioncs between real and synthetic data","tab:visit_counts_1")
+            
+            print(general_l)
         return total.to_dict()  
     def get_excat_match(self,train_ehr_dataset,synthetic_ehr_dataset):
         train_ehr_dataset, synthetic_ehr_dataset =filter_and_equalize_datasets(train_ehr_dataset, synthetic_ehr_dataset)
@@ -1333,5 +1531,4 @@ class EHRResemblanceMetrics:
         dict_s = cp.evaluate(train_ehr_dataset, synthetic_ehr_dataset)
         print_latex(dict_s)
         return dict_s
-
 

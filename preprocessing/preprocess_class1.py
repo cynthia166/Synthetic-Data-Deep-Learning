@@ -5,9 +5,35 @@ sys.path.append('preprocessing')
 
 from preprocess_input1 import *
 from config import *
+import logging
+logging.basicConfig(
+    filename='app.log',  # Log file name
+    level=logging.INFO,  # Set the minimum level of log messages to capture
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 class DataPreprocessor:
-    def __init__(self, type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, cols_to=None, normalize_matrix=False, log_transformation=False, encode_categorical=False, final_preprocessing=False,proportion = False,prop = 0.09 ):
+    def __init__(self, type_p,
+                  doc_path, 
+                  admissions_path,
+                    patients_path,
+                      categorical_cols,
+                        real,
+                          level,
+                            numerical_cols,
+                              prepomax, name,
+                                n,
+                                columns_to_drop,
+                                cols_to_accumulate,
+                                feature_accumulative_path,
+                                save_accumulate_df,
+                                  cols_to=None,
+                                    normalize_matrix=False,
+                                      log_transformation=False, encode_categorical=False,
+                                        final_preprocessing=False,proportion = False,prop = 0.09,
+                                         make_initial_preprocess = True,
+                                          features_path = "",
+                                           create_added_paste_feautres_actual_summed=True ):
         self.type_p = type_p  #drugs procedures diagnosis
         self.doc_path = doc_path # Path to the document above
         self.admissions_path = admissions_path #admissions_path
@@ -26,6 +52,51 @@ class DataPreprocessor:
         self.final_preprocessing = final_preprocessing  # final preprocessing or not / true or false
         self.proportion = proportion  # proportion to considere for the agruping of demographical variables or not / true or false         
         self.prop = prop #preprocessing portion
+        self.make_initial_preprocess = make_initial_preprocess
+        self.features_path = features_path
+        self.create_added_paste_feautres_actual_summed = create_added_paste_feautres_actual_summed
+        self.columns_to_drop  = columns_to_drop
+        self.cols_to_accumulate = cols_to_accumulate
+        self.feature_accumulative_path = feature_accumulative_path
+        self.save_accumulate_df = save_accumulate_df
+    def initialize(self):
+        if self.make_initial_preprocess == True:
+           self.df = self.run()
+           logging.info("Running features and concatenations")
+        else: 
+            self.df = self.load_initial_preocess()   
+            logging.info("Pre -loaddings features and concatenations")
+            if   len(self.columns_to_drop)!=0:
+                self.eliminate_columns()
+                logging.info(f'eliminating {self.columns_to_drop}')
+        if self.create_added_paste_feautres_actual_summed:
+           self.calculate_accumulative_los()
+           logging.info("Creating accumulative features")
+        if self.save_accumulate_df:
+            save_pickle(self.df,self.feature_accumulative_path)
+            logging.info("Saving pickle")
+           
+    def calculate_accumulative_los(self):
+    # Convert the input data to a pandas DataFrame
+
+
+        # Sort the DataFrame by patient_id and visit_rank
+        self.df = self.df.sort_values(['SUBJECT_ID', 'visit_rank'])
+        for col in self.cols_to_accumulate:          
+        # Calculate the accumulative LOS for each patient
+            self.df['accumulative_'+col] =self.df.groupby('SUBJECT_ID')[col].cumsum()
+
+
+
+        return self.df        
+
+    def eliminate_columns(self):
+        
+        self.df.drop(columns=self.columns_to_drop, inplace=True)
+
+    def load_initial_preocess(self):
+        return load_data(self.features_path)
+                
     def load_data_clean_data(self, type_p):
         #clean data, and create indiidual counts of drugs or codes
         if type_p == "procedures":

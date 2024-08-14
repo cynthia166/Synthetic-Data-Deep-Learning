@@ -11,17 +11,18 @@ import os
 # saving EHR data based on its value.
 # save ehr en la primera corrida
 
-post_processing = False
-save_ehr = False
+post_processing = True
+save_ehr = True
 
 #creating subject
-get_synthetic_subject_clustering = False
-make_cosin_sim = False
-get_sample_synthetic_similar_real = False#create subject id from admission
+
+get_sample_synthetic_similar_real = False
+#create subject id from admission
 get_days_grom_visit_histogram = False
 #si se tiene doppleganger con attributes y features
 
-
+get_synthetic_subject_clustering = False
+make_cosin_sim = False
 #EVALUATION
 visualization_dimension_wise_distribution_similarity = False
 metric_dimension_wise_distribution_similarity = True
@@ -98,10 +99,12 @@ folder = "ARF_fixed_postpros/"
 #folder = "ARF_fixed_v/"
 #folder = "ARF_fixed_postpros/"
 #folder = "ARF_fixed_sansvar/cosine_sim_subj/"
-
+#folder = "arf_acumulative/"
+#folder = "ARF_fixed_sansvar/"
 
 path_to_folder_syn = file_data+folder
 file =path_to_folder_syn+ "synthetic_data_generative_model_arf_per_fixed_v0.7.pkl"
+#file = path_to_folder_syn + "synthetic_data_generative_model_arf_per_arf_acumulative0.7.pkl"
 #type of model
 type_archivo = 'ARFpkl'
 sample_patients_path =path_to_folder_syn + "sample_patients_fixed_v"
@@ -153,7 +156,9 @@ categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
                         'MARITAL_STATUS',  'ETHNICITY','GENDER',"visit_rank","HOSPITAL_EXPIRE_FLAG"  ]
 #dependant visit , static information
 dependant_fist_visit = ['ADMITTIME',  'RELIGION',
-                        'MARITAL_STATUS',  'ETHNICITY','GENDER'] 
+
+                        'MARITAL_STATUS',  'ETHNICITY','GENDER']
+
 # codes icd9 and drugs
 keywords = ['diagnosis', 'procedures', 'drugs']
 #path to synthetic data
@@ -168,7 +173,9 @@ procedure_columns = list(train_ehr_dataset.filter(like="procedures").columns)
 medication_columns = list(train_ehr_dataset.filter(like="drugs").columns)
 
 
-
+for i in dependant_fist_visit:
+    print(i)
+    print( list(train_ehr_dataset.filter(like=i).columns) )
 #not used
 
  # TODO Modify*
