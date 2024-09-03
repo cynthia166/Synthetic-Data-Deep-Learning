@@ -50,8 +50,10 @@ class EHRResemblanceMetrics:
                     d_synthetic_data,
                     eliminate_variables_generadas_post,
                     variables_generadas_post,
-                    
-
+                    columnas_demograficas,
+                    synthetic_type,
+                    encoder
+                   
                     ):
         self.patient_visit = patient_visit
         self.num_visit_count = num_visit_count
@@ -84,6 +86,9 @@ class EHRResemblanceMetrics:
         self.d_synthetic_data = d_synthetic_data
         self.eliminate_variables_generadas_post = eliminate_variables_generadas_post
         self.variables_generadas_post = variables_generadas_post
+        self.columnas_demograficas = columnas_demograficas
+        self.synthetic_type =synthetic_type
+        self.encoder = encoder 
     def evaluate(self):    
         results = {}
         if "crammer_metric" in self.list_metric_resemblance:
@@ -222,218 +227,306 @@ class EHRResemblanceMetrics:
         if "get_get_analyze_continous" in self.list_metric_resemblance:
             logging.info("get_analyze_continous")
             self.get_analyze_continous()    
+        if "demographics_analysis_medicalcodes"     in self.list_metric_resemblance:
+            logging.info("demographics_analysis_medicalcodes")
+            results = self.demographics_analysis_medicalcodes()
+        if "age_occurance_stat" in self.list_metric_resemblance:
+            logging.info("age_occurance_stat") 
+            results = self.age_occurance_stat()
+               
+            
+        return results
+    def age_occurance_stat(self):
+        results = analyze_diagnoses(self.train_ehr_dataset, self.synthetic_ehr_dataset, self.cols_diagnosis)
+        
+        results.to_csv("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/ARF_demo/"+synthetic_type+"edad_ocurrance.csv")
+       
+
         return results
 
+    def demographics_analysis_medicalcodes(self):
+        # Example usage:
+        synthetic_type = self.synthetic_type
+        dem = ['RELIGION_encoded', 'MARITAL_STATUS_encoded',  'ETHNICITY_encoded','GENDER_encoded']
+        #dem = ['GENDER']
+        make_a =True
+        diagnosis_codes = self.cols_diagnosis
+        procedure_codes = self.cols_procedures
+        drug_codes = self.cols_drugs
+        results = pd.DataFrame()
+        top_codes = "Other"
+        if make_a:
+            for i in dem:
+                #final_results,top_codes = process_dataframesv2(self.train_ehr_dataset, self.synthetic_ehr_dataset, i, diagnosis_codes, procedure_codes, drug_codes,self.encoder,top_codes= top_codes,)
+                final_results, overall_prop, overall_count, drug_codes, diagnosis_codes, procedure_codes = process_dataframesv22(self.train_ehr_dataset, self.synthetic_ehr_dataset, i, diagnosis_codes, procedure_codes, drug_codes, self.encoder, 'id_patient')
+                
+                #final_results, overall_prop, overall_count, top_drugs, top_diagnoses, top_procedures = process_dataframesv2(self.train_ehr_dataset, self.synthetic_ehr_dataset, i, diagnosis_codes, procedure_codes, drug_codes, self.encoder, "id_patient", path_img=None, top_codes=None)
+   
+                #final_results.index = [j +"_" +i if j == 'Unknown' or j=='Otra' or j == '0' else j for j in final_results.index]
+                #results = pd.concat([final_results,results])
+                
+                print(final_results.to_latex())
+               
+                final_results.to_csv("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/ARF_demo/"+synthetic_type+"_"+i+"_.csv")
+       
+
+        type_diag = "diagnoses"
+        comparison_results =compare_synthetic_real_demographics(self.train_ehr_dataset, self.synthetic_ehr_dataset, dem,diagnosis_codes,self.encoder)   
+        comparison_results = consistent_sort_demographic_classes(comparison_results)
+        comparison_results.to_csv("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/ARF_demo/"+type_diag+"_"+synthetic_type+".csv")
+        
+        type_diag = "procedures"
+        comparison_results =compare_synthetic_real_demographics(self.train_ehr_dataset, self.synthetic_ehr_dataset, dem,procedure_codes,self.encoder)   
+        comparison_results = consistent_sort_demographic_classes(comparison_results)
+        comparison_results.to_csv("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/ARF_demo/"+type_diag+"_"+synthetic_type+".csv")
+        
+        type_diag = "drugs"
+        comparison_results =compare_synthetic_real_demographics(self.train_ehr_dataset, self.synthetic_ehr_dataset, dem,drug_codes,self.encoder)   
+        comparison_results = consistent_sort_demographic_classes(comparison_results)
+        comparison_results.to_csv("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/ARF_demo/"+type_diag+"_"+synthetic_type+".csv")
+        
+        print(comparison_results.to_latex())
+        #overall codes
+        # results = pd.DataFrame()      
+        # top_codes = None  
+        # for i in dem:
+        #     final_results,top_codes = process_dataframes(self.train_ehr_dataset, self.synthetic_ehr_dataset, i, diagnosis_codes, procedure_codes, drug_codes,top_codes= top_codes)
+        #     results = pd.concat([final_results,results])
+        #     print(results.to_latex())    
+        return results
+      
+
+
     def get_analyze_continous(self):
+        #print(Admission level)
+        
+        def get_continous_cosl(synthetic_ehr_dataset,train_ehr_dataset,columns_to_analyze):
+            df_comparative = analyze_continuous_variables(synthetic_ehr_dataset,train_ehr_dataset, columns_to_analyze)
+
+            print("LaTeX table for comparative statistics of continuous variables:")
+            #print(df_comparative.to_latex(index=False, escape=False))  
+
+            latex_table = latex_general(df_comparative,"",""
+                                    ,no_percentage_float=['Visit 1 Real', 'Visit 1 Synthetic','Visit 2 Real','Visit 3 Real',
+            'Visit 2 Synthetic',
+        'Visit 3 Synthetic', ])
+            print(latex_table)
+
+    
+
+            df_comparative_overall = analyze_overall_continuous_variables(synthetic_ehr_dataset, train_ehr_dataset, columns_to_analyze)
+
+            print("LaTeX table for overall comparative statistics of continuous variables:")
+            print(df_comparative_overall.to_latex(index=False, escape=False))
+            latex_table = format_continuous_variables_to_latex(df_comparative_overall, 
+                                            "Statistics of demographic variables with Percentage Differences",
+                                            "tab:stats_table_1")
+            print(latex_table)
+
+
+
+            # Assuming 'synthetic_df' and 'real_df' are your DataFrames with the required column
+            df_comparative_admission = analyze_admission_dates(synthetic_ehr_dataset, train_ehr_dataset, 'ADMITTIME')
+            print("LaTeX table for comparative statistics of admission dates:")
+            print(df_comparative_admission.to_latex(index=False, escape=False))
+            
+            # patient level stat
+            df_results = analyze_patient_level(synthetic_ehr_dataset, train_ehr_dataset, columns_to_analyze)
+            print(df_results.to_latex())
+        print("print admission level")
         columns_to_analyze = self.cols_continuous
+        get_continous_cosl(self.synthetic_ehr_dataset,self.train_ehr_dataset,columns_to_analyze)
 
-        df_comparative = analyze_continuous_variables(self.synthetic_ehr_dataset, self.train_ehr_dataset, columns_to_analyze)
+        print("print patient level")
+        dataframe_train = self.train_ehr_dataset.groupby('id_patient').mean().reset_index()   
+        admit_times = self.train_ehr_dataset.groupby('id_patient')['ADMITTIME'].first().reset_index()
+        dataframe_train = pd.merge(dataframe_train, admit_times, on='id_patient')
 
-        print("LaTeX table for comparative statistics of continuous variables:")
-        print(df_comparative.to_latex(index=False, escape=False))  
-
-        latex_table = latex_general(df_comparative,"",""
-                                   ,no_percentage_float=['Visit 1 Real', 'Visit 1 Synthetic','Visit 2 Real','Visit 3 Real',
-        'Visit 2 Synthetic',
-       'Visit 3 Synthetic', ])
-        print(latex_table)
-
-  
-
-        df_comparative_overall = analyze_overall_continuous_variables(self.synthetic_ehr_dataset, self.train_ehr_dataset, columns_to_analyze)
-
-        print("LaTeX table for overall comparative statistics of continuous variables:")
-        print(df_comparative_overall.to_latex(index=False, escape=False))
-        latex_table = format_continuous_variables_to_latex(df_comparative_overall, 
-                                        "Statistics of demographic variables with Percentage Differences",
-                                        "tab:stats_table_1")
-        print(latex_table)
-
-
-
-        # Assuming 'synthetic_df' and 'real_df' are your DataFrames with the required column
-        df_comparative_admission = analyze_admission_dates(self.synthetic_ehr_dataset, self.train_ehr_dataset, 'ADMITTIME')
-        print("LaTeX table for comparative statistics of admission dates:")
-        print(df_comparative_admission.to_latex(index=False, escape=False))
-
-
-
+        dataframe_synthetic = self.synthetic_ehr_dataset.groupby('id_patient').mean().reset_index()  
+        admit_times = self.synthetic_ehr_dataset.groupby('id_patient')['ADMITTIME'].first().reset_index()
+        dataframe_synthetic = pd.merge(dataframe_synthetic, admit_times, on='id_patient')
+ 
+        get_continous_cosl(dataframe_synthetic,dataframe_train,columns_to_analyze) 
             
     def get_analyze_demographics(self):
-
+        
         # static columns
         type_data = "Real"
-        cols_to_analyze = self.dependant_fist_visit
-        cols_to_analyze = [i for i in cols_to_analyze if i != "ADMITTIME"]
-        dataframe = self.train_ehr_dataset
-        propor_demos(cols_to_analyze,type_data,dataframe)
+
+       
 
 
-        type_data = "Synthetic"
-        cols_to_analyze = self.dependant_fist_visit
-        cols_to_analyze = [i for i in cols_to_analyze if i != "ADMITTIME"]
-        dataframe = self.synthetic_ehr_dataset
-        propor_demos(cols_to_analyze,type_data,dataframe)
-
-        groups = {col: list(self.synthetic_ehr_dataset.filter(like=col, axis=1).columns) for col in cols_to_analyze}
-    
-        synthetic_df = analyze_demographics2(self.synthetic_ehr_dataset, groups)
-        real_df = analyze_demographics2(self.train_ehr_dataset, groups)
+        def generate_demographic_prop(synthetic_ehr_dataset,train_ehr_dataset,dependant_fist_visit):
+            cols_to_analyze = [i + '_encoded' for i in self.dependant_fist_visit if i != 'ADMITTIME']
+            groups = {col: list(synthetic_ehr_dataset.filter(like=col, axis=1).columns) for col in cols_to_analyze}
         
-        latex_table = generate_demographics_latex_table2(
-            synthetic_df, real_df,
-            "Statistics of demographic variables with Percentage Differences",
-            "tab:stats_table_1"
-        )
-     
-        print(latex_table)
-
-        generate_demographics_latex_table(self.train_ehr_dataset,self.synthetic_ehr_dataset,groups,"","")
-                # static columns
-        type_data = "Real"
-        cols_to_analyze = self.categorical_cols
-        cols_to_analyze = [i for i in cols_to_analyze if i not in  self.dependant_fist_visit]
-        dataframe = self.train_ehr_dataset
-        propor_demos(cols_to_analyze,type_data,dataframe)
-
-
-        type_data = "Synthetic"
-        cols_to_analyze = self.categorical_cols
-        cols_to_analyze = [i for i in cols_to_analyze if i not in  self.dependant_fist_visit]
-        dataframe = self.synthetic_ehr_dataset
-        propor_demos(cols_to_analyze,type_data,dataframe)
-
-        groups = {col: list(self.synthetic_ehr_dataset.filter(like=col, axis=1).columns) for col in cols_to_analyze}
-    
-        synthetic_df = analyze_demographics2(self.synthetic_ehr_dataset, groups)
-        real_df = analyze_demographics2(self.train_ehr_dataset, groups)
+            synthetic_df = analyze_demographics2(synthetic_ehr_dataset, groups)
+            real_df = analyze_demographics2(train_ehr_dataset, groups)
+            
+            latex_table = generate_demographics_latex_table2(
+                synthetic_df, real_df,
+                "Statistics of demographic variables with Percentage Differences",
+                "tab:stats_table_1"
+            )
         
-        latex_table = generate_demographics_latex_table2(
-            synthetic_df, real_df,
-            "Statistics of demographic variables with Percentage Differences",
-            "tab:stats_table_1"
-        )
-     
-        print(latex_table)
+            print(latex_table)
 
-        generate_demographics_latex_table(self.train_ehr_dataset,self.synthetic_ehr_dataset,groups,"","")
+            generate_demographics_latex_table(train_ehr_dataset,synthetic_ehr_dataset,groups,"","")
+                    # static columns
+            type_data = "Real"
+            
+            cols_to_analyze = [i + '_encoded' for i in dependant_fist_visit if i != 'ADMITTIME']
+            groups = {col: list(synthetic_ehr_dataset.filter(like=col, axis=1).columns) for col in cols_to_analyze}
+        
+            synthetic_df = analyze_demographics2(synthetic_ehr_dataset, groups)
+            real_df = analyze_demographics2(train_ehr_dataset, groups)
+            
+            latex_table = generate_demographics_latex_table2(
+                synthetic_df, real_df,
+                "Statistics of demographic variables with Percentage Differences",
+                "tab:stats_table_1"
+            )
+        
+            print(latex_table)
+
+            generate_demographics_latex_table(train_ehr_dataset,synthetic_ehr_dataset,groups,"","")
+        
+
+        
+        print("admissio level")
+        dataframe_train = self.train_ehr_dataset
+        dataframe_synthetic =self.synthetic_ehr_dataset
+        dependant_fist_visit =self.dependant_fist_visit
+        generate_demographic_prop(dataframe_synthetic,dataframe_train,dependant_fist_visit)
+
+
+        print("patient level")
+        dataframe_train = self.train_ehr_dataset.groupby('id_patient').first().reset_index()
+        dataframe_synthetic =self.synthetic_ehr_dataset.groupby('id_patient').first().reset_index()
+        dependant_fist_visit =self.dependant_fist_visit
+        generate_demographic_prop(dataframe_synthetic,dataframe_train,dependant_fist_visit)
 
 
     def get_stat_patients(self):
         #patient_level
-        all_code_cols = diagnosis_columns + medication_columns + procedure_columns
-        columns_for_max = ['visit_rank']
- 
-        # Group by 'id_patient'
-        grouped_data_patietn = self.train_ehr_dataset.groupby('id_patient').agg({
-            **{col: 'sum' for col in all_code_cols},  # Sum all columns except 'visit_Rank'
-            **{col: 'max' for col in columns_for_max}  # Max for 'visit_Rank'
-        })
+        patient_level_stats = False
+        admission_level_stats = True
+        if patient_level_stats: 
+            all_code_cols = diagnosis_columns + medication_columns + procedure_columns
+            columns_for_max = ['visit_rank']
+    
+            # Group by 'id_patient'
+            grouped_data_patietn = self.train_ehr_dataset.groupby('id_patient').agg({
+                **{col: 'sum' for col in all_code_cols},  # Sum all columns except 'visit_Rank'
+                **{col: 'max' for col in columns_for_max}  # Max for 'visit_Rank'
+            })
 
-        grouped_data_patietn_synthetic = self.synthetic_ehr_dataset.groupby('id_patient').agg({
-            **{col: 'sum' for col in all_code_cols},  # Sum all columns except 'visit_Rank'
-            **{col: 'max' for col in columns_for_max}  # Max for 'visit_Rank'
-        })
-        
-        result = print_latex_generate_stats2(grouped_data_patietn, grouped_data_patietn_synthetic, diagnosis_columns, medication_columns, procedure_columns, "Admission level")
-        #print_latex_genrate_stats(grouped_data_patietn,grouped_data_patietn_synthetic,diagnosis_columns,medication_columns, procedure_columns,"Patient ")
-
-
-
-              # admission level (general)
-        #stats for the first 4 visits:
-        
-
-        grouped_data_patietn = self.train_ehr_dataset.groupby('id_patient').agg({
-            **{col: 'sum' for col in all_code_cols},  # Sum all columns except 'visit_Rank'
-            **{col: 'max' for col in columns_for_max}  # Max for 'visit_Rank'
-        })
-
-        grouped_data_patietn_synthetic = self.synthetic_ehr_dataset.groupby('id_patient').agg({
-            **{col: 'sum' for col in all_code_cols},  # Sum all columns except 'visit_Rank'
-            **{col: 'max' for col in columns_for_max}  # Max for 'visit_Rank'
-        })
-        print("patient_leve")
-        real_data = get_stat_per_visit3(grouped_data_patietn, diagnosis_columns, medication_columns, procedure_columns, "Real", is_synthetic=False)
-        synthetic_data = get_stat_per_visit3(grouped_data_patietn_synthetic, diagnosis_columns, medication_columns, procedure_columns, "Synthetic", is_synthetic=True)
-
-        table1 = generate_latex_table3(real_data, synthetic_data, 
-                                        "Statistics for first five admissions, UD - unique diagnosis. TD - total diagnosis. UDr - unique drugs. TDr - total drugs. UP - unique procedures. TP - total procedures.",
-                                        "tab:stats_p_5")
-        print(table1)
-
-        table1 = generate_latex_table3_v2(real_data, synthetic_data, 
-                                        "Statistics for first five admissions, UD - unique diagnosis. TD - total diagnosis. UDr - unique drugs. TDr - total drugs. UP - unique procedures. TP - total procedures.",
-                                        "tab:stats_p_5")
-        print(table1)
-
-        table2 = generate_latex_table_all_codes3(real_data, synthetic_data,
-                                                "Statistics for first five admissions",
-                                                "tab:stats_p_6")
-        print(table2)
+            grouped_data_patietn_synthetic = self.synthetic_ehr_dataset.groupby('id_patient').agg({
+                **{col: 'sum' for col in all_code_cols},  # Sum all columns except 'visit_Rank'
+                **{col: 'max' for col in columns_for_max}  # Max for 'visit_Rank'
+            })
+            print("patient_level")
+            result = print_latex_generate_stats2(grouped_data_patietn, grouped_data_patietn_synthetic, diagnosis_columns, medication_columns, procedure_columns, "Admission level")
+            #print_latex_genrate_stats(grouped_data_patietn,grouped_data_patietn_synthetic,diagnosis_columns,medication_columns, procedure_columns,"Patient ")
 
 
-        #real_stats = ger_stat_per_vist(grouped_data_patietn,diagnosis_columns,medication_columns,procedure_columns,"Real",is_synthetic= False)
-        
-        #syn_stats = ger_stat_per_vist(grouped_data_patietn_synthetic,diagnosis_columns,medication_columns,procedure_columns,"Synthetic",is_synthetic= True)
 
-         #stats for the first 4 visits:
-        print("admission_level")
+            
+            
 
-        grouped_data_admission_leve = self.train_ehr_dataset.groupby(['id_patient', 'visit_rank']).sum().reset_index()
-        grouped_data_admission_leve_synthetic = self.synthetic_ehr_dataset.groupby(['id_patient', 'visit_rank']).sum().reset_index()
-        print_latex_genrate_stats(grouped_data_admission_leve,grouped_data_admission_leve_synthetic,diagnosis_columns,medication_columns, procedure_columns,"Admission ")
-        result = print_latex_generate_stats2(grouped_data_admission_leve, grouped_data_admission_leve_synthetic, diagnosis_columns, medication_columns, procedure_columns, "Admission level")
-        
-        result = print_latex_generate_stats2(self.train_ehr_dataset, self.synthetic_ehr_dataset, diagnosis_columns, medication_columns, procedure_columns, "Admission level")
-        
-        print_latex_genrate_stats(self.train_ehr_dataset,self.synthetic_ehr_dataset,diagnosis_columns,medication_columns, procedure_columns,"Admission general")
- 
-        real_data = get_stat_per_visit3(grouped_data_admission_leve, diagnosis_columns, medication_columns, procedure_columns, "Real", is_synthetic=False)
-        synthetic_data = get_stat_per_visit3(grouped_data_admission_leve_synthetic, diagnosis_columns, medication_columns, procedure_columns, "Synthetic", is_synthetic=True)
+            grouped_data_patietn = self.train_ehr_dataset.groupby('id_patient').agg({
+                **{col: 'sum' for col in all_code_cols},  # Sum all columns except 'visit_Rank'
+                **{col: 'max' for col in columns_for_max}  # Max for 'visit_Rank'
+            })
 
-        table1 = generate_latex_table3_v2(real_data, synthetic_data, 
-                                        "Statistics for first five admissions, UD - unique diagnosis. TD - total diagnosis. UDr - unique drugs. TDr - total drugs. UP - unique procedures. TP - total procedures.",
-                                        "tab:stats_p_5")
-        print(table1)
+            grouped_data_patietn_synthetic = self.synthetic_ehr_dataset.groupby('id_patient').agg({
+                **{col: 'sum' for col in all_code_cols},  # Sum all columns except 'visit_Rank'
+                **{col: 'max' for col in columns_for_max}  # Max for 'visit_Rank'
+            })
+            print("patient_leve")
+            real_data = get_stat_per_visit3(grouped_data_patietn, diagnosis_columns, medication_columns, procedure_columns, "Real", is_synthetic=False)
+            synthetic_data = get_stat_per_visit3(grouped_data_patietn_synthetic, diagnosis_columns, medication_columns, procedure_columns, "Synthetic", is_synthetic=True)
 
+            table1 = generate_latex_table3(real_data, synthetic_data, 
+                                            "Statistics for first five admissions, UD - unique diagnosis. TD - total diagnosis. UDr - unique drugs. TDr - total drugs. UP - unique procedures. TP - total procedures.",
+                                            "tab:stats_p_5")
+            
+            print("considering 5 visits for patient data ")
+            print(table1)
 
-        table1 = generate_latex_table3(real_data, synthetic_data, 
-                                        "Statistics for first five admissions, UD - unique diagnosis. TD - total diagnosis. UDr - unique drugs. TDr - total drugs. UP - unique procedures. TP - total procedures.",
-                                        "tab:stats_p_5")
-        print(table1)
+            table1 = generate_latex_table3_v2(real_data, synthetic_data, 
+                                            "Statistics for first five admissions, UD - unique diagnosis. TD - total diagnosis. UDr - unique drugs. TDr - total drugs. UP - unique procedures. TP - total procedures.",
+                                            "tab:stats_p_5")
+            #print(table1)
 
-        table2 = generate_latex_table_all_codes3(real_data, synthetic_data,
-                                                "Statistics for first five admissions",
-                                                "tab:stats_p_6")
-        print(table2)
-
-
-        real_data = get_stat_per_visit3(self.train_ehr_dataset, diagnosis_columns, medication_columns, procedure_columns, "Real", is_synthetic=False)
-        synthetic_data = get_stat_per_visit3(self.synthetic_ehr_dataset, diagnosis_columns, medication_columns, procedure_columns, "Synthetic", is_synthetic=True)
-        table1 = generate_latex_table3_v2(real_data, synthetic_data, 
-                                        "Statistics for first five admissions, UD - unique diagnosis. TD - total diagnosis. UDr - unique drugs. TDr - total drugs. UP - unique procedures. TP - total procedures.",
-                                        "tab:stats_p_5")
-        print(table1)
-
-        table1 = generate_latex_table3(real_data, synthetic_data, 
-                                        "Statistics for first five admissions, UD - unique diagnosis. TD - total diagnosis. UDr - unique drugs. TDr - total drugs. UP - unique procedures. TP - total procedures.",
-                                        "tab:stats_p_5")
-        print(table1)
-
-        table2 = generate_latex_table_all_codes3(real_data, synthetic_data,
-                                                "Statistics for first five admissions",
-                                                "tab:stats_p_6")
-        print(table2)
+            table2 = generate_latex_table_all_codes3(real_data, synthetic_data,
+                                                    "Statistics for first five admissions",
+                                                    "tab:stats_p_6")
+            print(table2)
 
 
-        #real_stats = ger_stat_per_vist(grouped_data_admission_leve,diagnosis_columns,medication_columns,procedure_columns,"Real",is_synthetic= False)
-        
-        #syn_stats = ger_stat_per_vist(grouped_data_admission_leve_synthetic,diagnosis_columns,medication_columns,procedure_columns,"Synthetic",is_synthetic= True)
+            #real_stats = ger_stat_per_vist(grouped_data_patietn,diagnosis_columns,medication_columns,procedure_columns,"Real",is_synthetic= False)
+            
+            #syn_stats = ger_stat_per_vist(grouped_data_patietn_synthetic,diagnosis_columns,medication_columns,procedure_columns,"Synthetic",is_synthetic= True)
 
-        #real_stats = ger_stat_per_vist(self.train_ehr_dataset,diagnosis_columns,medication_columns,procedure_columns,"Real",is_synthetic= False)
-        
-        #syn_stats = ger_stat_per_vist(self.synthetic_ehr_dataset,diagnosis_columns,medication_columns,procedure_columns,"Synthetic",is_synthetic= True)
+            #stats for the first 4 visits:
+        if admission_level_stats:        
+            print("admission_level")
+
+            grouped_data_admission_leve = self.train_ehr_dataset.groupby(['id_patient', 'visit_rank']).sum().reset_index()
+            grouped_data_admission_leve_synthetic = self.synthetic_ehr_dataset.groupby(['id_patient', 'visit_rank']).sum().reset_index()
+            #print_latex_genrate_stats(grouped_data_admission_leve,grouped_data_admission_leve_synthetic,diagnosis_columns,medication_columns, procedure_columns,"Admission ")
+            #result = print_latex_generate_stats2(grouped_data_admission_leve, grouped_data_admission_leve_synthetic, diagnosis_columns, medication_columns, procedure_columns, "Admission level")
+            
+            result = print_latex_generate_stats2(self.train_ehr_dataset, self.synthetic_ehr_dataset, diagnosis_columns, medication_columns, procedure_columns, "Admission level")
+            
+            #print_latex_genrate_stats(self.train_ehr_dataset,self.synthetic_ehr_dataset,diagnosis_columns,medication_columns, procedure_columns,"Admission general")
+    
+            real_data = get_stat_per_visit3(grouped_data_admission_leve, diagnosis_columns, medication_columns, procedure_columns, "Real", is_synthetic=False)
+            synthetic_data = get_stat_per_visit3(grouped_data_admission_leve_synthetic, diagnosis_columns, medication_columns, procedure_columns, "Synthetic", is_synthetic=True)
+            print("temporal per admission")
+            table1 = generate_latex_table3_v2(real_data, synthetic_data, 
+                                            "Statistics for first five admissions, UD - unique diagnosis. TD - total diagnosis. UDr - unique drugs. TDr - total drugs. UP - unique procedures. TP - total procedures.",
+                                            "tab:stats_p_5")
+            print(table1)
+
+
+            table1 = generate_latex_table3(real_data, synthetic_data, 
+                                            "Statistics for first five admissions, UD - unique diagnosis. TD - total diagnosis. UDr - unique drugs. TDr - total drugs. UP - unique procedures. TP - total procedures.",
+                                            "tab:stats_p_5")
+ #           print(table1)
+
+            table2 = generate_latex_table_all_codes3(real_data, synthetic_data,
+                                                    "Statistics for first five admissions",
+                                                    "tab:stats_p_6")
+            print(table2)
+
+
+            real_data = get_stat_per_visit3(self.train_ehr_dataset, diagnosis_columns, medication_columns, procedure_columns, "Real", is_synthetic=False)
+            synthetic_data = get_stat_per_visit3(self.synthetic_ehr_dataset, diagnosis_columns, medication_columns, procedure_columns, "Synthetic", is_synthetic=True)
+            table1 = generate_latex_table3_v2(real_data, synthetic_data, 
+                                            "Statistics for first five admissions, UD - unique diagnosis. TD - total diagnosis. UDr - unique drugs. TDr - total drugs. UP - unique procedures. TP - total procedures.",
+                                            "tab:stats_p_5")
+ #           print(table1)
+
+            table1 = generate_latex_table3(real_data, synthetic_data, 
+                                            "Statistics for first five admissions, UD - unique diagnosis. TD - total diagnosis. UDr - unique drugs. TDr - total drugs. UP - unique procedures. TP - total procedures.",
+                                            "tab:stats_p_5")
+ #           print(table1)
+
+            table2 = generate_latex_table_all_codes3(real_data, synthetic_data,
+                                                    "Statistics for first five admissions",
+                                                    "tab:stats_p_6")
+            print(table2)
+
+
+            #real_stats = ger_stat_per_vist(grouped_data_admission_leve,diagnosis_columns,medication_columns,procedure_columns,"Real",is_synthetic= False)
+            
+            #syn_stats = ger_stat_per_vist(grouped_data_admission_leve_synthetic,diagnosis_columns,medication_columns,procedure_columns,"Synthetic",is_synthetic= True)
+
+            #real_stats = ger_stat_per_vist(self.train_ehr_dataset,diagnosis_columns,medication_columns,procedure_columns,"Real",is_synthetic= False)
+            
+            #syn_stats = ger_stat_per_vist(self.synthetic_ehr_dataset,diagnosis_columns,medication_columns,procedure_columns,"Synthetic",is_synthetic= True)
 
 
     def pairwisecorrelation(self):
@@ -720,10 +813,10 @@ class EHRResemblanceMetrics:
                 #plot_outliers(real_out_t, test_out_t, i,
                 #                'Outliers of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test')
                 wd_real_drugs_per_patient_outlier_esttrain = plot_histograms_separate_axes22(real_out_t[i+'_count'], test_out_t[i+'_count'], 
-                                'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test',None)
+                                'Histogram of ' +i+ ' per patient', 'Number of ' + i, 'Patient Count (Train)','Test',None)
                 
                 wd_real_drugs_per_patient_esttrain = plot_histograms_separate_axes22(real_drugs_per_patient_t[i+'_count'], test_drugs_per_patient_t[i+'_count'], 
-                             'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Train)','Test',None)
+                             'Histogram of ' +i+ ' per patient', 'Number of ' + i, 'Patient Count (Train)','Test',None)
     
                 # plot_boxplots(real_drugs_per_patient_t[i+'_count'], test_drugs_per_patient_t[i+'_count'], 
                 #                 'Histogram of ' +i+ ' per Patient', 'Number of ' + i, 'Patient Count (Real)',path_img)
@@ -734,7 +827,7 @@ class EHRResemblanceMetrics:
                 #plot_outliers(real_out_a_t, syn_out_a_t, i,
                 #                'Outliers of ' +i+ ' per Admission', 'Number of ' + i, 'Patient Count (Real)','Test')
                 wd_real_drugs_per_admission_outliers_testtrain =  plot_histograms_separate_axes22(real_out_a_t[i+'_count'], syn_out_a_t[i+'_count'], 
-                                'Histogram of ' +i+ ' per Admission', 'Number of' + i, 'Patient Count (Real)','Test',None)
+                                'Histogram of ' +i+ ' per admission', 'Number of' + i, 'Patient Count (Real)','Test',None)
             
         
                 # plot_boxplots(real_drugs_per_admission_t[i+'_count'], test_drugs_per_admission_t[i+'_count'], 
@@ -782,14 +875,14 @@ class EHRResemblanceMetrics:
             
             
                 wd_real_drugs_per_patient_syntrain = plot_histograms_separate_axes22(real_drugs_per_patient[i+'_count'], synthetic_drugs_per_patient[i+'_count'], 
-                                'Histogram of ' +i+ ' per Patient', 'Number of '+ i, 'Patient Count (Real)','Synthetic',path_img)
+                                'Histogram of ' +i+ ' per patient', 'Number of '+ i, 'Patient Count (Real)','Synthetic',path_img)
                 
                 wd_real_drugs_per_patient_syntrain = plot_histograms_separate_axes22(real_drugs_per_patient[i+'_count'], synthetic_drugs_per_patient[i+'_count'], 
-                                'Histogram of ' +i+ ' per Patient', 'Number of '+ i, 'Patient Count (Real)','Synthetic',path_img)
+                                'Histogram of ' +i+ ' per patient', 'Number of '+ i, 'Patient Count (Real)','Synthetic',path_img)
                 
                 
                 plot_boxplots(real_drugs_per_patient[i+'_count'], synthetic_drugs_per_patient[i+'_count'], 
-                                'Histogram of ' +i+ ' per Patient', 'Number of '+ i, 'Patient Count (Real)',path_img)
+                                'Histogram of ' +i+ ' per patient', 'Number of '+ i, 'Patient Count (Real)',path_img)
 
                 #, 'ADmission Count (Synthetic)'
                 real_out_a = calculate_outlier_ratios_tout2(real_drugs_per_admission,i)
@@ -797,14 +890,14 @@ class EHRResemblanceMetrics:
                 #plot_outliers(real_drugs_per_admission, synthetic_drugs_per_admission, i,
                 #                'Outliers of ' +i+ ' per Admission', 'Number of ' + i, 'Patient Count (Real)','Synthetic')
                 wd_real_drugs_per_admission_outliers_syntrain = plot_histograms_separate_axes22(real_out_a[i+'_count'], syn_out_a[i+'_count'], 
-                                'Histogram of ' +i+ ' per Admission', 'Number of ' + i, 'Patient Count (Real)','Synthetic')
+                                'Histogram of ' +i+ ' per admission', 'Number of ' + i, 'Admissions Count (Real)','Synthetic',path_img)
             
         
                 plot_boxplots(real_drugs_per_admission[i+'_count'], synthetic_drugs_per_admission[i+'_count'], 
-                                'Histogram of ' +i+ ' per Admission', 'Number of ' + i, 'Patient Count (Real)',path_img)
+                                'Histogram of ' +i+ ' per admission', 'Number of ' + i, 'Admissions Count (Real)',path_img)
 
                 wd_real_drugs_per_admission_syntrain = plot_histograms_separate_axes22(real_drugs_per_admission[i+'_count'], synthetic_drugs_per_admission[i+ '_count'], 
-                                'Histogram of ' +i+ ' per Admission', 'Number of ' + i, 'Admission Count (Real)','Synthetic',path_img
+                                'Histogram of ' +i+ ' per admission', 'Number of ' + i, 'Admission Count (Real)','Synthetic',path_img
                             )
                 
                         #ADmission per drug #, 
@@ -814,14 +907,14 @@ class EHRResemblanceMetrics:
                 #plot_outliers(real_admissions_per_drug, synthetic_admissions_per_drug, "admission",
                 #                'Outliers of   Admission per ' + i, 'Number of ' + i, 'Patient Count (Real)','Synthetic')
                 wd_real_admissions_per_drug_outliers_syntrain = plot_histograms_separate_axes22(real_out_a_a["admission"+'_count'], syn_out_a_a["admission"+'_count'], 
-                                'Histogram of outliers ' + 'Admission per ' + i, 'Number of ' + i, 'Patient Count (Real)','Synthetic',path_img)
+                                'Histogram of outliers ' + 'Admission per ' + i, 'Number of ' + i, 'Patient Count (Real)','Synthetic')
                 
 
                 wd_real_admissions_per_drug_syntrain = plot_histograms_separate_axes22(real_admissions_per_drug['admission_count'], synthetic_admissions_per_drug['admission_count'], 
-                                'Histogram of Admissions per ' + i, 'Number of Admissions ',  i+ ' Count (Real)','Synthetic' ,path_img)
+                                'Histogram of Admissions per ' + i, 'Number of Admissions ',  i+ ' Count (Real)','Synthetic' )
                 
                 plot_boxplots(real_admissions_per_drug['admission_count'], synthetic_admissions_per_drug['admission_count'], 
-                                'Histogram of Admissions per ' +i, 'Number of Admissions ',  i+ ' Count (Real)',path_img )
+                                'Histogram of Admissions per ' +i, 'Number of Admissions ',  i+ ' Count (Real)' )
                  
                 synthetic_train_values.append([wd_real_drugs_per_patient_syntrain,wd_real_drugs_per_admission_syntrain,wd_real_admissions_per_drug_syntrain])
                 test_train_values.append([wd_real_drugs_per_patient_esttrain,wd_real_drugs_per_admission_testtrain,wd_real_admissions_per_drug_testtrain])

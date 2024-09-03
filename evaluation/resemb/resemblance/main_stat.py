@@ -11,24 +11,33 @@ import sys
 sys.path.append(file_principal)
 from evaluation.resemb.resemblance.EvaluationResemblance import *
 from evaluation.resemb.resemblance.utilsstats import *
-
+import wandb
 import evaluation.resemb.resemblance.config
-#from generative_model.SD.constraints import *
+from generative_models.SD.constraints import *
 from evaluation.resemb.resemblance.config import *
-from generative_model.SD.model.coupling_subject import *
+#from generative_model.SD.model.coupling_subject import *
     # Save the statistics to a file
 
 
 if __name__=="__main__":
 
        #create electorni 
-    test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,features  = load_create_ehr(read_ehr,save_ehr,file_path_dataset,sample_patients_path,file,valid_perc,features_path,name_file_ehr,type_file='ARFpkl')
+    test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,features  = load_create_ehr(read_ehr,save_ehr,file_path_dataset,sample_patients_path,file,valid_perc,features_path,name_file_ehr,type_file=type_archivo)
+    print(file)
+    if exclude_codes:
+        test_ehr_dataset= test_ehr_dataset[[i for i in test_ehr_dataset.columns if i not in list_col_exclute['codes_no'].to_list()]]
+        train_ehr_dataset= train_ehr_dataset[[i for i in train_ehr_dataset.columns if i not in list_col_exclute['codes_no'].to_list()]]
+        synthetic_ehr_dataset= synthetic_ehr_dataset[[i for i in synthetic_ehr_dataset.columns if i not in list_col_exclute['codes_no'].to_list()]]
+    
     # the only thing that is done is subject_id is change to patient id and logging and clipping negstive values
-    c = EHRDataConstraints( train_ehr_dataset, 
+    
+       #constrains  
+    if get_synthetic_subject_clustering:
+        if make_cosin_sim:
+            c = EHRDataConstraints( train_ehr_dataset, 
                  test_ehr_dataset,
                  synthetic_ehr_dataset,
                  [],
-                 columns_to_drop_syn,
                  cols_continuous ,
                  create_visit_rank_col=False,
                 propagate_fistvisit_categoricaldata=False,
@@ -42,14 +51,10 @@ if __name__=="__main__":
                  get_days_grom_visit_histogram=False,
                  get_admitted_time=False,
                  
-                type_archivo = 'ARFpkl',
-                invert_normalize = False,
-                subject_continous = False
+                type_archivo = type_archivo,
+                encoder = encoder 
            )
     
-       #constrains  
-    if get_synthetic_subject_clustering:
-        if make_cosin_sim:
             synthetic_ehr_dataset, train_ehr_dataset, test_ehr_dataset = c.initiate_processing()
             subs = creating_SyntheticSubject(train_ehr_dataset, 
                         test_ehr_dataset,
@@ -67,7 +72,7 @@ if __name__=="__main__":
                           columns_to_drop,
                           columns_to_drop_syn,
                           type_archivo,
-                          invert_normalize,
+                   
                           cols_continuous,
                            create_visit_rank_col,
                             propagate_fistvisit_categoricaldata,
@@ -76,19 +81,24 @@ if __name__=="__main__":
                             get_handle_hospital_expire_flag,
                             get_0_first_visit,
                             get_sample_synthetic_similar_real,
-                            subject_continous,
+         
                             create_days_between_visits_by_date_var,
                             eliminate_negatives_var,
                             get_days_grom_visit_histogram,
                             get_admitted_time,
                             get_synthetic_subject_clustering,
                             file_path_dataset ,
-                            make_read_constraints_name)
+                            make_read_constraints_name,
+                            medication_columns = medication_columns,
+                            columns_to_drop_sec = columns_to_drop_sec,
+                            encoder =encoder,
+                            columnas_demograficas=columnas_demograficas,
+                            synthetic_type=synthetic_type)
    
         #get_columns
     columnas_test_ehr_dataset,cols_categorical,cols_diagnosis,cols_procedures,cols_drugs,top_300_codes        = get_columns_codes_commun(train_ehr_dataset,keywords,categorical_cols)   
       
-    #get cols diagnosis, procedures, drugs  
+    #get cols diagnosis, procedures, drugs v 
     #synthetic_ehr_dataset, train_ehr_dataset, test_ehr_dataset = cols_drop_ehr(columns_to_drop, synthetic_ehr_dataset, train_ehr_dataset, test_ehr_dataset)
     #datasets para comparar
     d_synthetic_data = {} 
@@ -102,7 +112,9 @@ if __name__=="__main__":
         list_metric_resemblance.extend([
             #"plot_kerneldis",
             #"plot_dimension_wise",
-            #"plot_prevalence_wise"
+            #"plot_prevalence_wise",
+            "demographics_analysis_medicalcodes",
+            #"age_occurance_stat"
                                    
                                  
         ])
@@ -113,11 +125,10 @@ if __name__=="__main__":
             #  "dimenssion_bernoulli",
             #   "get_proportion_demos",
             #  "compare_average_trends_recordlen",
-             "outliers_and_histograms_patients_admissions",
+            # "outliers_and_histograms_patients_admissions",
             # "get_patient_stats",
-             
-           # "get_analyze_one_hot_encoding_var",
-            #"get_get_analyze_continous"
+           #"get_analyze_one_hot_encoding_var",
+           "get_get_analyze_continous"
              ])
     if metric_joint_distribution_similarity_coverage:
         list_metric_resemblance .extend([
@@ -164,7 +175,7 @@ if __name__=="__main__":
         ]    )
                
 
-
+    #wandb.init(project="Resemblance_metrics", name="DEmographics_runs")
     metrics_e = EHRResemblanceMetrics(
         test_ehr_dataset, 
         train_ehr_dataset, 
@@ -191,8 +202,19 @@ if __name__=="__main__":
         d_synthetic_data = d_synthetic_data,
         eliminate_variables_generadas_post=eliminate_variables_generadas_post,
         variables_generadas_post=variables_generadas_post,
-        )
+        columnas_demograficas=columnas_demograficas,
+        synthetic_type=synthetic_type,
+        encoder =encoder)
     results = metrics_e.evaluate()
+   
+   # for i in results:
+   #     log_results_to_wandb(i)
+  
+    # If you have any plots or figures, you can log them like this:
+    # wandb.log({"plot_name": wandb.Image(fig)})
+
+    # Finish the wandb run
+    #wandb.finish()
     
     
     #print_latex(results)

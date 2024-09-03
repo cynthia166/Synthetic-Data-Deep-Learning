@@ -24,6 +24,7 @@ print(current_directory)
 import sys
 sys.path.append('preprocessing')
 sys.path.append('evaluation/privacy/metric_privacy')
+sys.path.append(' generative_model/SD')
 sys.path.append('privacy')
 sys.path.append('evaluation')
 from scipy.stats import entropy
@@ -61,9 +62,9 @@ from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 import matplotlib.pyplot as plt
 from scipy.stats import wasserstein_distance
-from generative_model.SD.constraints import *
+from generative_models.SD.constraints import *
 import pickle
-
+import wandb
 
 import random
 import numpy as np
@@ -90,6 +91,50 @@ logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(level
 from  config import set_graph_settings
 set_graph_settings()
 
+def consistent_sort_demographic_classes(df):
+    # Define the custom order for Demographic_Class
+    # Ensure this list is exhaustive for your dataset
+    custom_order = [
+        'otra', 'catholic', 'unknown', 'life partner', 'single', 'widowed', 
+        'married', 'divorced', 'separated', 'white', 'f', 'm'
+        # Add any other possible values here
+    ]
+    
+    # Create a dictionary mapping each value to its position in the custom order
+    order_dict = {val: idx for idx, val in enumerate(custom_order)}
+    
+    # Function to get the sort key for each row
+    def sort_key(row):
+        demo_class = row['Demographic_Class']
+        # Use the order from the dictionary if available
+        # Otherwise, use a large number to place it at the end, then sort alphabetically
+        primary_key = order_dict.get(demo_class, len(custom_order))
+        secondary_key = demo_class if isinstance(demo_class, str) else ''
+        
+        # Add more keys here for additional sorting criteria if needed
+        # For example, you could add row['Demographic_Type'] as a tertiary sort key
+        
+        return (primary_key, secondary_key)
+    
+    # Sort the DataFrame
+    df_sorted = df.sort_values(by='Demographic_Class', key=lambda x: pd.Series(x.index).map(lambda i: sort_key(df.loc[i])))
+    
+    return df_sorted
+
+def log_results_to_wandb(results):
+    for key, value in results.items():
+        if isinstance(value, pd.DataFrame):
+            # Log DataFrame as a table
+            wandb.log({key: wandb.Table(dataframe=value)})
+        elif isinstance(value, (float, int)):
+            # Log numeric values directly
+            wandb.log({key: value})
+        elif isinstance(value, str):
+            # Log string values as text
+            wandb.log({key: value})
+        else:
+            # For other types, convert to string
+            wandb.log({key: str(value)})
 
 # import svgutils.transform as sg
 def plot_custom_histogram(data, title, xlabel, ylabel, bins=None, xlim=None, ylim=None, figsize=(8, 6)):
@@ -110,6 +155,1030 @@ def plot_custom_histogram(data, title, xlabel, ylabel, bins=None, xlim=None, yli
     
     plt.tight_layout()
     plt.show()
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+def crear_heatmaps_comparativos(resultados_reales, resultados_sinteticos, path_img=None):
+    tipos_codigo = ['drug', 'procedure', 'diagnostic']
+    metricas = ['total', 'unicos']
+
+    for tipo in tipos_codigo:
+        for metrica in metricas:
+            data_real = {}
+            data_synth = {}
+
+            for col in resultados_reales.keys():
+                if col not in ['indice_diversidad', 'edades_ocurrencia']:
+                    real = resultados_reales[col][f'{tipo}_{metrica}']
+                    synth = resultados_sinteticos[col][f'{tipo}_{metrica}']
+
+                    # Obtener los top 5 códigos
+                    top_5 = set(real.nlargest(5).index) | set(synth.nlargest(5).index)
+
+                    for codigo in top_5:
+                        if codigo not in data_real:
+                            data_real[codigo] = {}
+                            data_synth[codigo] = {}
+                        data_real[codigo][col] = real.get(codigo, 0)
+                        data_synth[codigo][col] = synth.get(codigo, 0)
+
+            df_real = pd.DataFrame(data_real)
+            df_synth = pd.DataFrame(data_synth)
+
+            # Calcular diferencias porcentuales
+            df_diff = (df_synth - df_real) / df_real * 100
+            df_diff = df_diff.fillna(0)
+
+            # Crear heatmap
+            plt.figure(figsize=(15, 10))
+            sns.heatmap(df_diff, cmap='RdBu_r', center=0, annot=True, fmt='.0f')
+            plt.title(f'Diferencias porcentuales en {tipo} ({metrica})')
+            plt.xlabel('Códigos médicos (Top 5)')
+            plt.ylabel('Variables demográficas')
+            plt.tight_layout()
+
+            if path_img:
+                plt.savefig(f'{path_img}_{tipo}_{metrica}.png')
+            else:
+                plt.show()
+            plt.close()
+    
+
+
+
+    return df_heatmap
+
+# Ejemplo de uso:
+def compare_datasets(real_dict, synthetic_dict):
+    # Initialize the result dictionary
+    result = {}
+    
+    # Categories to compare
+    categories = ['drug_total', 'drug_unicos', 'procedure_total', 'procedure_unicos', 'diagnostic_total', 'diagnostic_unicos']
+    
+    for demographic in real_dict.keys():
+        result[demographic] = {}
+        
+        for category in categories:
+            real_data = real_dict[demographic][category]
+            synthetic_data = synthetic_dict[demographic][category]
+            
+            # Calculate differences
+            differences = {}
+            for k in set(real_data) | set(synthetic_data):
+                if k.startswith('number_'):
+                    differences[k] = real_data.get(k, 0) - synthetic_data.get(k, 0)
+            
+            # Filter for absolute differences > 0 and real data count > 10
+            filtered_differences = {k: v for k, v in differences.items() 
+                                    if abs(v) > 0 and real_data.get(k, 0) > 10}
+            
+            # Sort by absolute difference and get top 10
+            top_10 = sorted(filtered_differences.items(), key=lambda x: abs(float(x[1])), reverse=True)[:10]
+            
+            result[demographic][category] = dict(top_10)
+    
+    # Convert the result to DataFrames
+    dataframes = {}
+    for category in categories:
+        df = pd.DataFrame({demo: data[category] for demo, data in result.items()}).T
+        df.index.name = 'Demographic'
+        dataframes[category] = df
+    
+    return dataframes
+import pandas as pd
+import numpy as np
+
+def analyze_diagnoses(real_df, synthetic_df, diagnosis_codes, age_column='Age'):
+    def get_diagnosis_stats(df):
+        # Count diagnoses
+        diagnosis_counts = pd.DataFrame({
+            'Count': df[diagnosis_codes].sum(),
+            'Percentage': (df[diagnosis_codes].sum() / len(df)) * 100
+        }).sort_values('Count', ascending=False)
+        
+        # Get age statistics for each diagnosis
+        age_stats = {}
+        for code in diagnosis_codes:
+            age_data = df[df[code] == 1][age_column]
+            age_stats[code] = age_data.describe()
+        
+        return diagnosis_counts, age_stats
+
+    def format_results(counts, stats, dataset_name,top_codes=False):
+        if top_codes:    
+                top_5 = counts.head()
+                bottom_5 = counts.tail()
+                
+                results = []
+                for df, label in [(top_5, "Most Common"), (bottom_5, "Least Common")]:
+                    for code, row in df.iterrows():
+                        age_desc = stats[code]
+                        results.append({
+                            'Dataset': dataset_name,
+                            'Category': label,
+                            'Diagnosis Code': code,
+                            'Count': row['Count'],
+                            'Percentage': row['Percentage'],
+                            'Age Mean': age_desc['mean'],
+                            'Age Std': age_desc['std'],
+                            'Age Min': age_desc['min'],
+                            'Age 25%': age_desc['25%'],
+                            'Age Median': age_desc['50%'],
+                            'Age 75%': age_desc['75%'],
+                            'Age Max': age_desc['max']
+                        })
+                df_res = pd.DataFrame(results)    
+                print(df_res.to_latex())
+
+
+        else:
+            results = []
+            for code, row in counts.iterrows():
+                age_desc = stats[code]
+                results.append({
+                    'Dataset': dataset_name,
+                    'Diagnosis Code': code,
+                    'Count': row['Count'],
+                    'Percentage': row['Percentage'],
+                    'Age Mean': age_desc['mean'],
+                    'Age Std': age_desc['std'],
+                    'Age Min': age_desc['min'],
+                    'Age 25%': age_desc['25%'],
+                    'Age Median': age_desc['50%'],
+                    'Age 75%': age_desc['75%'],
+                    'Age Max': age_desc['max']
+                })
+
+        return pd.DataFrame(results)
+    
+    # Analyze real data
+    real_counts, real_stats = get_diagnosis_stats(real_df)
+    real_results = format_results(real_counts, real_stats, "Real")
+
+    # Analyze synthetic data
+    synthetic_counts, synthetic_stats = get_diagnosis_stats(synthetic_df)
+    synthetic_results = format_results(synthetic_counts, synthetic_stats, "Synthetic")
+
+    # Combine results
+    all_results = pd.concat([real_results, synthetic_results], ignore_index=True)
+
+    # Calculate differences
+    diff_results = synthetic_results.copy()
+    diff_results['Dataset'] = 'Difference'
+    for col in ['Count', 'Percentage', 'Age Mean', 'Age Std', 'Age Min', 'Age 25%', 'Age Median', 'Age 75%', 'Age Max']:
+        diff_results[col] = synthetic_results[col] - real_results[col]
+
+    # Combine all results
+    final_results = pd.concat([all_results, diff_results], ignore_index=True)
+
+    print(all_results.to_latex())
+    
+    print(final_results.to_latex())
+    return all_results
+
+def process_dataframes2(real_df, synthetic_df, demographic_col, diagnosis_codes, procedure_codes, drug_codes, path_img=None, top_codes=None):
+    def consolidate_gender(df, demographic_col):
+        gender_cols = [col for col in df.columns if col.startswith(demographic_col)]
+        df[demographic_col] = df[gender_cols].idxmax(axis=1).str.replace(demographic_col, '')
+        return df.drop(columns=gender_cols)
+
+    real_df = consolidate_gender(real_df, demographic_col)
+    synthetic_df = consolidate_gender(synthetic_df, demographic_col)
+
+    def get_top_n_codes(df, code_columns, n=5):
+        return df[code_columns].sum().nlargest(n).index.tolist()
+
+    def analyze_df(df, top_codes, all_codes):
+        def calculate_proportions(column, demographic_column):
+            total = column.sum()
+            if total == 0:
+                return pd.Series({demo: 0 for demo in demographic_column.unique()})
+            proportions = column.groupby(demographic_column).sum() / total
+            return proportions
+
+        proportions = {}
+        for col in top_codes:
+            proportions[col] = calculate_proportions(df[col], df[demographic_col])
+
+        result = pd.DataFrame(proportions).T.fillna(0)
+        
+        # Calculate overall proportions for all codes
+        overall_proportions = calculate_proportions(df[all_codes].sum(), df[demographic_col])
+        
+        # Add overall proportions to the result
+        result.loc['Overall'] = overall_proportions
+        
+        return result
+
+    # Get top 5 codes for each category if not provided
+    if top_codes is None:
+        top_5_drugs = get_top_n_codes(real_df, drug_codes)
+        top_5_diagnoses = get_top_n_codes(real_df, diagnosis_codes)
+        top_5_procedures = get_top_n_codes(real_df, procedure_codes)
+        top_codes = top_5_drugs + top_5_diagnoses + top_5_procedures
+    else:
+        top_5_drugs = [i for i in top_codes if "drugs" in i]
+        top_5_diagnoses = [i for i in top_codes if "diagnosis" in i]
+        top_5_procedures = [i for i in top_codes if "procedures" in i]
+
+    # Combine all codes
+    all_codes = diagnosis_codes + procedure_codes + drug_codes
+
+    # Analyze both DataFrames
+    real_results = analyze_df(real_df, top_codes, all_codes)
+    synthetic_results = analyze_df(synthetic_df, top_codes, all_codes)
+
+    # Concatenate real and synthetic results
+    combined_results = pd.concat([real_results, synthetic_results], 
+                                 keys=['Real', 'Synthetic'], 
+                                 names=['Data Type', 'Code'])
+
+    # Calculate the difference between real and synthetic proportions
+    diff = real_results - synthetic_results
+    diff.index = [f"{code} (Diff)" for code in diff.index]
+    combined_results = pd.concat([combined_results, diff])
+
+    if path_img:
+        plt.figure(figsize=(15, 10))
+        sns.heatmap(combined_results, annot=True, cmap="YlGnBu", fmt=".2f")
+        plt.title("Comparison of Real and Synthetic Data Proportions")
+        plt.tight_layout()
+        plt.savefig(path_img)
+        plt.close()
+
+    return combined_results
+
+def process_dataframes_(real_df, synthetic_df, demographic_col,  path_img=None, top_codes=None):
+    def consolidate_gender(df, demographic_col):
+        gender_cols = [col for col in df.columns if col.startswith(demographic_col)]
+        df[demographic_col] = df[gender_cols].idxmax(axis=1).str.replace(demographic_col, '')
+        return df.drop(columns=gender_cols)
+
+    real_df = consolidate_gender(real_df, demographic_col)
+    synthetic_df = consolidate_gender(synthetic_df, demographic_col)
+    return real_df,synthetic_df
+
+def analyze_demographic_proportions(df,medical_codes_, demographic_column='RELIGION'):
+    # Separate the demographic column and the medical code columns
+    medical_codes = df.drop(columns=[demographic_column])
+    
+    # Calculate the total number of positive codes for each patient
+    total_positive_codes = medical_codes.sum(axis=1)
+    
+    # Group by the demographic column and calculate proportions
+    grouped = df.groupby(demographic_column)
+    
+    results = pd.DataFrame({
+        'Total classes of ' +demographic_column.lower() : grouped.size(),
+        'Total code per class '+demographic_column.lower(): grouped.apply(lambda x: x.drop(columns=[demographic_column]).sum().sum()),
+        'Avg total code per class ': grouped.apply(lambda x: x.drop(columns=[demographic_column]).sum().sum()) / grouped.size(),
+        'Unique code per class ': grouped.apply(lambda x: (x.drop(columns=[demographic_column]).sum(axis=1) > 0).sum()),
+        'Avg  unique codes per class': grouped.apply(lambda x: (x.drop(columns=[demographic_column]).sum(axis=1) > 0).mean())
+    })
+    
+    # Calculate overall proportions
+    results['Proportion of clases'] = results[ 'Total classes of ' +demographic_column.lower()] / results[ 'Total classes of ' +demographic_column.lower()].sum()
+    results['Proportion of total code per class'] = results['Total code per class '+demographic_column.lower()] / results['Total code per class '+demographic_column.lower()].sum()
+    
+    # Sort by total patients
+    #results = results.sort_values('Total_Patients', ascending=False)
+    
+    return results   
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+
+def compare_synthetic_real_demographics(real_df, synthetic_df, demographic_columns, medical_codes,encoder, path_img=None):
+    def decode_demographic(df, demographic_col, encoder):
+        df[demographic_col] = encoder.inverse_transform(df[demographic_col])
+        return df
+    
+    def analyze_demographic_proportions(df, medical_codes, demo_col):
+        # Calculate the proportion of each demographic class
+        class_proportions = df[demo_col].value_counts(normalize=True)
+        
+        # Calculate the total number of medical codes for each demographic class
+        class_totals = df.groupby(demo_col)[medical_codes].sum().sum(axis=1)
+        
+        # Calculate the proportion of medical codes for each demographic class
+        code_proportions = class_totals / class_totals.sum()
+        
+        # Combine the results
+        result = pd.DataFrame({
+            'Proportion of classes': class_proportions,
+            'Proportion of codes': code_proportions,
+            'Total classes': df[demo_col].value_counts(),
+            'Total codes': class_totals
+        })
+        
+        return result
+
+    all_results = []
+    
+    for demo_col in demographic_columns:
+        #real_df = decode_demographic(real_df, demo_col, encoder)
+        #synthetic_df = decode_demographic(synthetic_df, demo_col, encoder)
+        
+        real_df_1 = real_df[medical_codes.to_list() + [demo_col]]
+        synthetic_df_1 = synthetic_df[medical_codes.to_list() + [demo_col]]
+
+        real_analysis = analyze_demographic_proportions(real_df_1, medical_codes, demo_col)
+        synth_analysis = analyze_demographic_proportions(synthetic_df_1, medical_codes, demo_col)
+        
+        # Ensure both DataFrames have the same index
+        all_classes = set(real_analysis.index) | set(synth_analysis.index)
+        real_analysis = real_analysis.reindex(all_classes, fill_value=0)
+        synth_analysis = synth_analysis.reindex(all_classes, fill_value=0)
+        
+        # Create a combined DataFrame
+        combined_df = pd.DataFrame({
+            'Real_' + col: real_analysis[col] for col in real_analysis.columns
+        }).join(pd.DataFrame({
+            'Synthetic_' + col: synth_analysis[col] for col in synth_analysis.columns
+        }))
+        
+        # Calculate differences
+        for col in real_analysis.columns:
+            combined_df[f'Diff_{col}'] = combined_df[f'Synthetic_{col}'] - combined_df[f'Real_{col}']
+        
+        combined_df['Absolute_Difference_Proportion'] = abs(combined_df['Synthetic_Proportion of classes'] - combined_df['Real_Proportion of classes'])
+        
+        # Add a column for the demographic type
+        combined_df['Demographic_Type'] = demo_col
+        
+        # Add a column for the demographic class
+        combined_df['Demographic_Class'] = combined_df.index
+        
+        # Reorder columns
+        column_order = ['Demographic_Type', 'Demographic_Class'] + [col for col in combined_df.columns if col not in ['Demographic_Type', 'Demographic_Class']]
+        combined_df = combined_df[column_order]
+        
+        all_results.append(combined_df)
+        
+        # Visualize the comparison (you can add visualization code here if needed)
+    
+    # Concatenate all results
+    final_df = pd.concat(all_results, ignore_index=True)
+    
+    return final_df
+
+def rearrange_metric_columns(df):
+    # Get all column names
+    columns = df.columns.tolist()
+    
+    # Separate real and synthetic columns
+    real_columns = [col for col in columns if col.startswith('real_')]
+    synthetic_columns = [col for col in columns if col.startswith('synthetic_')]
+    
+    # Other columns (non-metric columns)
+    other_columns = [col for col in columns if not (col.startswith('real_') or col.startswith('synthetic_'))]
+    
+    # Function to extract metric name
+    def get_metric_name(col):
+        return re.sub(r'^(real_|synthetic_)', '', col)
+    
+    # Sort real and synthetic columns based on metric name
+    real_columns.sort(key=get_metric_name)
+    synthetic_columns.sort(key=get_metric_name)
+    
+    # Create pairs of real and synthetic columns
+    paired_columns = []
+    for real_col in real_columns:
+        metric_name = get_metric_name(real_col)
+        synthetic_col = f"synthetic_{metric_name}"
+        if synthetic_col in synthetic_columns:
+            paired_columns.extend([real_col, synthetic_col])
+        else:
+            paired_columns.append(real_col)
+    
+    # Add any remaining synthetic columns
+    remaining_synthetic = [col for col in synthetic_columns if col not in paired_columns]
+    paired_columns.extend(remaining_synthetic)
+    
+    # Combine all columns in the desired order
+    new_column_order = other_columns + paired_columns
+    
+    # Return the DataFrame with rearranged columns
+    return df[new_column_order]
+
+
+def compare_synthetic_real_demographics_(real_df, synthetic_df, demographic_column,medical_codes):
+    """
+    Compare demographic proportions between real and synthetic datasets.
+    
+    :param real_df: DataFrame containing the real dataset
+    :param synthetic_df: DataFrame containing the synthetic dataset
+    :param demographic_columns: List of demographic columns to analyze
+    :return: Dictionary containing comparison results for each demographic column
+    """
+    comparison_results = {}
+    
+    for demo_col in demographic_column:
+        real_df,synthetic_df = process_dataframes2(real_df, synthetic_df, demo_col)
+        real_analysis = analyze_demographic_proportions(real_df,medical_codes, demo_col)
+        synth_analysis = analyze_demographic_proportions(synthetic_df,medical_codes, demo_col)
+        
+        # Ensure both DataFrames have the same index
+        all_classes = set(real_analysis.index) | set(synth_analysis.index)
+        real_analysis = real_analysis.reindex(all_classes, fill_value=0)
+        synth_analysis = synth_analysis.reindex(all_classes, fill_value=0)
+        
+        # Calculate differences
+        diff = synth_analysis - real_analysis
+        diff['Absolute_Difference_Proportion'] = abs(synth_analysis['Proportion of clases'] - real_analysis['Proportion of clases'])
+        
+        comparison_results[demo_col] = {
+            'real': real_analysis,
+            'synthetic': synth_analysis,
+            'difference': diff
+        }
+        
+        # Visualize the comparison
+       
+    
+    return comparison_results 
+
+
+
+import pandas as pd
+import numpy as np
+
+import pandas as pd
+import numpy as np
+
+def process_dataframesv22(real_df, synthetic_df, demographic_col, diagnosis_codes, procedure_codes, drug_codes, encoder, patient_id_col, path_img=None):
+    
+    def analyze_df(df, all_codes, patient_id_col, demographic_col):
+        def calculate_counts_and_proportions(column, demographic_column, patient_id):
+            try:
+                if column not in df.columns:
+                    print(f"Columna {column} no encontrada en el DataFrame. Las columnas son: {df.columns}")
+                    return pd.Series()
+
+                if df[column].dtype != bool and not np.issubdtype(df[column].dtype, np.number):
+                    print(f"La columna {column} no es booleana o numérica. Convirtiendo a numérica.")
+                    df[column] = pd.to_numeric(df[column], errors='coerce')
+
+                # Contar pacientes únicos con este código médico
+                patients_with_code = df[df[column] > 0][patient_id].nunique()
+                
+                # Contar total de ocurrencias del código médico
+                total_code_count = df[column].sum()
+                
+                # Contar pacientes únicos con este código por categoría demográfica
+                patients_by_demo = df[df[column] > 0].groupby(demographic_column)[patient_id].nunique()
+                
+                # Calcular proporciones
+                total_patients = df[patient_id].nunique()
+                proportion = patients_with_code / total_patients
+                proportions_by_demo = patients_by_demo / patients_by_demo.sum()
+
+                result = pd.Series({
+                    'total_patient_count': patients_with_code,
+                    'total_code_count': total_code_count,
+                    'proportion': proportion
+                })
+                for demo in df[demographic_column].unique():
+                    result[f'{demo}_count'] = patients_by_demo.get(demo, 0)
+                    result[f'{demo}_prop'] = proportions_by_demo.get(demo, 0)
+
+                return result
+            except Exception as e:
+                print(f"Error en calculate_counts_and_proportions para la columna {column}: {str(e)}")
+                return pd.Series()
+        
+        results = {}
+        for col in all_codes:
+            results[col] = calculate_counts_and_proportions(col, demographic_col, patient_id_col)
+        
+        result_df = pd.DataFrame(results).T
+        
+        # Calcular conteos y proporciones generales
+        overall_counts = df.groupby(demographic_col)[patient_id_col].nunique()
+        total_patients = overall_counts.sum()
+        overall_proportions = overall_counts / total_patients
+        
+        return result_df, overall_proportions, overall_counts
+
+    # Imprimir información del DataFrame para depuración
+    print("Información del DataFrame Real:")
+    print(real_df.info())
+    print("\nInformación del DataFrame Sintético:")
+    print(synthetic_df.info())
+
+    # Usar todos los códigos
+    try:
+        all_codes = diagnosis_codes.to_list() + procedure_codes.to_list() + drug_codes.to_list()
+    except:
+        all_codes = diagnosis_codes + procedure_codes + drug_codes
+    
+    print(f"Número total de códigos: {len(all_codes)}")
+    
+    # Analizar ambos DataFrames
+    real_results, real_overall_prop, real_overall_count = analyze_df(real_df, all_codes, patient_id_col, demographic_col)
+    synthetic_results, synthetic_overall_prop, synthetic_overall_count = analyze_df(synthetic_df, all_codes, patient_id_col, demographic_col)
+    
+    # Combinar resultados
+    combined_results = pd.concat([real_results, synthetic_results], keys=['Real', 'Synthetic'], axis=1)
+    combined_overall_prop = pd.concat([real_overall_prop, synthetic_overall_prop], axis=1, keys=['Real', 'Synthetic'])
+    combined_overall_count = pd.concat([real_overall_count, synthetic_overall_count], axis=1, keys=['Real', 'Synthetic'])
+
+    # Crear DataFrame fusionado
+    merged_df = combined_results.reset_index()
+    merged_df.columns = ['Code'] + [f'{data_type}_{col}' for data_type in ['Real', 'Synthetic'] for col in real_results.columns]
+    
+    # Añadir categoría de código
+    def get_code_category(code):
+        if code in drug_codes:
+            return 'Drug'
+        elif code in diagnosis_codes:
+            return 'Diagnosis'
+        elif code in procedure_codes:
+            return 'Procedure'
+        else:
+            return 'Unknown'
+    
+    merged_df['Code_Category'] = merged_df['Code'].apply(get_code_category)
+    
+    # Reordenar columnas
+    demographic_categories = real_df[demographic_col].unique()
+    column_order = ['Code', 'Code_Category']
+    for data_type in ['Real', 'Synthetic']:
+        column_order.extend([
+            f'{data_type}_total_patient_count',
+            f'{data_type}_total_code_count',
+            f'{data_type}_proportion'
+        ])
+        for demo in demographic_categories:
+            column_order.extend([
+                f'{data_type}_{demo}_count',
+                f'{data_type}_{demo}_prop'
+            ])
+    
+    merged_df = merged_df[column_order]
+    
+    return merged_df, combined_overall_prop, combined_overall_count, drug_codes, diagnosis_codes, procedure_codes
+# Ejemplo de uso:
+# final_df, overall_prop, overall_count, drug_codes, diagnosis_codes, procedure_codes = process_dataframesv2(real_df, synthetic_df, 'demographic_col', diagnosis_codes, procedure_codes, drug_codes, encoder, 'patient_id')
+
+def process_dataframesv2(real_df, synthetic_df, demographic_col, diagnosis_codes, procedure_codes, drug_codes, encoder, patient_id_col, path_img=None, top_codes=None):
+    
+    def get_top_n_codes(df, code_columns, n=5):
+        return df[code_columns].sum().nlargest(n).index.tolist()
+    
+    def analyze_df(df, top_codes, patient_id_col, demographic_col):
+        def calculate_counts_and_proportions(column, demographic_column, patient_id):
+            try:
+                if column not in df.columns:
+                    print(f"Columna {column} no encontrada en el DataFrame. Las columnas son: {df.columns}")
+                    return pd.Series(), pd.Series()
+
+                if df[column].dtype != bool and not np.issubdtype(df[column].dtype, np.number):
+                    print(f"La columna {column} no es booleana o numérica. Convirtiendo a numérica.")
+                    df[column] = pd.to_numeric(df[column], errors='coerce')
+
+                # Contar pacientes únicos con este código médico
+                patients_with_code = df[df[column] > 0][patient_id].nunique()
+                
+                # Contar pacientes únicos con este código por categoría demográfica
+                patients_by_demo = df[df[column] > 0].groupby(demographic_column)[patient_id].nunique()
+                
+                # Calcular proporciones
+                total_patients = df[patient_id].nunique()
+                proportion = patients_with_code / total_patients
+                proportions_by_demo = patients_by_demo / patients_by_demo.sum()
+
+                return pd.Series({
+                    'total_count': patients_with_code,
+                    'proportion': proportion,
+                    **{f'{demo}_count': count for demo, count in patients_by_demo.items()},
+                    **{f'{demo}_prop': prop for demo, prop in proportions_by_demo.items()}
+                })
+            except Exception as e:
+                print(f"Error en calculate_counts_and_proportions para la columna {column}: {str(e)}")
+                return pd.Series()
+        
+        results = {}
+        for col in top_codes:
+            results[col] = calculate_counts_and_proportions(col, demographic_col, patient_id_col)
+        
+        result_df = pd.DataFrame(results).T
+        
+        # Calcular conteos y proporciones generales
+        overall_counts = df.groupby(demographic_col)[patient_id_col].nunique()
+        total_patients = overall_counts.sum()
+        overall_proportions = overall_counts / total_patients
+        
+        return result_df, overall_proportions, overall_counts
+
+    # Imprimir información del DataFrame para depuración
+    print("Información del DataFrame Real:")
+    print(real_df.info())
+    print("\nInformación del DataFrame Sintético:")
+    print(synthetic_df.info())
+
+    # Obtener los 5 códigos principales para cada categoría si no se proporcionan
+    if top_codes is None:
+        top_5_drugs = get_top_n_codes(real_df, drug_codes)
+        top_5_diagnoses = get_top_n_codes(real_df, diagnosis_codes)
+        top_5_procedures = get_top_n_codes(real_df, procedure_codes)
+        top_codes = top_5_drugs + top_5_diagnoses + top_5_procedures
+    else:
+        top_5_drugs = drug_codes.to_list()
+        top_5_diagnoses = diagnosis_codes.to_list()
+        top_5_procedures = procedure_codes.to_list()
+        top_codes = diagnosis_codes.to_list() + procedure_codes.to_list() + drug_codes.to_list()
+    
+    print(f"Códigos principales: {top_codes}")
+    
+    # Analizar ambos DataFrames
+    real_results, real_overall_prop, real_overall_count = analyze_df(real_df, top_codes, patient_id_col, demographic_col)
+    synthetic_results, synthetic_overall_prop, synthetic_overall_count = analyze_df(synthetic_df, top_codes, patient_id_col, demographic_col)
+    
+    # Combinar resultados
+    combined_results = pd.concat([real_results, synthetic_results], keys=['Real', 'Synthetic'], axis=1)
+    combined_overall_prop = pd.concat([real_overall_prop, synthetic_overall_prop], axis=1, keys=['Real', 'Synthetic'])
+    combined_overall_count = pd.concat([real_overall_count, synthetic_overall_count], axis=1, keys=['Real', 'Synthetic'])
+
+    # Crear DataFrame fusionado
+    merged_df = combined_results.reset_index()
+    merged_df.columns = ['Code'] + [f'{data_type}_{col}' for data_type in ['Real', 'Synthetic'] for col in real_results.columns]
+    
+    # Añadir categoría de código
+    def get_code_category(code):
+        if code in top_5_drugs:
+            return 'Drug'
+        elif code in top_5_diagnoses:
+            return 'Diagnosis'
+        elif code in top_5_procedures:
+            return 'Procedure'
+        else:
+            return 'Unknown'
+    
+    merged_df['Code_Category'] = merged_df['Code'].apply(get_code_category)
+    
+    # Reordenar columnas
+    demographic_categories = real_df[demographic_col].unique()
+    column_order = ['Code', 'Code_Category']
+    for data_type in ['Real', 'Synthetic']:
+        column_order.extend([
+            f'{data_type}_total_count',
+            f'{data_type}_proportion'
+        ])
+        for demo in demographic_categories:
+            column_order.extend([
+                f'{data_type}_{demo}_count',
+                f'{data_type}_{demo}_prop'
+            ])
+    
+    merged_df = merged_df[column_order]
+    
+    return merged_df, combined_overall_prop, combined_overall_count, top_5_drugs, top_5_diagnoses, top_5_procedures
+
+# Ejemplo de uso:
+# final_df, overall_prop, overall_count, top_drugs, top_diagnoses, top_procedures = process_dataframesv2(real_df, synthetic_df, 'demographic_col', diagnosis_codes, procedure_codes, drug_codes, encoder, 'patient_id')
+# Example usage:
+# final_df, overall_prop, overall_count, top_drugs, top_diagnoses, top_procedures = process_dataframesv2(real_df, synthetic_df, 'demographic_col', diagnosis_codes, procedure_codes, drug_codes, encoder, 'patient_id')
+
+def process_dataframesv2_ori(real_df, synthetic_df, demographic_col, diagnosis_codes, procedure_codes, drug_codes, encoder, path_img=None, top_codes=None):
+    
+    def get_top_n_codes(df, code_columns, n=5):
+        return df[code_columns].sum().nlargest(n).index.tolist()
+
+    def analyze_df(df, top_codes):
+        def calculate_proportions(column, demographic_column):
+            total = column.sum()
+            if total == 0:
+                return pd.Series({demo: 0 for demo in demographic_column.unique()})
+            proportions = column.groupby(demographic_column).sum() / total 
+            return proportions
+
+        proportions = {}
+        for col in top_codes:
+            proportions[col] = calculate_proportions(df[col], df[demographic_col])
+
+        result = pd.DataFrame(proportions).T.fillna(0)
+        
+        overall_proportions = calculate_proportions(df[top_codes].sum(), df[demographic_col])
+        
+        return result, overall_proportions
+
+    # Get top 5 codes for each category if not provided
+    if top_codes is None:
+        top_5_drugs = get_top_n_codes(real_df, drug_codes)
+        top_5_diagnoses = get_top_n_codes(real_df, diagnosis_codes)
+        top_5_procedures = get_top_n_codes(real_df, procedure_codes)
+
+        top_codes = top_5_drugs + top_5_diagnoses + top_5_procedures
+    else:
+        #top_5_drugs = [i for i in top_codes if "drugs" in i]
+        #top_5_diagnoses = [i for i in top_codes if "diagnosis" in i]
+        #top_5_procedures = [i for i in top_codes if "procedures" in i]
+        top_5_drugs=drug_codes.to_list()
+        top_5_diagnoses=diagnosis_codes.to_list()
+        top_5_procedures=procedure_codes.to_list()
+        top_codes =diagnosis_codes.to_list()+procedure_codes.to_list()+drug_codes.to_list()
+        
+    # Analyze both DataFrames
+    real_results, real_overall = analyze_df(real_df, top_codes)
+    synthetic_results, synthetic_overall = analyze_df(synthetic_df, top_codes)
+
+    # Concatenate results
+    combined_results = pd.concat([real_results, synthetic_results], keys=['Real', 'Synthetic'])
+    combined_overall = pd.concat([real_overall, synthetic_overall], axis=1, keys=['Real', 'Synthetic'])
+
+    def standardize_name(name):
+         return str(name).lower().replace('_', '')
+
+    def reorganize_results(real_results, synthetic_results, top_codes_list, category_name):
+        results = []
+        for code in top_codes_list:
+            real_data = real_results.loc[code]
+            synthetic_data = synthetic_results.loc[code]
+            combined = pd.concat([real_data, synthetic_data], axis=1, keys=['Real', 'Synthetic'])
+            combined['Code'] = code
+            combined['Category'] = category_name
+            combined['category'] = standardize_name(category_name)
+            results.append(combined)
+        return pd.concat(results)
+
+    # Reorganize results
+    drugs_results = reorganize_results(real_results, synthetic_results, top_5_drugs, 'Drug')
+    diagnoses_results = reorganize_results(real_results, synthetic_results, top_5_diagnoses, 'Diagnosis')
+    procedures_results = reorganize_results(real_results, synthetic_results, top_5_procedures, 'Procedure')
+
+    # Combine all results
+    final_results = pd.concat([drugs_results, diagnoses_results, procedures_results])
+
+    # Reorder columns
+    column_order = ['Category', 'Code'] + [col for col in final_results.columns if col not in ['Category', 'Code']]
+    final_results = final_results.reindex(columns=column_order)
+
+    print("Combined Results:")
+    print(final_results.to_latex())
+
+    print("Combined Results:")
+    print(combined_results)
+    print("\nCombined Overall Proportions:")
+    print(combined_overall)
+
+    def create_pivot(df):
+        all_codes = list(diagnosis_codes) + list(procedure_codes) + list(drug_codes)
+        return pd.pivot_table(df, values=all_codes, index=demographic_col, aggfunc='sum')
+
+    real_pivot = create_pivot(real_df)
+    synthetic_pivot = create_pivot(synthetic_df)
+
+    diff_pivot = synthetic_pivot - real_pivot
+
+    # Create a heatmap of the differences
+    plt.figure(figsize=(12, 8))
+    sns.heatmap(diff_pivot, cmap='coolwarm', center=0)
+    plt.title(f'Difference Heatmap {demographic_col}: Synthetic - Real')
+    plt.tight_layout()
+    if path_img is not None:
+       save_plot_as_svg(plt, path_img, "concatenated_images")
+    plt.show()
+
+    def get_top_5_diff(codes, category):
+            abs_diff = diff_pivot[codes].abs().sum().sort_values(ascending=False)
+            top_5 = abs_diff.head(5).reset_index()
+            top_5.columns = ['Code', 'Absolute Difference']
+            top_5['Category'] = category
+            return top_5
+
+    top_5_diagnosis = get_top_5_diff(diagnosis_codes, 'Diagnosis')
+    top_5_procedure = get_top_5_diff(procedure_codes, 'Procedure')
+    top_5_drug = get_top_5_diff(drug_codes, 'Drug')
+
+    # Concatenate the top 5 differences into a single DataFrame
+    top_15_diff = pd.concat([top_5_diagnosis, top_5_procedure, top_5_drug], ignore_index=True)
+    top_15_diff = top_15_diff.sort_values('Absolute Difference', ascending=False).reset_index(drop=True)
+
+    print("Top 15 codes with highest absolute difference across all categories:")
+    print(top_15_diff)
+    top_15_diff["Demographic column"] = demographic_col
+    diff_pivot_aux = diff_pivot[top_15_diff["Code"].to_list()]
+    print(diff_pivot_aux.to_latex())
+    return final_results, top_codes
+
+def process_dataframes(real_df, synthetic_df, demographic_col, diagnosis_codes, procedure_codes, drug_codes,path_img= None, top_codes = None,):
+    def consolidate_gender(df,demographic_col,gender_cols=None):
+        if gender_cols == None:
+            gender_cols = [col for col in df.columns if col.startswith(demographic_col)]
+        df[demographic_col] = df[gender_cols].idxmax(axis=1).str.replace(demographic_col, '')
+        return df.drop(columns=gender_cols),gender_cols
+
+    real_df,gender_cols = consolidate_gender(real_df,   demographic_col )
+    synthetic_df,gender_cols = consolidate_gender(synthetic_df,    demographic_col, gender_cols= gender_cols)
+
+
+   
+
+    def get_top_n_codes(df, code_columns, n=5):
+        return df[code_columns].sum().nlargest(n).index.tolist()
+
+    def analyze_df(df, top_codes):
+        def calculate_proportions(column, demographic_column):
+            total = column.sum()
+            if total == 0:
+                return pd.Series({demo: 0 for demo in demographic_column.unique()})
+            proportions = column.groupby(demographic_column).sum() /total 
+            return proportions
+
+        proportions = {}
+        for col in top_codes:
+            proportions[col] = calculate_proportions(df[col], df[demographic_col])
+
+        result = pd.DataFrame(proportions).T.fillna(0)
+        #result['Total'] = result.sum(axis=1)
+        
+        overall_proportions = calculate_proportions(df[top_codes].sum(), df[demographic_col])
+        
+        return result, overall_proportions
+
+    # Get top 5 codes for each category
+    if top_codes == None:
+        top_5_drugs = get_top_n_codes(real_df, drug_codes)
+        top_5_diagnoses = get_top_n_codes(real_df, diagnosis_codes)
+        top_5_procedures = get_top_n_codes(real_df, procedure_codes)
+
+        top_codes = top_5_drugs + top_5_diagnoses + top_5_procedures
+    else:
+        top_5_drugs =      [i for i in top_codes if "drugs" in i]
+        top_5_diagnoses = [i for i in top_codes if "diagnosis" in i]
+        top_5_procedures = [i for i in top_codes if "procedures" in i]
+        
+    # Analyze both DataFrames
+    real_results, real_overall = analyze_df(real_df, top_codes)
+    synthetic_results, synthetic_overall = analyze_df(synthetic_df, top_codes)
+
+    # Concatenate results
+    combined_results = pd.concat([real_results, synthetic_results], keys=['Real', 'Synthetic'])
+    combined_overall = pd.concat([real_overall, synthetic_overall], axis=1, keys=['Real', 'Synthetic'])
+
+ 
+
+    # Step 3: Concatenate results
+    combined_results = pd.concat([real_results, synthetic_results], keys=['Real', 'Synthetic'])
+    combined_overall = pd.concat([real_overall, synthetic_overall], axis=1, keys=['Real', 'Synthetic'])
+
+    def standardize_name(name):
+         return str(name).lower().replace('_', '')
+
+
+    def reorganize_results(real_results, synthetic_results, top_codes_list, category_name):
+        results = []
+        for code in top_codes_list:
+            real_data = real_results.loc[code]
+            synthetic_data = synthetic_results.loc[code]
+            combined = pd.concat([real_data, synthetic_data], axis=1, keys=['Real', 'Synthetic'])
+            combined['Code'] = code
+            combined['Category'] = category_name
+            combined['category'] = standardize_name(category_name)
+            results.append(combined)
+        return pd.concat(results)
+
+    # Reorganize results
+    drugs_results = reorganize_results(real_results, synthetic_results, top_5_drugs, 'Drug')
+    diagnoses_results = reorganize_results(real_results, synthetic_results, top_5_diagnoses, 'Diagnosis')
+    procedures_results = reorganize_results(real_results, synthetic_results, top_5_procedures, 'Procedure')
+
+    # Combine all results
+    final_results = pd.concat([drugs_results, diagnoses_results, procedures_results])
+
+    # Reorder columns
+    column_order = ['Category', 'Code'] + [col for col in final_results.columns if col not in ['Category', 'Code']]
+    final_results = final_results.reindex(columns=column_order)
+
+    print("Combined Results:")
+    print(final_results.to_latex())
+
+    #print(combined_results.to_latex())
+    #print(combined_overall.to_latex())
+    print("Combined Results:")
+    print(combined_results)
+    print("\nCombined Overall Proportions:")
+    print(combined_overall)
+
+    # Verify that all rows sum to 1 (allowing for small floating-point errors)
+    
+        
+
+
+
+
+
+    def create_pivot(df):
+        all_codes =list( diagnosis_codes )+ list(procedure_codes) + list(drug_codes)
+        return pd.pivot_table(df, values=all_codes, index=demographic_col, aggfunc='sum')
+
+    real_pivot = create_pivot(real_df)
+    synthetic_pivot = create_pivot(synthetic_df)
+
+    diff_pivot = synthetic_pivot - real_pivot
+
+
+    # Create a heatmap of the differences
+    plt.figure(figsize=(12, 8))
+    sns.heatmap(diff_pivot, cmap='coolwarm', center=0)
+    plt.title('Difference Heatmap '+demographic_col+': Synthetic - Real')
+    plt.tight_layout()
+    if path_img!= None:
+       save_plot_as_svg(plt, path_img, "concatenated_images")
+    plt.show()
+
+    def get_top_5_diff(codes, category):
+            abs_diff = diff_pivot[codes].abs().sum().sort_values(ascending=False)
+            top_5 = abs_diff.head(5).reset_index()
+            top_5.columns = ['Code', 'Absolute Difference']
+            top_5['Category'] = category
+            return top_5
+
+    top_5_diagnosis = get_top_5_diff(diagnosis_codes, 'Diagnosis')
+    top_5_procedure = get_top_5_diff(procedure_codes, 'Procedure')
+    top_5_drug = get_top_5_diff(drug_codes, 'Drug')
+
+    # Concatenate the top 5 differences into a single DataFrame
+    top_15_diff = pd.concat([top_5_diagnosis, top_5_procedure, top_5_drug], ignore_index=True)
+    top_15_diff = top_15_diff.sort_values('Absolute Difference', ascending=False).reset_index(drop=True)
+
+    print("Top 15 codes with highest absolute difference across all categories:")
+    print(top_15_diff)
+    top_15_diff["Demographic column"] = demographic_col
+    diff_pivot_aux = diff_pivot[top_15_diff["Code"].to_list()]
+    print(diff_pivot_aux.to_latex())
+    return final_results,top_codes
+
+
+def create_medical_codes_heatmaps(real_data, synthetic_data, code_type,obtain_large = True):
+    """
+    Create heatmaps comparing medical codes in real and synthetic data across demographics.
+    
+    :param real_data: Dictionary containing real data counts
+    :param synthetic_data: Dictionary containing synthetic data counts
+    :param code_type: String indicating the type of medical code ('drug', 'procedure', or 'diagnostic')
+    """
+    total_key = f'{code_type}_total'
+    unique_key = f'{code_type}_unicos'
+    
+    # Prepare data for heatmaps
+    heatmap_data_total = []
+    heatmap_data_unique = []
+    
+    for demographic in real_data.keys():
+        if demographic != "edades_ocurrencia":
+            real_total = pd.Series(real_data[demographic][total_key])
+            real_unique = pd.Series(real_data[demographic][unique_key])
+            synth_total = pd.Series(synthetic_data[demographic][total_key])
+            synth_unique = pd.Series(synthetic_data[demographic][unique_key])
+             
+            # Combine top 5 from both datasets
+            if obtain_large:
+                all_top_total = pd.concat([real_total.nlargest(5), synth_total.nlargest(5)]).index.unique()
+                all_top_unique = pd.concat([real_unique.nlargest(5), synth_unique.nlargest(5)]).index.unique()
+            
+                     
+                
+            for code in all_top_total:
+                real_count = real_total.get(code, 0)
+                synth_count = synth_total.get(code, 0)
+                pct_change = ((synth_count - real_count) / real_count) * 100 if real_count != 0 else np.inf
+                heatmap_data_total.append({
+                    'Demographic': demographic,
+                    'Code': code,
+                    'Real_Total': real_count,
+                    'Synthetic_Total': synth_count,
+                    'Pct_Change_Total': pct_change
+                })
+            
+            for code in all_top_unique:
+                real_count = real_unique.get(code, 0)
+                synth_count = synth_unique.get(code, 0)
+                pct_change = ((synth_count - real_count) / real_count) * 100 if real_count != 0 else np.inf
+                heatmap_data_unique.append({
+                    'Demographic': demographic,
+                    'Code': code,
+                    'Real_Unique': real_count,
+                    'Synthetic_Unique': synth_count,
+                    'Pct_Change_Unique': pct_change
+                })
+        
+    df_total = pd.DataFrame(heatmap_data_total)
+    df_unique = pd.DataFrame(heatmap_data_unique)
+    df_total = df_total.sort_values(by= "Synthetic_Total")[:30]
+    df_unique = df_unique.sort_values(by= "Synthetic_Unique")[:30]
+    
+
+    return df_total,df_unique
+
     
 def plot_sub(real_prob, fake_prob, feature, ax, name,  rmse):
     df = pd.DataFrame({'real': real_prob,  'fake': fake_prob, "feature": feature})
@@ -263,6 +1332,10 @@ def load_create_ehr(read_ehr,save_ehr,file_path_dataset,sample_patients_path,fil
         features = load_pickle(file_path_dataset + 'features'+name_file_ehr+'.pkl')
     else:    
         test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,features = obtain_dataset_admission_visit_rank(sample_patients_path,file,valid_perc,features_path,type_file)
+        if type_file == 'demo_Arf':
+            for col in synthetic_ehr_dataset.columns:
+                synthetic_ehr_dataset[col] = pd.to_numeric(synthetic_ehr_dataset[col], errors='coerce').fillna(0).astype(int)
+
         if save_ehr:
             save_pickle(test_ehr_dataset, file_path_dataset + 'test_ehr_dataset'+name_file_ehr+'.pkl')
             save_pickle(train_ehr_dataset, file_path_dataset + 'train_ehr_dataset'+name_file_ehr+'.pkl')
@@ -278,7 +1351,7 @@ def make_read_constraints(make_contrains,
                           columns_to_drop,
                           columns_to_drop_syn,
                           type_archivo,
-                          invert_normalize,
+                    
                           cols_continuous,
                            create_visit_rank_col,
                             propagate_fistvisit_categoricaldata,
@@ -287,14 +1360,18 @@ def make_read_constraints(make_contrains,
                             get_handle_hospital_expire_flag,
                             get_0_first_visit,
                             get_sample_synthetic_similar_real,
-                            subject_continous,
+            
                             create_days_between_visits_by_date_var,
                             eliminate_negatives_var,
                             get_days_grom_visit_histogram,
                             get_admitted_time,
                             get_synthetic_subject_clustering,
                             file_path_dataset = None,
-                            make_read_constraints_name='synthetic_ehr_dataset_contrainst.pkl'):
+                            make_read_constraints_name='synthetic_ehr_dataset_contrainst.pkl',medication_columns = None,
+                            columns_to_drop_sec = None,
+                            encoder =None,
+                            columnas_demograficas=None,
+                            synthetic_type=None):
     if make_contrains:
         c = EHRDataConstraints( train_ehr_dataset, 
                  test_ehr_dataset,
@@ -314,12 +1391,17 @@ def make_read_constraints(make_contrains,
                  get_days_grom_visit_histogram,
                  get_admitted_time,
                  
-                type_archivo = 'ARFpkl',
-                invert_normalize = False,
-                subject_continous = False
+                type_archivo ,
+             
+           
+                medication_columns = medication_columns ,
+                columns_to_drop_sec = columns_to_drop_sec,
+                encoder =encoder,
+                columnas_demograficas=columnas_demograficas,
+                synthetic_type=synthetic_type
            )
         c.print_shapes()
-        #cols_accounts = c.handle_categorical_data()
+        #cols_accounts = c.handle_categorical_data()v
         synthetic_ehr_dataset, train_ehr_dataset, test_ehr_dataset = c.initiate_processing()
         c.print_shapes()
         #drop column between_cum sum made from constrains       
@@ -736,6 +1818,12 @@ def load_pkl(name):
     with open(name+'.pkl', 'rb') as f:
         data = pickle.load(f)
     return data  
+
+def load_pickle(file_path):
+    with open(file_path, 'rb') as f:
+        data = pickle.load(f)
+    return data
+
        
 def obtain_dataset_admission_visit_rank(sample_patients_path,file,valid_perc,features_path,type_archivo='csv'):
     features = load_data(features_path)
@@ -829,6 +1917,62 @@ def analyze_continuous_variables(synthetic_data, real_data, columns):
     df_results = pd.DataFrame(results)
 
     return df_results
+
+def analyze_patient_level(synthetic_df, real_df, columns_to_analyze):
+    def aggregate_patient_data(df):
+        # Group by patient ID and aggregate
+        patient_data = df.groupby('id_patient').agg({
+            **{col: ['mean', 'max', 'min'] for col in columns_to_analyze},
+            'ADMITTIME': 'count'  # Count number of admissions
+        })
+        patient_data.columns = ['_'.join(col).strip() for col in patient_data.columns.values]
+        return patient_data
+
+    real_patients = aggregate_patient_data(real_df)
+    synthetic_patients = aggregate_patient_data(synthetic_df)
+
+    results = []
+    for col in columns_to_analyze:
+        real_data = real_patients[f'{col}_mean']
+        synth_data = synthetic_patients[f'{col}_mean']
+
+        t_stat, p_value = stats.ttest_ind(real_data, synth_data)
+        
+        result = {
+            'Characteristic': col,
+            'Real Mean': real_data.mean(),
+            'Real Std': real_data.std(),
+            'Real Min': real_patients[f'{col}_min'].min(),
+            'Real Max': real_patients[f'{col}_max'].max(),
+            'Synthetic Mean': synth_data.mean(),
+            'Synthetic Std': synth_data.std(),
+            'Synthetic Min': synthetic_patients[f'{col}_min'].min(),
+            'Synthetic Max': synthetic_patients[f'{col}_max'].max(),
+            'Mean Difference (%)': ((synth_data.mean() - real_data.mean()) / real_data.mean()) * 100,
+            't-statistic': t_stat,
+            'p-value': p_value
+        }
+        results.append(result)
+
+    df_results = pd.DataFrame(results)
+    
+    # Add row for number of admissions
+    admissions_row = {
+        'Characteristic': 'Number of Admissions',
+        'Real Mean': real_patients['ADMITTIME_count'].mean(),
+        'Real Std': real_patients['ADMITTIME_count'].std(),
+        'Real Min': real_patients['ADMITTIME_count'].min(),
+        'Real Max': real_patients['ADMITTIME_count'].max(),
+        'Synthetic Mean': synthetic_patients['ADMITTIME_count'].mean(),
+        'Synthetic Std': synthetic_patients['ADMITTIME_count'].std(),
+        'Synthetic Min': synthetic_patients['ADMITTIME_count'].min(),
+        'Synthetic Max': synthetic_patients['ADMITTIME_count'].max(),
+        'Mean Difference (%)': ((synthetic_patients['ADMITTIME_count'].mean() - real_patients['ADMITTIME_count'].mean()) / real_patients['ADMITTIME_count'].mean()) * 100,
+    }
+    df_results = df_results.append(admissions_row, ignore_index=True)
+
+    return df_results
+
 
 import pandas as pd
 import numpy as np
@@ -1012,7 +2156,8 @@ def generate_latex_table_(df_comparative, caption, label):
     real_data = df_comparative[[ 'Visit 1 Real', 'Visit 2 Real', 'Visit 3 Real']].values
     percentage_diff = df_comparative[['Percentage Change Visit 1', 'Percentage Change Visit 2', 'Percentage Change Visit 3']].values
 
-    # Start building the LaTeX table
+    # Start building the LaTeX t
+    # able
     latex_output = [
         "\\begin{table}[H]",
         "\\centering",
@@ -5007,7 +6152,48 @@ def plot_comparative_stats_(combined_stats, level):
     plt.suptitle(f'Comparison of Real and Synthetic Patient Data Statistics - {level.title()} Level', y=1.02)
     plt.show()
 
-def analyze_demographics(data, column_groups):
+
+def analyze_demographics(data, columns):
+    """
+    Analyze demographics from categorical string columns for the first 3 visits and overall.
+    
+    :param data: DataFrame containing demographic data as string categories
+    :param columns: List of column names to analyze
+    :return: Two DataFrames - one for first 3 visits, one for overall proportions
+    """
+    def calculate_proportion(df, column):
+        return df[column].value_counts(normalize=True) * 100
+
+    # First 3 visits DataFrame
+    visits_data = []
+    for visit in range(1, 4):
+        visit_data = data[data['visit_rank'] == visit]
+        visit_proportions = {}
+        for column in columns:
+            props = calculate_proportion(visit_data, column)
+            for category, prop in props.items():
+                visit_proportions[f"{column}_{category}"] = prop
+        visits_data.append(visit_proportions)
+    
+    df_visits = pd.DataFrame(visits_data, index=['Visit 1', 'Visit 2', 'Visit 3']).T.reset_index()
+    df_visits.columns = ['Characteristics'] + list(df_visits.columns[1:])
+
+    # Overall proportions DataFrame
+    overall_data = []
+    for column in columns:
+        props = calculate_proportion(data, column)
+        for category, prop in props.items():
+            overall_data.append({
+                'Category': column,
+                'Characteristic': category,
+                'Proportion': prop
+            })
+    
+    df_overall = pd.DataFrame(overall_data)
+    
+    return df_visits, df_overall
+
+def analyze_demographicsved(data, column_groups):
     """
     Analyze demographics from one-hot encoded columns for the first 3 visits and overall.
     
@@ -5138,7 +6324,7 @@ def print_latex_generate_stats2(train_ehr_dataset, synthetic_ehr_dataset, diagno
     synthetic_stats, _s = analyze_patient_data2(synthetic_ehr_dataset, diagnosis_columns, medication_columns, procedure_columns, type_level, is_synthetic=True)
     
     admission_level_stats = create_combined_stats_table2(real_stats, synthetic_stats)
-    print("Admission Level Statistics:")
+   # print("Admission Level Statistics:")
     print(admission_level_stats)
 
     # Patient Level Stats
@@ -5447,7 +6633,7 @@ def generate_latex_table_all_codes3(real_data, synthetic_data, caption, label):
         else:
             return f"{diff:.2f}\\%"
 
-    for i in range(5):
+    for i in range(len()):
         diff_row = (synthetic_data.iloc[i] - real_data.iloc[i]) / real_data.iloc[i] * 100
         colored_diffs = [color_diff(diff) for diff in diff_row[columns]]
         latex_table += f"{i+1}& " + " & ".join(colored_diffs) + " \\\\\n"
@@ -5479,7 +6665,7 @@ def generate_latex_table_all_codes3(real_data, synthetic_data, caption, label):
     
     # Calculate all Changes first
     all_diffs = []
-    for i in range(5):
+    for i in range(len(real_data)):
         diff_row = (synthetic_data.iloc[i] - real_data.iloc[i]) / real_data.iloc[i] * 100
         all_diffs.extend(diff_row[columns])
     
@@ -5499,7 +6685,7 @@ def generate_latex_table_all_codes3(real_data, synthetic_data, caption, label):
         else:
             return f"{diff:.2f}\\%"
 
-    for i in range(5):
+    for i in range(len(real_data)):
         diff_row = (synthetic_data.iloc[i] - real_data.iloc[i]) / real_data.iloc[i] * 100
         colored_diffs = [color_diff(diff) for diff in diff_row[columns]]
         latex_table += f"{i+1}& " + " & ".join(colored_diffs) + " \\\\\n"
@@ -5508,26 +6694,25 @@ def generate_latex_table_all_codes3(real_data, synthetic_data, caption, label):
     
     return latex_table
 
-def analyze_demographics2(data, column_groups):
+def analyze_demographics2(data, columns):
     """
-    Analyze demographics from one-hot encoded columns for the first 3 visits.
+    Analyze demographics from categorical columns for the first 3 visits.
     
-    :param data: DataFrame containing one-hot encoded demographic data
-    :param column_groups: Dict of lists, where each list contains related one-hot encoded columns
+    :param data: DataFrame containing categorical demographic data
+    :param columns: List of column names to analyze
     :return: DataFrame with proportions for first 3 visits
     """
-    def calculate_proportion(df, columns):
-        total = df[columns].sum(axis=1)
-        return df[columns].div(total, axis=0) * 100
+    def calculate_proportion(df, column):
+        return df[column].value_counts(normalize=True) * 100
 
     visits_data = []
     for visit in range(1, 4):
         visit_data = data[data['visit_rank'] == visit]
         visit_proportions = {}
-        for category, columns in column_groups.items():
-            props = calculate_proportion(visit_data, columns).mean()
-            for col, prop in props.items():
-                visit_proportions[f"{category}_{col.split('_')[-1]}"] = prop
+        for column in columns:
+            props = calculate_proportion(visit_data, column)
+            for category, prop in props.items():
+                visit_proportions[f"{column}_{category}"] = prop
         visits_data.append(visit_proportions)
     
     df_visits = pd.DataFrame(visits_data, index=['Visit 1', 'Visit 2', 'Visit 3']).T.reset_index()
@@ -5859,31 +7044,53 @@ def print_latex_generate_stats2_concolor(train_ehr_dataset, synthetic_ehr_datase
 import pandas as pd
 import numpy as np
 
-def calculate_proportions_one_hot(data, column_groups):
+
+
+def calculate_proportions_one_hot(data, columns, encoding_type='label'):
     """
-    Calculate proportions for one-hot encoded columns.
+    Calculate proportions for either one-hot encoded or label encoded columns.
     
-    :param data: DataFrame with one-hot encoded columns
-    :param column_groups: Dict of lists, where each list contains related one-hot encoded columns
+    :param data: DataFrame with encoded columns
+    :param columns: If one-hot encoded: Dict of lists, where each list contains related one-hot encoded columns
+                    If label encoded: List of column names
+    :param encoding_type: 'one_hot' or 'label' (default: 'label')
     :return: DataFrame with proportions
     """
     results = []
-    for category, columns in column_groups.items():
-        category_data = data[columns]
-        total = category_data.sum().sum()
+
+    if encoding_type == 'one_hot':
+        for category, cols in columns.items():
+            category_data = data[cols]
+            total = category_data.sum().sum()
+            for col in cols:
+                characteristic = col.split('_')[-1]
+                count = category_data[col].sum()
+                proportion = (count / total) * 100
+                results.append({
+                    'Category': category,
+                    'Characteristic': characteristic,
+                    'Count': count,
+                    'Proportion': proportion
+                })
+    elif encoding_type == 'label':
         for col in columns:
-            characteristic = col.split('_')[-1]
-            count = category_data[col].sum()
-            proportion = (count / total) * 100
-            results.append({
-                'Category': category,
-                'Characteristic': characteristic,
-                'Count': count,
-                'Proportion': proportion
-            })
-    df =   pd.DataFrame(results)
-    df["Category"] =  df["Category"].apply(lambda x: x.lower())
-    df["Characteristic"] =df["Characteristic"].apply(lambda x: x.lower())
+            category_data = data[col]
+            value_counts = category_data.value_counts()
+            total = value_counts.sum()
+            for characteristic, count in value_counts.items():
+                proportion = (count / total) * 100
+                results.append({
+                    'Category': col,
+                    'Characteristic': str(characteristic),
+                    'Count': count,
+                    'Proportion': proportion
+                })
+    else:
+        raise ValueError("encoding_type must be either 'one_hot' or 'label'")
+
+    df = pd.DataFrame(results)
+    df["Category"] = df["Category"].apply(lambda x: x.lower())
+    df["Characteristic"] = df["Characteristic"].apply(lambda x: x.lower())
 
     return df
 
@@ -5899,6 +7106,7 @@ def generate_demographics_latex_table(real_data, synthetic_data, column_groups, 
     :return: DataFrame with combined data
     """
     # Calculate proportions
+    #'one_hot'
     real_proportions = calculate_proportions_one_hot(real_data, column_groups)
     synthetic_proportions = calculate_proportions_one_hot(synthetic_data, column_groups)
     

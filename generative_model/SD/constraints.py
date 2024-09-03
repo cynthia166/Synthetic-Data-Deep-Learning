@@ -16,7 +16,30 @@ import sys
 sys.path.append(file_principal)
 #from evaluation.resemb.resemblance.utilsstats import *
 #from evaluation.resemb.resemblance.utilsstats import obtain_dataset_admission_visit_rank, obtain_readmission_ehrs
-
+column_list =column_list = [
+    'GENDER_M',
+    'GENDER_F',
+    'RELIGION_CATHOLIC',
+    'RELIGION_Otra',
+    'RELIGION_Unknown',
+    'MARITAL_STATUS_0',
+    'MARITAL_STATUS_DIVORCED',
+    'MARITAL_STATUS_LIFE PARTNER',
+    'MARITAL_STATUS_MARRIED',
+    'MARITAL_STATUS_SEPARATED',
+    'MARITAL_STATUS_SINGLE',
+    'MARITAL_STATUS_Unknown',
+    'MARITAL_STATUS_WIDOWED',
+    'ETHNICITY_Otra',
+    'ETHNICITY_Unknown',
+    'ETHNICITY_WHITE'
+]
+column_group =column_groups = {
+    'GENDER': [col for col in column_list if col.startswith('GENDER_')],
+    'RELIGION': [col for col in column_list if col.startswith('RELIGION_')],
+    'MARITAL_STATUS': [col for col in column_list if col.startswith('MARITAL_STATUS_')],
+    'ETHNICITY': [col for col in column_list if col.startswith('ETHNICITY_')]
+}
 def obtain_readmission_realdata(total_fetura_valid):
     # Ordenando el DataFrame por 'id_' y 'visit_rank'
     total_fetura_valid = total_fetura_valid.sort_values(by=['id_patient', 'visit_rank'])
@@ -26,8 +49,13 @@ def obtain_readmission_realdata(total_fetura_valid):
     return  total_fetura_valid
 
 def load_data(file_path):
-    with gzip.open(file_path, 'rb') as f:
-        return pickle.load(f)
+    try:
+        with gzip.open(file_path, 'rb') as f:
+             return pickle.load(f)
+    except:
+            with open(file_path, 'rb') as f:
+                data = pickle.load(f)
+                return data
 
 def replace_zero_days(row):
     if row['visit_rank'] > 1 and row['days from last visit'] == 0:
@@ -207,10 +235,14 @@ class EHRDataConstraints:
                  get_days_grom_visit_histogram,
                  get_admitted_time,
                  
-                 type_archivo = 'ARFpkl',
-                 invert_normalize = False,
-                 subject_continous = False
-                 
+                 type_archivo ,
+                 medication_columns = None,
+                 columns_to_drop_sec= None,
+                 encoder = None,
+                 columnas_demograficas = None,
+                 synthetic_type = None
+               
+
                  ):
         self.train_ehr_dataset = train_ehr_dataset
         self.test_ehr_dataset = test_ehr_dataset
@@ -227,12 +259,14 @@ class EHRDataConstraints:
         self.get_sample_synthetic_similar_real = get_sample_synthetic_similar_real
         self.eliminate_negatives_var = eliminate_negatives_var
         self.type_archivo = type_archivo
-        self.inver_normalize = invert_normalize
-        self.subject_continous = subject_continous
         self.create_days_between_visits_by_date_var = create_days_between_visits_by_date_var
         self.get_days_grom_visit_histogram  =get_days_grom_visit_histogram
         self.get_admitted_time = get_admitted_time
-
+        self.medication_columns = medication_columns
+        self.columns_to_drop_sec = columns_to_drop_sec
+        self.encoder = encoder
+        self.columnas_demograficas =columnas_demograficas
+        self.synthetic_type =synthetic_type
     def print_shapes(self):
         """
         Prints the shapes of the test, train, and synthetic EHR datasets.
@@ -243,6 +277,7 @@ class EHRDataConstraints:
         print(self.test_ehr_dataset.shape)
         print(self.train_ehr_dataset.shape)
         print(self.synthetic_ehr_dataset.shape)
+
 
     def initiate_processing(self):
         """
@@ -255,52 +290,256 @@ class EHRDataConstraints:
             pandas.DataFrame: The processed synthetic EHR dataset.
         """
         #i var a normalized in the synthetic real models
-        if self.inver_normalize:
-           self.inver_normalization()
-        #if var are continous   
-        if self.subject_continous:
-            self.subject_continous_fun()
-         # Change the column name 'SUBJECT_ID' to 'id_patient'  
-               
-        self.change_subject_id()       
-        if self.get_sample_synthetic_similar_real:    
-            self.have_same_patients_similar_num_visits() 
-        if self.get_admitted_time:        
+        
+        if self.type_archivo == "gru_Arf":
+            self.round_medical_columns()
+            # obtain same number of synthetic patien as  train patient
+            self.change_subject_id()
             self.get_admitted_time_datetime()  
             self.sort_datasets()   
-        if self.create_visit_rank_col:
-             self.obtain_readmission_ehrs()    
+            self.obtain_readmission_ehrs()
+            self.consider_patients_more1_vist()
+
+               
             
-        if self.get_days_grom_visit_histogram:
-            self.generate_days_from_visit_histogram()    
-        
-        #self.create_days_between_visits_by_date()          
-        self.log_negative_values()
-       
-        if self.eliminate_negatives_var:
+
+            #self.synthetic_ehr_dataset = self.filter_dataset_to_match()
+
+            #rounde medical columns to nearest integer 
+            
+
+            # Change the column name 'SUBJECT_ID' to 'id_patient'                  
+            
+            self.log_negative_values()
+            #eliminate negative values
             self.clip_0_negative_value()
-        if self.propagate_fistvisit_categoricaldata:    
-            self.handle_categorical_data()
-            self.propagate_first_visit_values()
-        #0 in the firs viit    
-        if self.get_0_first_visit:
-            self.add_0_between_days_if_visit1()    
-        #mean values for days from last visit (fix days from last visit)    
-        if self.get_remove_duplicates:   
-            self.deal_duplicate_samenumcumusumdayafter()
-        #adjust age and dates    
-        if self.adjust_age_and_dates_get:    
-           self.adjust_age_and_dates()
-          
-        #adjust hospital expire flag
-        if self.get_handle_hospital_expire_flag:    
-            self.handle_hospital_expire_flag()
-        #elimunate columns
-        if    len(self.columns_to_drop)!=0:
-                self.eliminate_columns()
-          
+            self.eliminate_columns_seq()
+        else:    
+            if self.synthetic_type == "sin_var_con":
+                self.round_medical_columns()    
+                self.decode()
+                self.change_subject_id()       
+                if self.get_sample_synthetic_similar_real:    
+                    self.have_same_patients_similar_num_visits() 
+
+                if self.get_admitted_time:        
+                    self.get_admitted_time_datetime()  
+                    
+                if self.get_days_grom_visit_histogram:
+                    self.generate_days_from_visit_histogram()    
+            
+                #self.create_days_between_visits_by_date()          
+                self.log_negative_values()
+            
+                if self.eliminate_negatives_var:
+                    self.clip_0_negative_value()
+                if self.propagate_fistvisit_categoricaldata:    
+                    self.handle_categorical_data()
+                    self.propagate_first_visit_values()
+      
+  
+                      
+           
+      
+
+            else:
+                if self.synthetic_type =="label_decoder":
+                    self.decode()
+       
+
+       
+                # Change the column name 'SUBJECT_ID' to 'id_patient'   
+                self.change_subject_id()    
+
+                if self.get_sample_synthetic_similar_real:    
+                    self.have_same_patients_similar_num_visits() 
+                if self.get_admitted_time:        
+                    self.get_admitted_time_datetime()  
+                    self.sort_datasets()   
+                if self.create_visit_rank_col:
+                    self.obtain_readmission_ehrs()    
+                    
+                if self.get_days_grom_visit_histogram:
+                    self.generate_days_from_visit_histogram()    
+            
+                #self.create_days_between_visits_by_date()          
+                self.log_negative_values()
+            
+                if self.eliminate_negatives_var:
+                    self.clip_0_negative_value()
+                if self.propagate_fistvisit_categoricaldata:    
+                    self.handle_categorical_data()
+
+                    self.propagate_first_visit_values()
+                #0 in the firs viit    
+                if self.get_0_first_visit:
+                    self.add_0_between_days_if_visit1()    
+                #mean values for days from last visit (fix days from last visit)    
+                if self.get_remove_duplicates:   
+                    self.deal_duplicate_samenumcumusumdayafter()
+                #adjust age and dates    
+                if self.adjust_age_and_dates_get:    
+                    self.adjust_age_and_dates()
+                
+                #adjust hospital expire flag
+                if self.get_handle_hospital_expire_flag:    
+                    self.handle_hospital_expire_flag()
+                #elimunate columns
+                if    len(self.columns_to_drop)!=0:
+                        self.eliminate_columns()
+                
         return self.synthetic_ehr_dataset, self.train_ehr_dataset, self.test_ehr_dataset
+    def decode(self):
+
+        def decode_demographic(df, demographic_col, encoder):
+                # Get the set of unique values in the column
+                unique_values = set(df[demographic_col].unique())
+            
+                
+                # Now apply the inverse transform
+                df[demographic_col] = encoder.inverse_transform(df[demographic_col])
+                
+                return df
+
+
+
     
+        base_demographic_columns = [col.replace("_encoded", "") for col in self.columnas_demograficas]
+
+        for col in range(len(self.columnas_demograficas)):
+            i = self.columnas_demograficas[col]
+            self.train_ehr_dataset = decode_demographic(self.train_ehr_dataset, i, self.encoder[base_demographic_columns[col]])
+            self.synthetic_ehr_dataset = decode_demographic(self.synthetic_ehr_dataset, i,  self.encoder[base_demographic_columns[col]])
+    
+    def consider_patients_more1_vist(self):
+        patients_multiple_visits = self.train_ehr_dataset [self.train_ehr_dataset["visit_rank"] > 1]["id_patient"]
+        self.train_ehr_dataset = self.train_ehr_dataset[self.train_ehr_dataset['id_patient'].isin(patients_multiple_visits)]
+        self.train_ehr_dataset = self.train_ehr_dataset.sort_values(['id_patient', 'visit_rank'])    
+        unique_patient_train = self.train_ehr_dataset.id_patient.nunique()
+        
+        def match_specific_visit_distribution(df_synthetic, train_ehr_dataset, id_col='id_patient', visit_col='visit_rank'):
+            """
+            Ajusta el dataframe sintético para que coincida con una distribución específica de visitas.
+            
+            :param df_synthetic: DataFrame con datos sintéticos
+            :param visit_distribution: Serie de pandas con la distribución deseada de visitas
+            :param id_col: Nombre de la columna que contiene los IDs de pacientes
+            :param visit_col: Nombre de la columna que contiene los rangos de visita
+            :return: DataFrame sintético ajustado
+            """
+            visit_distribution = train_ehr_dataset[visit_col].value_counts()
+            df_synthetic_matched = pd.DataFrame()
+            total_patients_selected = 0
+
+            print("Selección de pacientes por número de visitas:")
+
+            for visit_rank, desired_count in visit_distribution.sort_index().items():
+                # Seleccionar pacientes sintéticos con exactamente este número de visitas
+                patients_with_visits = df_synthetic.groupby(id_col)[visit_col].nunique()
+                eligible_patients = patients_with_visits[patients_with_visits == visit_rank].index
+                
+                if len(eligible_patients) < desired_count:
+                    selected_patients = eligible_patients
+                    print(f"  Visitas {visit_rank}: se seleccionaron {len(selected_patients)} de {desired_count} requeridos")
+                else:
+                    selected_patients = np.random.choice(eligible_patients, size=desired_count, replace=False)
+                    print(f"  Visitas {visit_rank}: se seleccionaron {desired_count} de {len(eligible_patients)} disponibles")
+                
+                # Agregar los datos de los pacientes seleccionados al DataFrame resultante
+                patient_data = df_synthetic[df_synthetic[id_col].isin(selected_patients)]
+                df_synthetic_matched = pd.concat([df_synthetic_matched, patient_data])
+                
+                total_patients_selected += len(selected_patients)
+            
+            print(f"\nTotal de pacientes seleccionados: {total_patients_selected}")
+            print(f"Total de pacientes requeridos: {visit_distribution.sum()}")
+            
+            return df_synthetic_matched.reset_index(drop=True)
+        self.synthetic_ehr_dataset =match_specific_visit_distribution(self.synthetic_ehr_dataset, self.train_ehr_dataset, id_col='id_patient', visit_col='visit_rank')
+        all_subject_ids = self.synthetic_ehr_dataset['id_patient'].unique()
+        selected_ids = np.random.choice(all_subject_ids, size=unique_patient_train, replace=False)
+        self.synthetic_ehr_dataset = self.synthetic_ehr_dataset[self.synthetic_ehr_dataset['id_patient'].isin(selected_ids)]
+         
+        # all_subject_ids = self.synthetic_ehr_dataset['SUBJECT_ID'].unique()
+    
+        # # Asegurarse de que n no sea mayor que el número total de sujetos
+        
+        # # Seleccionar n IDs de sujeto aleatorios
+        # selected_ids = np.random.choice(all_subject_ids, size=len(patients_multiple_visits), replace=False)
+        
+        # # Filtrar el DataFrame para incluir solo los sujetos seleccionados
+       
+    def filter_dataset_to_match(self  ):
+        """
+        Filter df2 to have approximately the same number of patients and visits as df1.
+        
+        :param df1: The reference DataFrame
+        :param df2: The DataFrame to be filtered
+        :param patient_col: Column name for patient IDs
+        :param visit_col: Column name for visit IDs
+        :return: Filtered version of df2
+        """
+        df1 = self.train_ehr_dataset
+        df2 = self.synthetic_ehr_dataset
+        patient_col = "id_patient"
+        visit_col ="visit_rank"
+        # Count patients and visits in df1
+        df1_patient_count = df1[patient_col].nunique()
+        df1_visit_count = df1[visit_col].nunique()
+        
+        # Get patient visit counts in df2
+        df2_patient_visits = df2.groupby(patient_col).size().reset_index(name='visit_count')
+        
+        # Sort patients by visit count (descending) and shuffle within each visit count group
+        df2_patient_visits = df2_patient_visits.sort_values('visit_count', ascending=False)
+        df2_patient_visits = df2_patient_visits.groupby('visit_count').apply(lambda x: x.sample(frac=1)).reset_index(drop=True)
+        
+        # Initialize variables for patient and visit selection
+        selected_patients = []
+        total_visits = 0
+        
+        # Select patients until we reach or exceed the target counts
+        for _, row in df2_patient_visits.iterrows():
+            if len(selected_patients) >= df1_patient_count or total_visits >= df1_visit_count:
+                break
+            selected_patients.append(row[patient_col])
+            total_visits += row['visit_count']
+        
+        # Filter df2 based on selected patients
+        filtered_df2 = df2[df2[patient_col].isin(selected_patients)]
+        
+        # If we have more visits than needed, randomly drop some
+        if filtered_df2[visit_col].nunique() > df1_visit_count:
+            visits_to_keep = np.random.choice(filtered_df2[visit_col].unique(), df1_visit_count, replace=False)
+            filtered_df2 = filtered_df2[filtered_df2[visit_col].isin(visits_to_keep)]
+        
+        return filtered_df2    
+
+
+    def round_medical_columns(self):
+        """
+        Round the specified medical columns to the nearest positive integer.
+        If the value is negative, it is set to 0.
+        
+        Args:
+        df (pd.DataFrame): The dataframe containing the medical data
+        medical_columns (list): List of column names to be rounded
+        
+        Returns:
+        pd.DataFrame: The dataframe with rounded medical columns
+        """
+        colu = self.medication_columns + ["year" , "month"] + self.columnas_demograficas
+        for col in colu:
+            if col in ["year","month"]+self.columnas_demograficas:
+                self.synthetic_ehr_dataset[col] = np.where(self.synthetic_ehr_dataset[col] < 0, 1, np.round(self.synthetic_ehr_dataset[col]).astype(int))
+                if col == "month":
+                     self.synthetic_ehr_dataset["month"] = self.synthetic_ehr_dataset["month"].clip(upper=12)
+                     self.synthetic_ehr_dataset["month"] = self.synthetic_ehr_dataset["month"].clip(lower=1)
+
+            else:    
+                self.synthetic_ehr_dataset[col] = np.where(self.synthetic_ehr_dataset[col] < 0, 0, np.round(self.synthetic_ehr_dataset[col]).astype(int))
+          
+        
     def generate_days_from_visit_histogram(self):
         real_days = self.train_ehr_dataset['days from last visit'].values
         non_zero_days = real_days[real_days > 0]
@@ -344,17 +583,6 @@ class EHRDataConstraints:
         # Fill NaN values with 0 for the first visit of each patient
         self.synthetic_ehr_dataset['days_from_last_visit2'] = self.synthetic_ehr_dataset['days_from_last_visit2'].fillna(0).astype(int)
 
-    def subject_continous_fun(self):
-        
-        self.synthetic_ehr_dataset["SUBJECT_ID"] = self.synthetic_ehr_dataset["SUBJECT_ID"].apply(lambda x: abs(int(round(x))))
-        
-        
-    def inver_normalization(self):
-        for column in self.cols_continuous:
-            data = self.synthetic_ehr_dataset[column].values
-            data_min = self.train_ehr_dataset[column].values.min()
-            data_max = self.train_ehr_dataset[column].values.max()
-            self.synthetic_ehr_dataset[column] =  data * (data_max - data_min) + data_min
 
         
     def change_subject_id(self):
@@ -396,19 +624,26 @@ class EHRDataConstraints:
 
         
     def get_admitted_time_datetime(self):
-        if self.type_archivo=='ARFpkl':
-            #total_features_synthethic['ADMITTIME'] = total_features_synthethic['year'].astype(str) +"-"+ total_features_synthethic['month'].astype(str) +"-"+ '01'
-            self.synthetic_ehr_dataset['ADMITTIME'] = self.synthetic_ehr_dataset['year'].astype(int).astype(str) +"-"+ self.synthetic_ehr_dataset['month'].astype(int).astype(str) +"-"+ '01'
+       
+       
+        if self.type_archivo=='ARFpkl' or self.type_archivo=='demo_Arf' or self.type_archivo=='gru_Arf':
+            if self.synthetic_type == "sin_var_con"  or self.type_archivo=='demo_Arf':
+                self.synthetic_ehr_dataset['ADMITTIME'] = self.synthetic_ehr_dataset['year'].astype(int).astype(str) +"-"+ self.synthetic_ehr_dataset['month'].astype(int).astype(str) +"-"+ '01'
+            else:
+                #total_features_synthethic['ADMITTIME'] = total_features_synthethic['year'].astype(str) +"-"+ total_features_synthethic['month'].astype(str) +"-"+ '01'
+                self.synthetic_ehr_dataset['ADMITTIME'] = self.synthetic_ehr_dataset['year'].astype(int).astype(str) +"-"+ self.synthetic_ehr_dataset['month'].astype(int).astype(str) +"-"+ '01'
+                self.synthetic_ehr_dataset['ADMITTIME'] = pd.to_datetime(self.synthetic_ehr_dataset['ADMITTIME'])
             
-        self.synthetic_ehr_dataset['ADMITTIME'] = pd.to_datetime(self.synthetic_ehr_dataset['ADMITTIME'])
-        self.synthetic_ehr_dataset = self.synthetic_ehr_dataset.sort_values(by=['id_patient', 'ADMITTIME'])
+        else:    
+            self.synthetic_ehr_dataset['ADMITTIME'] = pd.to_datetime(self.synthetic_ehr_dataset['ADMITTIME'])
+            self.synthetic_ehr_dataset = self.synthetic_ehr_dataset.sort_values(by=['id_patient', 'ADMITTIME'])
   
     def obtain_readmission_ehrs(self): 
         self.train_ehr_dataset = obtain_readmission_realdata(self.train_ehr_dataset)
         self.test_ehr_dataset = obtain_readmission_realdata(self.test_ehr_dataset) 
         #obtener readmission
         # este es el caso porque e arf se crearon dos columnas de dmitted time para que pudieran ser categorivas
-            
+      
             # Ordena el DataFrame por 'patient_id' y 'visit_date' para garantizar el ranking correcto
         # Agrupa por 'patient_id' y asigna un rango a cada visita
         self.synthetic_ehr_dataset['visit_rank'] = self.synthetic_ehr_dataset.groupby('id_patient')['ADMITTIME'].rank(method='first').astype(int)
@@ -426,6 +661,7 @@ class EHRDataConstraints:
 
         # Verifica si hay valores negativos en el DataFrame
         non_datetime_cols = self.synthetic_ehr_dataset.select_dtypes(exclude=['datetime64']).columns
+        non_datetime_cols = [i for i in non_datetime_cols if i!= "ADMITTIME" and i not in self.columnas_demograficas]
         for col in non_datetime_cols:
             self.synthetic_ehr_dataset[col] = self.synthetic_ehr_dataset[col].astype(int)
             
@@ -441,7 +677,7 @@ class EHRDataConstraints:
 
         # Convertir las columnas de tipo 'category' a numérico
         non_datetime_cols = self.synthetic_ehr_dataset.select_dtypes(exclude=['datetime64']).columns
-
+        non_datetime_cols = [i for i in non_datetime_cols if i != "ADMITTIME" if i not in self.columnas_demograficas]
         # Reemplaza los valores negativos por 0 solo en las columnas que no son de tipo datetime
         for col in non_datetime_cols:
             logging.info(f'Columna: {col} numero de valores negativos {self.synthetic_ehr_dataset[col][self.synthetic_ehr_dataset[col] < 0].count()}')
@@ -457,9 +693,11 @@ class EHRDataConstraints:
         Returns:
             None
         """
-         
-        self.train_ehr_dataset.sort_values(by=['id_patient', 'ADMITTIME'], inplace=True)
-        self.synthetic_ehr_dataset.sort_values(by=['id_patient', 'ADMITTIME'], inplace=True)
+        if  self.synthetic_type =="sin_var_con":
+            pass 
+        else:
+            self.train_ehr_dataset.sort_values(by=['id_patient', 'ADMITTIME'], inplace=True)
+            self.synthetic_ehr_dataset.sort_values(by=['id_patient', 'ADMITTIME'], inplace=True)
 
     def handle_categorical_data(self):
         """
@@ -470,9 +708,9 @@ class EHRDataConstraints:
         Returns:
             list: The list of categorical columns in the train EHR dataset.
         """
-        categorical_cols = ['ADMITTIME', 'RELIGION', 'MARITAL_STATUS', 'ETHNICITY', 'GENDER']
+        
         cols_accounts = []
-        for col in categorical_cols:
+        for col in self.columnas_demograficas:
             cols_f = self.synthetic_ehr_dataset.filter(like=col, axis=1).columns
             cols_accounts.extend(list(cols_f))
         return cols_accounts
@@ -496,7 +734,42 @@ class EHRDataConstraints:
             # Paso 4: Comparar los conteos antes y después para determinar el cambio
             cambio = (conteo_unico_antes - conteo_unico_despues).sum()
             logging.info(f'Propagated first visit values for column: {column}, number of transformed values: {cambio}, percentage {cambio/self.synthetic_ehr_dataset.shape[0]}') 
+
+        def correct_one_hot_encoding(df, column_groups):
+            """
+            Correct one-hot encoding in place, prioritizing the most populated columns.
             
+            :param df: pandas DataFrame containing the data
+            :param column_groups: dict with group names as keys and lists of column names as values
+            :return: DataFrame with corrected one-hot encoding
+            """
+            for group, columns in column_groups.items():
+                # Sort columns by population (sum of 1s) in descending order
+                sorted_columns = sorted(columns, key=lambda col: df[col].sum(), reverse=True)
+                
+                for i, col in enumerate(sorted_columns):
+                    if i == 0:  # Most populated column
+                        # Keep 1s, change other values in the row to 0
+                        mask = df[col] == 1
+                        df.loc[mask, sorted_columns[1:]] = 0
+                    else:
+                        # For subsequent columns
+                        mask = (df[col] == 1) & (df[sorted_columns[:i]].sum(axis=1) == 0)
+                        df.loc[mask, sorted_columns[i+1:]] = 0
+                        
+                        # Change 0s to 1s in this column if all previous columns are 0
+                        zero_mask = (df[sorted_columns[:i+1]].sum(axis=1) == 0)
+                        df.loc[zero_mask, col] = 1
+                
+                # Ensure at least one column is 1 for each row
+                all_zero_rows = (df[columns].sum(axis=1) == 0)
+                if all_zero_rows.any():
+                    df.loc[all_zero_rows, sorted_columns[0]] = 1
+            
+            return df
+       
+        #self.synthetic_ehr_dataset =correct_one_hot_encoding(self.synthetic_ehr_dataset,column_group)
+    
     def adjust_age_and_dates(self):
         """
         Adjusts the age and admission dates in the synthetic EHR dataset.
@@ -615,6 +888,12 @@ class EHRDataConstraints:
         self.synthetic_ehr_dataset.drop(columns=self.columns_to_drop_syn, inplace=True)
         self.train_ehr_dataset.drop(columns=self.columns_to_drop, inplace=True)
         self.test_ehr_dataset.drop(columns=self.columns_to_drop, inplace=True)
+
+    def eliminate_columns_seq(self):
+        
+        
+        self.train_ehr_dataset.drop(columns=self.columns_to_drop_sec, inplace=True)
+        self.test_ehr_dataset.drop(columns=self.columns_to_drop_sec, inplace=True)    
  
 if __name__ == '__main__':
     
@@ -628,7 +907,7 @@ if __name__ == '__main__':
     
     #synthetic_ehr_dataset = load_pickle(file)     
     
-    c = EHRDataConstraints(train_ehr_dataset, test_ehr_dataset, synthetic_ehr_dataset,True)
+    c = EHRDataConstraints(train_ehr_dataset, test_ehr_dataset, synthetic_ehr_dataset,True,)
     c.print_shapes()
     #cols_accounts = c.handle_categorical_data()
     processed_synthetic_dataset = c.initiate_processing()

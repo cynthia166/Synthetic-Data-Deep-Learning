@@ -52,7 +52,7 @@ class EvaluationFramework:
         df_scores = pd.DataFrame(self.evaluation_metric_scores).transpose()
         return statistical_analysis(df_scores, self.verbose)
 
-    def wasserstein_cramers_v_test(self) -> dict[str, float]:
+    def wasserstein_cramers_v_test(self):
         """
         Apply the Wasserstein distance to compare the distributions of real and synthetic datasets to the continuous features
         and Cramer's V to compare the distributions of real and synthetic datasets to the categorical features
@@ -123,7 +123,7 @@ class EvaluationFramework:
         self.evaluation_metric_scores["wasserstein_cramers_v"] = scores
         return scores,df_scores_before_aggregation,scores_aux
 
-    def novelty_test(self) -> dict[str, float]:
+    def novelty_test(self):
         """
         This function measures whether each row in the synthetic data is novel
         or whether it exactly matches an original row in the real data.
@@ -158,7 +158,7 @@ class EvaluationFramework:
 
     def anomaly_detection(
         self, anomaly_threshold: float = 0.000001
-    ) -> dict[str, float]:
+    )  :
         """
         This function computes the percentage of anomalies, instances in a dataset that deviate significantly from the norm or expected behavior.
 
@@ -217,7 +217,7 @@ class EvaluationFramework:
             print("\n")
         return scores
 
-    def domain_classifier(self, model, n_folds: int = 5) -> dict[str, float]:
+    def domain_classifier(self, model, n_folds: int = 5)  :
         """
         Trains and evaluates a domain classifier using a HistGradientBoostingClassifier.
         Measures whether the test data, either the real or the synthetic data classified to their corresponding class.

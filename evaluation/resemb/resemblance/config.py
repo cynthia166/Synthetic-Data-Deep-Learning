@@ -4,28 +4,58 @@ import pickle
 import gzip
 import glob
 import os
-# The comment `# save ehr en la primera corrida` is indicating that the variable `save_ehr` is used to
-# determine whether to save Electronic Health Record (EHR) data during the first run of the program.
-# If `save_ehr` is set to `True`, then the EHR data will be saved. Otherwise, if it is set to `False`,
-# the EHR data will not be saved during the first run. This variable controls the behavior related to
-# saving EHR data based on its value.
-# save ehr en la primera corrida
+import joblib
 
+
+
+def load_data(file_path):
+    try:
+        with gzip.open(file_path, 'rb') as f:
+             return pickle.load(f)
+    except:
+            with open(file_path, 'rb') as f:
+                data = pickle.load(f)
+                return data
+            
+file ="/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/generative_input/ARF_conditioned/results/synthetic_d/demos_prob_2forgemodified.pkl"
+       
+bnds = joblib.load( file )
+# The comment `# save ehr en la primera corrida` is indicating that the variable `save_ehr` is used to
+
+
+# save ehr en la primera corrida
+label_encoded = True
 post_processing = True
 save_ehr = True
+#creating subjec
 
-#creating subject
-
-get_sample_synthetic_similar_real = False
+get_sample_synthetic_similar_real = True
 #create subject id from admission
-get_days_grom_visit_histogram = False
+get_days_grom_visit_histogram = True
+
+
 #si se tiene doppleganger con attributes y features
+#synthetic_type = "Gaussian"
+#synthetic_type = "Logistic"
+#synthetic_type ="Bosting"
+#synthetic_type = "Random"
+
+#CONTINOUS GENERATION OF ARF
+#synthetic_type = "sin_var_con"
+#synthetic_type = "Otro"
+synthetic_type ="label_decoder"
+#type of odel
+#type_archivo = 'demo_Arf'
+
+type_archivo= 'ARFpkl'
+
+#type_archivo= 'gru_Arf'
 
 get_synthetic_subject_clustering = False
 make_cosin_sim = False
 #EVALUATION
-visualization_dimension_wise_distribution_similarity = False
-metric_dimension_wise_distribution_similarity = True
+visualization_dimension_wise_distribution_similarity = True
+metric_dimension_wise_distribution_similarity = False
 metric_joint_distribution_similarity_coverage=False
 metric_joint_distribution_similarity_structure = False
 metric_inter_dimensional_similarity=False
@@ -58,7 +88,10 @@ if post_processing:
 else:    
     eliminate_variables_generadas_post = False
     #changig existing values
-    create_visit_rank_col = True 
+    if type_archivo == "demo_Arf":
+        create_visit_rank_col = False
+    else:    
+        create_visit_rank_col = True 
     get_admitted_time = True
     propagate_fistvisit_categoricaldata = False
     adjust_age_and_dates_get = False
@@ -94,19 +127,51 @@ name_file_similaritymatrixcos = "cosine_matrix_similarity"
 file_principal = os.getcwd()
 file_data =     file_principal + "/generated_synthcity_tabular/ARF/"
 name_file_ehr = "ARF_fixed_v"
-#folder = "ARF_fixed_v_sin_subject_id/"
-folder = "ARF_fixed_postpros/"
-#folder = "ARF_fixed_v/"
-#folder = "ARF_fixed_postpros/"
-#folder = "ARF_fixed_sansvar/cosine_sim_subj/"
-#folder = "arf_acumulative/"
-#folder = "ARF_fixed_sansvar/"
 
-path_to_folder_syn = file_data+folder
-file =path_to_folder_syn+ "synthetic_data_generative_model_arf_per_fixed_v0.7.pkl"
+
+
+if type_archivo == "ARFpkl":
+    #folder = "ARF_fixed_sansvar/"
+    #folder = "ARF_fixed_postpros/"
+    folder ="ARF_2_approach/"
+    path_to_folder_syn = file_data+folder
+    file =path_to_folder_syn+ "synnthetic_datalog_ARF_1_approach.pkl"
+    #file = path_to_folder_syn +"synnthetic_datalog_arf_sin_var2.pkl"
+    encoder_path ="/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/generative_input/encoders_entire_ceros_tabular_data_demos2.pkl"
+    encoder = load_data(encoder_path)
+    #data = load_data(file)
+elif type_archivo == "gru_Arf":
+    folder = "ARF_GRU/"
+    #folder = "ARF_fixed_postpros/"
+    path_to_folder_syn = file_data+folder
+    file =path_to_folder_syn+ "synthetic_results2_more_subset_visits.pkl"
+
+        
+elif type_archivo =='demo_Arf': 
+    folder =    'ARF_demo/'
+    folder1 = "/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/generative_input/ARF_conditioned/results/synthetic_d/"
+    if synthetic_type == "label_decoder":
+        encoder_path ="/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/generative_input/encoders_entire_ceros_tabular_data_demos2.pkl"
+        encoder = load_data(encoder_path)
+        file ="/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/generative_input/ARF_conditioned/results/synthetic_d/demos_prob_2forgemodified.pkl"
+        
+
+
+
+#path_to_folder_syn = file_data+folder
+#folder = "ARF_fixed_v_sin_subject_id/"
+#folder = "ARF_fixed_postpros/"
+#folder = "ARF_fixed_v/"
+#folder = "ARF_demo/"
+#folder = "ARF_fixed_sansvar/cosine_sim_subj/"
+#folder = "ARF_GRU/"
+
+
+
+
 #file = path_to_folder_syn + "synthetic_data_generative_model_arf_per_arf_acumulative0.7.pkl"
-#type of model
-type_archivo = 'ARFpkl'
+#file = path_to_folder_syn + "synthetic_results2_more_subset_visits.pkl"
+#file = path_to_folder_syn +"synthetic_datalog_5.pkl"
 sample_patients_path =path_to_folder_syn + "sample_patients_fixed_v"
 #read_dict
 
@@ -117,8 +182,24 @@ results_df = pd.DataFrame()
 #name of synthetic data
 
 #constraints name
+remote = True
+if remote:
+    if label_encoded:
+        exclude_codes = True
+        if metric_dimension_wise_distribution_similarity:
+            exclude_codes = False
+        #features_path = "/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/generative_input/entire_ceros_tabular_data_demos2.pkl"
+        features_path ="/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/generative_input/entire_ceros_tabular_data_demos2_whole.pkl"  
+ 
+    else:
+        exclude_codes = False
 
-features_path = "data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl"
+        features_path = "/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/generative_input/entire_ceros_tabular_data.pkl"
+
+else:
+    features_path = "data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl"
+
+
 make_read_constraints_name = 'synthetic_ehr_dataset_contrainst_ARF_'+name_file_ehr+'.pkl'
 path_to_directory = 'generated_synthcity_tabular/*'  # Asegúrate de incluir el asterisco al final
 csv_files = glob.glob(path_to_directory + '.pkl')
@@ -136,7 +217,7 @@ path_img = path_to_folder_syn+"img/"
 
 variables_generadas_post = [ 'id_patient', 'ADMITTIME', 'visit_rank','days from last visit']
 #cols to drop        
-columns_to_drop = ['LOSRD_sum', 'L_1s_last_p1','HADM_ID']   
+ 
 if adjust_age_and_dates_get:
     if get_synthetic_subject_clustering:
        columns_to_drop_syn = ['days from last visit_cumsum','similarity_score']
@@ -154,18 +235,47 @@ cols_continuous = [ 'Age', 'LOSRD_avg','days from last visit']
 categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
                         'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
                         'MARITAL_STATUS',  'ETHNICITY','GENDER',"visit_rank","HOSPITAL_EXPIRE_FLAG"  ]
+columns_to_drop_sec = ['GENDER_M', 'GENDER_F', 'RELIGION_CATHOLIC', 'RELIGION_Otra', 'RELIGION_Unknown',
+                          'MARITAL_STATUS_0', 'MARITAL_STATUS_DIVORCED', 'MARITAL_STATUS_LIFE PARTNER',
+                          'MARITAL_STATUS_MARRIED', 'MARITAL_STATUS_SEPARATED', 'MARITAL_STATUS_SINGLE',
+                          'MARITAL_STATUS_Unknown', 'MARITAL_STATUS_WIDOWED',
+                          'ETHNICITY_Otra', 'ETHNICITY_Unknown', 'ETHNICITY_WHITE','GENDER_0'] 
 #dependant visit , static information
 dependant_fist_visit = ['ADMITTIME',  'RELIGION',
 
                         'MARITAL_STATUS',  'ETHNICITY','GENDER']
 
+if label_encoded:
+    columnas_demograficas = ['RELIGION_encoded', 'MARITAL_STATUS_encoded',  'ETHNICITY_encoded','GENDER_encoded']
+    columns_to_drop = []  
+    get_handle_hospital_expire_flag = False
+else:     
+    columns_to_drop = ['LOSRD_sum', 'L_1s_last_p1','HADM_ID']  
+    columnas_demograficas =  ['Age',
+                                
+            'GENDER_M',
+            'GENDER_F',
+            'RELIGION_CATHOLIC',
+            'RELIGION_Otra',
+            'RELIGION_Unknown',
+            'MARITAL_STATUS_0',
+            'MARITAL_STATUS_DIVORCED',
+            'MARITAL_STATUS_LIFE PARTNER',
+            'MARITAL_STATUS_MARRIED',
+            'MARITAL_STATUS_SEPARATED',
+            'MARITAL_STATUS_SINGLE',
+            'MARITAL_STATUS_Unknown',
+            'MARITAL_STATUS_WIDOWED',
+            'ETHNICITY_Otra',
+            'ETHNICITY_Unknown',
+            'ETHNICITY_WHITE'
+        ]
+
 # codes icd9 and drugs
 keywords = ['diagnosis', 'procedures', 'drugs']
 #path to synthetic data
 #paths
-def load_data(file_path):
-    with gzip.open(file_path, 'rb') as f:
-        return pickle.load(f)
+
 
 train_ehr_dataset = load_data(features_path)
 diagnosis_columns = list(train_ehr_dataset.filter(like="diagnosis").columns)  # Ajusta los índices según corresponda
@@ -180,9 +290,8 @@ for i in dependant_fist_visit:
 
  # TODO Modify*
 attributes = False
-invert_normalize = False
-# si subject continuo was modeled continous; subject_continous
-subject_continous = False
+
+
 # Dooppleganger
 if attributes:
     path_o = "train_sp/"    
@@ -233,3 +342,7 @@ def set_graph_settings():
     plt.rcParams['legend.frameon'] = True
     plt.rcParams['legend.fontsize'] = 'medium'
     plt.rcParams['legend.loc'] = 'best'
+
+if exclude_codes:
+    list_col_exclute_path = "/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/generative_input/ARF_conditioned/results/no_code_list.pkl"
+    list_col_exclute = joblib.load( list_col_exclute_path)
