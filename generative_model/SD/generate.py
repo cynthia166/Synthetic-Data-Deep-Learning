@@ -8,7 +8,7 @@ from gretel_synthetics.timeseries_dgan.config import DGANConfig
 
 import numpy as np
 # Añadir el directorio evaluacion al sys.path
-ruta_evaluacion = os.path.dirname( '/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/generative_models/SD/')
+ruta_evaluacion = os.path.dirname( '/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/generative_model/SD/')
 print(os.getcwd())
 sys.path.append(ruta_evaluacion)
 
@@ -27,7 +27,7 @@ name_attributes_syn = 'synthetic_attributes.pkl'
 name_features_syn ='synthetic_features.pkl'
 
 
-SD = "modelgenerative_models/SD/model"
+SD = "modelgenerative_model/SD/model"
 name_file = "Dopplenganger_nonprepo_epochocs_10.pth"  
 
 ruta = SD+name_file

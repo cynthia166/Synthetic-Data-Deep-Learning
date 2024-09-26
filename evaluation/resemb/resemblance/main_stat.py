@@ -11,9 +11,9 @@ import sys
 sys.path.append(file_principal)
 from evaluation.resemb.resemblance.EvaluationResemblance import *
 from evaluation.resemb.resemblance.utilsstats import *
-import wandb
+#import wandb
 import evaluation.resemb.resemblance.config
-from generative_models.SD.constraints import *
+from generative_model.SD.constraints import *
 from evaluation.resemb.resemblance.config import *
 #from generative_model.SD.model.coupling_subject import *
     # Save the statistics to a file
@@ -24,6 +24,38 @@ if __name__=="__main__":
        #create electorni 
     test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,features  = load_create_ehr(read_ehr,save_ehr,file_path_dataset,sample_patients_path,file,valid_perc,features_path,name_file_ehr,type_file=type_archivo)
     print(file)
+    def compare_dataset_columns(dataset1, dataset2, name1="Dataset 1", name2="Dataset 2"):
+        """
+        Compare the columns of two datasets and report any differences.
+        
+        Parameters:
+        dataset1 (pd.DataFrame): The first dataset
+        dataset2 (pd.DataFrame): The second dataset
+        name1 (str): Name of the first dataset (for reporting)
+        name2 (str): Name of the second dataset (for reporting)
+        
+        Returns:
+        bool: True if the datasets have the same columns, False otherwise
+        """
+        columns1 = set(dataset1.columns)
+        columns2 = set(dataset2.columns)
+        
+        if columns1 == columns2:
+            print(f"{name1} and {name2} have the same columns.")
+            return True
+        else:
+            print(f"{name1} and {name2} have different columns.")
+            only_in_1 = columns1 - columns2
+            only_in_2 = columns2 - columns1
+            
+            if only_in_1:
+                print(f"Columns only in {name1}:", only_in_1)
+            if only_in_2:
+                print(f"Columns only in {name2}:", only_in_2)
+            
+            return False
+
+
     if exclude_codes:
         test_ehr_dataset= test_ehr_dataset[[i for i in test_ehr_dataset.columns if i not in list_col_exclute['codes_no'].to_list()]]
         train_ehr_dataset= train_ehr_dataset[[i for i in train_ehr_dataset.columns if i not in list_col_exclute['codes_no'].to_list()]]
@@ -112,9 +144,10 @@ if __name__=="__main__":
         list_metric_resemblance.extend([
             #"plot_kerneldis",
             #"plot_dimension_wise",
-            #"plot_prevalence_wise",
-            "demographics_analysis_medicalcodes",
-            #"age_occurance_stat"
+            "plot_prevalence_wise",
+            #"demographics_analysis_medicalcodes",
+           # "age_occurance_stat",
+        #"plot_genereate_histogramplot_total_unique_stats",
                                    
                                  
         ])
@@ -124,11 +157,13 @@ if __name__=="__main__":
             # "get_descriptive_statistics",
             #  "dimenssion_bernoulli",
             #   "get_proportion_demos",
-            #  "compare_average_trends_recordlen",
-            # "outliers_and_histograms_patients_admissions",
-            # "get_patient_stats",
+           #  "compare_average_trends_recordlen",
+           # "outliers_and_histograms_patients_admissions",
+           # "get_patient_stats",
            #"get_analyze_one_hot_encoding_var",
-           "get_get_analyze_continous"
+           #"get_get_analyze_continous",
+           # "get_domain",
+           #"get_proportion_visits"
              ])
     if metric_joint_distribution_similarity_coverage:
         list_metric_resemblance .extend([

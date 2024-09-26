@@ -29,7 +29,7 @@ from sklearn.metrics import confusion_matrix, roc_curve, f1_score
 from xgboost import XGBClassifier  # Specifically
 import time 
 
-sys.path.append('generative_models')
+sys.path.append('generative_model')
 import os
 
 # Cambiar el directorio de trabajo actual

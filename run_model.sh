@@ -54,4 +54,4 @@ echo "Starting training"
 
 export PYTHONUNBUFFERED=1 # make sure to print all to logs
 #cd $REPO_DIR
-python "generative_models/Model_Stimeseries.py"  
+python "generative_model/Model_Stimeseries.py"  

@@ -15,7 +15,7 @@ from sklearn.decomposition import PCA
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import confusion_matrix, roc_curve, f1_score
-from xgboost import XGBClassifier  # Specifically
+#from xgboost import XGBClassifier  # Specifically
 import time 
 
 import pandas as pd 
@@ -24,7 +24,7 @@ import os
 import os
 import pickle
 import gzip
-sys.path.append('generative_models')
+sys.path.append('generative_model')
 import os
 
 

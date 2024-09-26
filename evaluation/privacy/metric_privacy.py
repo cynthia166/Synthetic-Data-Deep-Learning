@@ -25,7 +25,7 @@ from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 import pandas as pd
 #import torch
-from pydantic import validate_arguments
+
 from scipy import stats
 from scipy.stats import entropy
 from sklearn.cluster import KMeans
@@ -46,7 +46,7 @@ from config import *
 import numpy as np
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedKFold
-from xgboost import XGBClassifier
+#from xgboost import XGBClassifier
 
 #sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/')
 #os.chdir('../')

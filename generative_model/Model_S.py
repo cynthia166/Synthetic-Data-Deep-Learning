@@ -46,7 +46,7 @@ def load_data(file_path):
     with gzip.open(file_path, 'rb') as f:
         return pickle.load(f)
     
-SD = "generative_models/"
+SD = "generative_model/"
  
 train_split = False
 if train_split == True:

@@ -169,7 +169,7 @@ def filter_columns_by_partial_name(df: pd.DataFrame, partial_names: list):
             filtered_columns.append(col)
     return filtered_columns    
     
-SD = "generative_models/Doopleganger/"
+SD = "generative_model/Doopleganger/"
 synthetic_file = "synthetic_data_doopleganger.pkl"
 train_split = False
 if train_split == True:

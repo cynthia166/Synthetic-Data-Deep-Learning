@@ -1,11 +1,11 @@
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
 import pandas as pd
-import polars as pl
+#import polars as pl
 import glob
 import numpy as np
 import pandas as pd
-import plotly.express as px
+#import plotly.express as px
 import os
 import glob
 #import psycopg2
@@ -21,17 +21,17 @@ from multiprocessing import Pool, cpu_count
 import polars as pl
 
 import pandas as pd
-from icdmappings import Mapper
+#from icdmappings import Mapper
 import pandas as pd
 import numpy as np
 import pandas as pd
-import plotly.express as px
+#import plotly.express as px
 import glob
 import pandas as pd
-from icdmappings import Mapper
+#from icdmappings import Mapper
 import pandas as pd
 from pathlib import Path
-import plotly.express as px
+#import plotly.express as px
 
 import glob
 
@@ -49,11 +49,9 @@ import math
 from multiprocessing import Pool, cpu_count
 
 #from utils import getConnection
-import polars as pl
-
 from xml.dom.pulldom import ErrorHandler
 import pandas as pd
-import dill
+#import dill
 import numpy as np
 from collections import defaultdict
 #from rdkit import Chem

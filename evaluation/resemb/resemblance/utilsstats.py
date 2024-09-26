@@ -62,9 +62,9 @@ from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 import matplotlib.pyplot as plt
 from scipy.stats import wasserstein_distance
-from generative_models.SD.constraints import *
+from generative_model.SD.constraints import *
 import pickle
-import wandb
+#import wandb
 
 import random
 import numpy as np
@@ -255,9 +255,11 @@ import numpy as np
 def analyze_diagnoses(real_df, synthetic_df, diagnosis_codes, age_column='Age'):
     def get_diagnosis_stats(df):
         # Count diagnoses
+        total_patients = df.id_patient.nunique()
         diagnosis_counts = pd.DataFrame({
             'Count': df[diagnosis_codes].sum(),
-            'Percentage': (df[diagnosis_codes].sum() / len(df)) * 100
+             'Patients with Code (%)': (df[diagnosis_codes] > 0).sum() / total_patients * 100
+
         }).sort_values('Count', ascending=False)
         
         # Get age statistics for each diagnosis
@@ -282,7 +284,7 @@ def analyze_diagnoses(real_df, synthetic_df, diagnosis_codes, age_column='Age'):
                             'Category': label,
                             'Diagnosis Code': code,
                             'Count': row['Count'],
-                            'Percentage': row['Percentage'],
+                            'Patients with Code (%)': row['Patients with Code (%)'],
                             'Age Mean': age_desc['mean'],
                             'Age Std': age_desc['std'],
                             'Age Min': age_desc['min'],
@@ -303,7 +305,7 @@ def analyze_diagnoses(real_df, synthetic_df, diagnosis_codes, age_column='Age'):
                     'Dataset': dataset_name,
                     'Diagnosis Code': code,
                     'Count': row['Count'],
-                    'Percentage': row['Percentage'],
+                    'Patients with Code (%)': row['Patients with Code (%)'],
                     'Age Mean': age_desc['mean'],
                     'Age Std': age_desc['std'],
                     'Age Min': age_desc['min'],
@@ -329,7 +331,7 @@ def analyze_diagnoses(real_df, synthetic_df, diagnosis_codes, age_column='Age'):
     # Calculate differences
     diff_results = synthetic_results.copy()
     diff_results['Dataset'] = 'Difference'
-    for col in ['Count', 'Percentage', 'Age Mean', 'Age Std', 'Age Min', 'Age 25%', 'Age Median', 'Age 75%', 'Age Max']:
+    for col in ['Count', 'Patients with Code (%)', 'Age Mean', 'Age Std', 'Age Min', 'Age 25%', 'Age Median', 'Age 75%', 'Age Max']:
         diff_results[col] = synthetic_results[col] - real_results[col]
 
     # Combine all results
@@ -6232,10 +6234,50 @@ def analyze_demographicsved(data, column_groups):
     
     return df_visits, df_overall
 
-
-
-
 def analyze_patient_data2(data, diagnosis_cols, drug_cols, procedure_cols, type_level, is_synthetic=False):
+    all_code_cols = diagnosis_cols + drug_cols + procedure_cols
+
+    patient_stats = pd.DataFrame()
+    patient_stats['unique_diagnoses'] = (data[diagnosis_cols] != 0).sum(axis=1)
+    patient_stats['total_diagnoses'] = data[diagnosis_cols].sum(axis=1)
+    patient_stats['unique_drugs'] = (data[drug_cols] != 0).sum(axis=1)
+    patient_stats['total_drugs'] = data[drug_cols].sum(axis=1)
+    patient_stats['unique_procedures'] = (data[procedure_cols] != 0).sum(axis=1)
+    patient_stats['total_procedures'] = data[procedure_cols].sum(axis=1)
+    patient_stats['unique_all_codes'] = (data[all_code_cols] != 0).sum(axis=1)
+    patient_stats['total_all_codes'] = data[all_code_cols].sum(axis=1)
+
+    if type_level != "Visit level":
+        patient_stats['drug_intensity'] = patient_stats['total_drugs'] / data['visit_rank'].max()
+        patient_stats['diagnosis_intensity'] = patient_stats['total_diagnoses'] / data['visit_rank'].max()
+        patient_stats['procedure_intensity'] = patient_stats['total_procedures'] / data['visit_rank'].max()
+        patient_stats['all_codes_intensity'] = patient_stats['total_all_codes'] / data['visit_rank'].max()
+    else:
+        patient_stats['drug_intensity'] = 0
+        patient_stats['diagnosis_intensity'] = 0
+        patient_stats['procedure_intensity'] = 0
+        patient_stats['all_codes_intensity'] = 0
+
+    overall_stats = {
+        'avg_unique_diagnoses_per_admission': patient_stats['unique_diagnoses'].mean(),
+        'std_unique_diagnoses_per_admission': patient_stats['unique_diagnoses'].std(),
+        'avg_unique_drugs_per_admission': patient_stats['unique_drugs'].mean(),
+        'std_unique_drugs_per_admission': patient_stats['unique_drugs'].std(),
+        'avg_unique_procedures_per_admission': patient_stats['unique_procedures'].mean(),
+        'std_unique_procedures_per_admission': patient_stats['unique_procedures'].std(),
+        'avg_total_diagnoses_per_admission': patient_stats['total_diagnoses'].mean(),
+        'std_total_diagnoses_per_admission': patient_stats['total_diagnoses'].std(),
+        'avg_total_drugs_per_admission': patient_stats['total_drugs'].mean(),
+        'std_total_drugs_per_admission': patient_stats['total_drugs'].std(),
+        'avg_total_procedures_per_admission': patient_stats['total_procedures'].mean(),
+        'std_total_procedures_per_admission': patient_stats['total_procedures'].std(),
+    }
+
+    return pd.DataFrame(overall_stats, index=['value']).T, patient_stats
+
+
+
+def analyze_patient_data2_ori(data, diagnosis_cols, drug_cols, procedure_cols, type_level, is_synthetic=False):
     all_code_cols = diagnosis_cols + drug_cols + procedure_cols
 
     patient_stats = pd.DataFrame()
@@ -6365,9 +6407,49 @@ def print_latex_generate_stats2(train_ehr_dataset, synthetic_ehr_dataset, diagno
 
     return patient_level_stats
 
+def get_stat_per_visit3(data, diagnosis_cols, drug_cols, procedure_cols, type_level, is_synthetic=False):
+    all_code_cols = diagnosis_cols + drug_cols + procedure_cols
+
+    patient_stats = pd.DataFrame()
+    patient_stats['unique_diagnoses'] = (data[diagnosis_cols] != 0).sum(axis=1)
+    patient_stats['total_diagnoses'] = data[diagnosis_cols].sum(axis=1)
+    patient_stats['unique_drugs'] = (data[drug_cols] != 0).sum(axis=1)
+    patient_stats['total_drugs'] = data[drug_cols].sum(axis=1)
+    patient_stats['unique_procedures'] = (data[procedure_cols] != 0).sum(axis=1)
+    patient_stats['total_procedures'] = data[procedure_cols].sum(axis=1)
+    patient_stats['unique_all_codes'] = (data[all_code_cols] != 0).sum(axis=1)
+    patient_stats['total_all_codes'] = data[all_code_cols].sum(axis=1)
+
+    if type_level != "Visit level":
+        patient_stats['drug_intensity'] = patient_stats['total_drugs'] / data['visit_rank'].max()
+        patient_stats['diagnosis_intensity'] = patient_stats['total_diagnoses'] / data['visit_rank'].max()
+        patient_stats['procedure_intensity'] = patient_stats['total_procedures'] / data['visit_rank'].max()
+        patient_stats['all_codes_intensity'] = patient_stats['total_all_codes'] / data['visit_rank'].max()
+    else:
+        patient_stats['drug_intensity'] = 0
+        patient_stats['diagnosis_intensity'] = 0
+        patient_stats['procedure_intensity'] = 0
+        patient_stats['all_codes_intensity'] = 0
+
+    overall_stats = {
+        'avg_unique_diagnoses_per_admission': patient_stats['unique_diagnoses'].mean(),
+        'std_unique_diagnoses_per_admission': patient_stats['unique_diagnoses'].std(),
+        'avg_unique_drugs_per_admission': patient_stats['unique_drugs'].mean(),
+        'std_unique_drugs_per_admission': patient_stats['unique_drugs'].std(),
+        'avg_unique_procedures_per_admission': patient_stats['unique_procedures'].mean(),
+        'std_unique_procedures_per_admission': patient_stats['unique_procedures'].std(),
+        'avg_total_diagnoses_per_admission': patient_stats['total_diagnoses'].mean(),
+        'std_total_diagnoses_per_admission': patient_stats['total_diagnoses'].std(),
+        'avg_total_drugs_per_admission': patient_stats['total_drugs'].mean(),
+        'std_total_drugs_per_admission': patient_stats['total_drugs'].std(),
+        'avg_total_procedures_per_admission': patient_stats['total_procedures'].mean(),
+        'std_total_procedures_per_admission': patient_stats['total_procedures'].std(),
+    }
+
+    return pd.DataFrame(overall_stats, index=['value']).T, patient_stats
 
 
-def get_stat_per_visit3(data, diagnosis_columns, medication_columns, procedure_columns, type_level, is_synthetic=True):
+def get_stat_per_visit3_ori(data, diagnosis_columns, medication_columns, procedure_columns, type_level, is_synthetic=True):
     visit_stats = {}
     all_code_cols = diagnosis_columns + medication_columns + procedure_columns
     for visit in range(1, 6):
@@ -6433,6 +6515,57 @@ def generate_latex_table3(real_data, synthetic_data, caption, label):
     return latex_table    
 
 def generate_latex_table3_v2(real_data, synthetic_data, caption, label):
+    latex_table = f"\\begin{{table}}[H]\n\\centering\n"
+    latex_table += f"\\caption{{{caption}}}\n\\label{{{label}}}\n"
+    latex_table += "\\begin{adjustbox}{max width=\\textwidth}\n"
+    latex_table += "\\begin{tabular}{clrrr}\n\\hline\n"
+    
+    # Header
+    latex_table += "\\multicolumn{1}{l}{Medical Codes} & \\multicolumn{1}{c}{Statistic} & Real & Synthetic & Change (\\%) \\\\ \\hline\n"
+    
+    # Function to calculate percent change
+    def percent_change(real, synth):
+        return (synth - real) / real * 100 if real != 0 else 0
+
+    # Function to format value with color based on percent change
+    def format_value(real, synth, is_std=False):
+        change = percent_change(real, synth)
+        color = "red" if (abs(change) > 10 and is_std) or (abs(change) > 1 and not is_std) else "black"
+        return f"\\textcolor{{{color}}}{{{synth:.2f}}}", f"\\textcolor{{{color}}}{{{change:.2f}}}"
+
+    # Unique Codes
+    latex_table += "\\multicolumn{5}{c}{\\textbf{Unique}} \\\\ \\hline\n"
+    for code in ["Diagnosis", "Drugs", "Procedures"]:
+        real_mean = real_data[f"avg_unique_{code.lower()}_per_admission"]["value"]
+        real_std = real_data[f"std_unique_{code.lower()}_per_admission"]["value"]
+        synth_mean = synthetic_data[f"avg_unique_{code.lower()}_per_admission"]["value"]
+        synth_std = synthetic_data[f"std_unique_{code.lower()}_per_admission"]["value"]
+
+        synth_mean_formatted, mean_change = format_value(real_mean, synth_mean)
+        synth_std_formatted, std_change = format_value(real_std, synth_std, is_std=True)
+
+        latex_table += f"{code} & mean & {real_mean:.2f} & {synth_mean_formatted} & {mean_change} \\\\\n"
+        latex_table += f"& std & {real_std:.2f} & {synth_std_formatted} & {std_change} \\\\\n"
+
+    # Total Codes
+    latex_table += "\\hline\n\\multicolumn{5}{c}{\\textbf{Total}} \\\\ \\hline\n"
+    for code in ["Diagnosis", "Drugs", "Procedures"]:
+        real_mean = real_data[f"avg_total_{code.lower()}_per_admission"]["value"]
+        real_std = real_data[f"std_total_{code.lower()}_per_admission"]["value"]
+        synth_mean = synthetic_data[f"avg_total_{code.lower()}_per_admission"]["value"]
+        synth_std = synthetic_data[f"std_total_{code.lower()}_per_admission"]["value"]
+
+        synth_mean_formatted, mean_change = format_value(real_mean, synth_mean)
+        synth_std_formatted, std_change = format_value(real_std, synth_std, is_std=True)
+
+        latex_table += f"{code} & mean & {real_mean:.2f} & {synth_mean_formatted} & {mean_change} \\\\\n"
+        latex_table += f"& std & {real_std:.2f} & {synth_std_formatted} & {std_change} \\\\\n"
+
+    latex_table += "\\hline\n\\end{tabular}\n\\end{adjustbox}\n\\end{table}\n"
+    
+    return latex_table
+
+def generate_latex_table3_v2_ori(real_data, synthetic_data, caption, label):
     columns = ['UD', 'TD', 'UDr', 'TDr', 'UP', 'TP']
     
     latex_table = f"\\begin{{table}}[H]\n\\centering\n"
@@ -7150,6 +7283,163 @@ def generate_demographics_latex_table(real_data, synthetic_data, column_groups, 
     print(latex_table)  # Print the LaTeX table
     return combined_data  # Return the DataFrame for further analysis if needed
 
+
+def compare_and_plot_datasets(real_data, synthetic_data, diagnosis_cols, drug_cols, procedure_cols, type_level):
+    def analyze_patient_data(data):
+        all_code_cols = diagnosis_cols + drug_cols + procedure_cols
+        patient_stats = pd.DataFrame()
+        patient_stats['unique_all_codes'] = (data[all_code_cols] != 0).sum(axis=1)
+        patient_stats['total_all_codes'] = data[all_code_cols].sum(axis=1)
+        return patient_stats
+
+
+    def analyze_patient_data(data):
+        all_code_cols = diagnosis_cols.to_list() + drug_cols.to_list() + procedure_cols.to_list()
+        patient_stats = pd.DataFrame()
+        patient_stats['unique_all_codes'] = (data[all_code_cols] != 0).sum(axis=1)
+        patient_stats['total_all_codes'] = data[all_code_cols].sum(axis=1)
+        return patient_stats
+
+    real_stats = analyze_patient_data(real_data)
+    synthetic_stats = analyze_patient_data(synthetic_data)
+
+    def plot_histogram(real_column, synthetic_column, title, xlabel):
+        max_value = max(real_column.max(), synthetic_column.max())
+        min_value = min(0, real_column.min(), synthetic_column.min())
+        bins = np.linspace(min_value, max_value, 101)
+
+        plt.figure(figsize=(12, 6))
+        sns.histplot(real_column, color='blue', label='Real', bins=bins, stat='count', alpha=0.5)
+        sns.histplot(synthetic_column, color='#B8860B', label='Synthetic', bins=bins, stat='count', alpha=0.5)
+
+        real_counts, bin_edges = np.histogram(real_column, bins=bins)
+        synthetic_counts, _ = np.histogram(synthetic_column, bins=bins)
+        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+        wd = wasserstein_distance(bin_centers, bin_centers, u_weights=real_counts, v_weights=synthetic_counts)
+
+        plt.title(f'{title}\nWasserstein Distance: {wd:.4f}')
+        plt.xlabel(xlabel)
+        plt.ylabel('Number of Admissions')
+        plt.legend(title='Data Type')
+        plt.xlim(left=0)
+        plt.ylim(bottom=0)
+        plt.show()
+        if path_img is not None:
+            save_plot_as_svg(plt, path_img, "hist_tota_uniq")
+
+
+    plot_histogram(real_stats['unique_all_codes'], synthetic_stats['unique_all_codes'], 
+                   'Distribution of Unique Codes per Admission', 'Number of Unique Codes')
+    plot_histogram(real_stats['total_all_codes'], synthetic_stats['total_all_codes'], 
+                   'Distribution of Total Codes per Admission', 'Total Number of Codes')
+
+def compare_and_plot_datasets(real_data, synthetic_data, diagnosis_cols, drug_cols, procedure_cols, path_img):
+    def analyze_patient_data(data):
+        all_code_cols = diagnosis_cols.to_list() + drug_cols.to_list() + procedure_cols.to_list()
+        patient_stats = pd.DataFrame()
+        patient_stats['unique_all_codes'] = (data[all_code_cols] != 0).sum(axis=1)
+        patient_stats['total_all_codes'] = data[all_code_cols].sum(axis=1)
+        return patient_stats
+
+    real_stats = analyze_patient_data(real_data)
+    synthetic_stats = analyze_patient_data(synthetic_data)
+
+    def plot_histogram(ax, real_column, synthetic_column, title, xlabel):
+        max_value = max(real_column.max(), synthetic_column.max())
+        min_value = min(0, real_column.min(), synthetic_column.min())
+        bins = np.linspace(min_value, max_value, 70)  # Reduced number of bins for clarity
+
+        sns.histplot(real_column, color='blue', label='Real', bins=bins, stat='count', alpha=0.5, ax=ax)
+        sns.histplot(synthetic_column, color='#B8860B', label='Synthetic', bins=bins, stat='count', alpha=0.5, ax=ax)
+
+        wd = wasserstein_distance(real_column, synthetic_column)
+
+        ax.set_title(f'{title}\nWasserstein Distance: {wd:.4f}')
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel('Number of Admissions')
+        ax.legend(title='Data Type')
+        ax.set_xlim(left=0)
+        ax.set_ylim(bottom=0)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))
+
+    plot_histogram(ax1, real_stats['unique_all_codes'], synthetic_stats['unique_all_codes'], 
+                   'Unique Codes per Admission', 'Number of Unique Codes')
+    plot_histogram(ax2, real_stats['total_all_codes'], synthetic_stats['total_all_codes'], 
+                   'Total Codes per Admission', 'Total Number of Codes')
+
+    plt.tight_layout()
+    plt.show()
+    plt.savefig(f'{path_img}_histogram_stats.png')
+    
+    
+def compare_and_plot_datasets_patients(real_data, synthetic_data, diagnosis_cols, drug_cols, procedure_cols, path_img,truncated=True):
+    def analyze_patient_data(data):
+        all_code_cols = diagnosis_cols.to_list() + drug_cols.to_list() + procedure_cols.to_list()
+        patient_stats = pd.DataFrame()
+        patient_stats['unique_all_codes'] = (data[all_code_cols] != 0).sum(axis=1)
+        patient_stats['total_all_codes'] = data[all_code_cols].sum(axis=1)
+        return patient_stats
+
+    real_stats = analyze_patient_data(real_data)
+    synthetic_stats = analyze_patient_data(synthetic_data)
+
+    # Count patients with more than 400 total codes
+    if truncated:
+        real_truncated = (real_stats['total_all_codes'] > 400).sum()
+        synthetic_truncated = (synthetic_stats['total_all_codes'] > 400).sum()
+
+        print(f"Number of patients with more than 400 codes in real data: {real_truncated}")
+        print(f"Number of patients with more than 400 codes in synthetic data: {synthetic_truncated}")
+
+    def plot_histogram(ax, real_column, synthetic_column, title, xlabel):
+        # Filter out values above 400 for plotting and Wasserstein distance calculation}
+        if truncated:
+            real_filtered = real_column[real_column <= 400]
+            
+            synthetic_filtered = synthetic_column[synthetic_column <= 400]
+            if title== 'Unique Codes per patient':
+                 max_value = max(real_column.max(), synthetic_column.max())
+                 min_value = min(0, real_column.min(), synthetic_column.min())
+            else:    
+                max_value = 400
+                min_value = 0
+        else:
+            real_filtered = real_column
+            synthetic_filtered = synthetic_column
+            max_value = max(real_column.max(), synthetic_column.max())
+            min_value = min(0, real_column.min(), synthetic_column.min())
+   
+        
+        bins = np.linspace(min_value, max_value, 70)  # 50 bins up to 400
+
+        sns.histplot(real_filtered, color='blue', label='Real', bins=bins, stat='count', alpha=0.5, ax=ax)
+        sns.histplot(synthetic_filtered, color='#B8860B', label='Synthetic', bins=bins, stat='count', alpha=0.5, ax=ax)
+
+        wd = wasserstein_distance(real_filtered, synthetic_filtered)
+
+        ax.set_title(f'{title}\nWasserstein Distance: {wd:.4f}')
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel('Number of patients')
+        ax.legend(title='Data Type')
+        ax.set_xlim(left=0, right=max_value)
+        ax.set_ylim(bottom=0)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))
+
+    plot_histogram(ax1, real_stats['unique_all_codes'], synthetic_stats['unique_all_codes'], 
+                   'Unique Codes per patient', 'Number of Unique Codes')
+    plot_histogram(ax2, real_stats['total_all_codes'], synthetic_stats['total_all_codes'], 
+                   'Total Codes per patient (up to 400)', 'Total Number of Codes')
+
+    plt.tight_layout()
+    plt.show()
+    plt.savefig(f'{path_img}_histogram_stats_patient.png')
+
+# Usage example:
+# 
+
+
 # Example usage:
 # real_data = pd.DataFrame({
 #     'gender_m': [1, 0, 1, ...],
@@ -7175,3 +7465,245 @@ def generate_demographics_latex_table(real_data, synthetic_data, column_groups, 
 # caption = "statistics of static variables"
 # label = "tab:stats_table"
 # result_df = generate_demographics_latex_table(real_data, synthetic_data, column_groups, caption, label)
+
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy.stats import wasserstein_distance
+
+def calculate_adaptive_bins(real_data, synthetic_data):
+    # Encuentra el rango de los datos
+    min_value = min(min(real_data), min(synthetic_data))
+    max_value = max(max(real_data), max(synthetic_data))
+    
+    # Encuentra todos los valores únicos
+    unique_values = sorted(set(real_data) | set(synthetic_data))
+    
+    # Calcula las diferencias entre valores adyacentes
+    differences = [unique_values[i+1] - unique_values[i] for i in range(len(unique_values)-1)]
+    
+    # Encuentra la diferencia mínima (que no sea cero)
+    min_diff = min(diff for diff in differences if diff > 0)
+    
+    # Crea los bins
+    bins = np.arange(min_value, max_value + min_diff, min_diff)
+    
+    return bins
+def compare_and_plot_datasets_patients_syn(real_data, synthetic_data, diagnosis_cols, drug_cols, procedure_cols, path_img, truncated=True,type_graph="admissions"):
+    def analyze_patient_data(data):
+        all_code_cols = diagnosis_cols.to_list() + drug_cols.to_list() + procedure_cols.to_list()
+        patient_stats = pd.DataFrame()
+        patient_stats['unique_diagnoses'] = (data[diagnosis_cols] != 0).sum(axis=1)
+        patient_stats['total_diagnoses'] = data[diagnosis_cols].sum(axis=1)
+        patient_stats['unique_drugs'] = (data[drug_cols] != 0).sum(axis=1)
+        patient_stats['total_drugs'] = data[drug_cols].sum(axis=1)
+        patient_stats['unique_procedures'] = (data[procedure_cols] != 0).sum(axis=1)
+        patient_stats['total_procedures'] = data[procedure_cols].sum(axis=1)
+        patient_stats['unique_all_codes'] = (data[all_code_cols] != 0).sum(axis=1)
+        patient_stats['total_all_codes'] = data[all_code_cols].sum(axis=1)
+        return patient_stats
+
+    real_stats = analyze_patient_data(real_data)
+    synthetic_stats = analyze_patient_data(synthetic_data)
+    
+    def plot_histogram_patient(ax, real_column, synthetic_column, main_title, subtitle, xlabel):
+        if 'total' in xlabel.lower():
+            if 'drugs' in subtitle.lower():
+                max_value = 400
+            elif 'diagnoses' in subtitle.lower():
+                max_value = 200
+            elif 'procedures' in subtitle.lower():
+                max_value = 30
+            else:
+                max_value = real_column.max()
+
+            real_filtered = real_column[real_column <= max_value]
+            synthetic_filtered = synthetic_column[synthetic_column <= max_value]
+
+            real_truncated = (real_column > max_value).sum()
+            synthetic_truncated = (synthetic_column > max_value).sum()
+            print(f"Number of {type_graph} with more than {max_value} {subtitle} in real data: {real_truncated}")
+            print(f"Number of {type_graph} with more than {max_value} {subtitle} in synthetic data: {synthetic_truncated}")
+        else:
+            real_filtered = real_column
+            synthetic_filtered = synthetic_column
+            max_value = max(real_column.max(), synthetic_column.max())
+
+        min_value = 0
+        bins = np.linspace(min_value, max_value, 25)
+
+        sns.histplot(real_filtered, color='blue', label='Real', bins=bins, stat='count', alpha=0.5, ax=ax)
+        sns.histplot(synthetic_filtered, color='#B8860B', label='Synthetic', bins=bins, stat='count', alpha=0.5, ax=ax)
+
+        wd = wasserstein_distance(real_filtered, synthetic_filtered)
+
+        ax.set_title(f'{subtitle.capitalize()}', fontsize=14, fontweight='bold')
+        ax.text(1.1, 1.1, f'Wasserstein Distance: {wd:.2f}', 
+            horizontalalignment='right',
+            verticalalignment='top',
+            transform=ax.transAxes,
+            fontsize=12)
+
+        ax.set_xlabel(xlabel)
+        if type_graph == "admissions":
+            ax.set_ylabel('Number of admissions')
+        else:
+            ax.set_ylabel('Number of patients')
+                
+        ax.legend(title='Data Type')
+        ax.set_xlim(left=0, right=max_value)
+        ax.set_ylim(bottom=0)
+    def plot_histogram(ax, real_column, synthetic_column, main_title, subtitle, xlabel):
+        real_95th_percentile = real_column.quantile(1)
+        synthetic_95th_percentile = synthetic_column.quantile(1)
+
+    
+        if truncated:
+            real_truncated = (real_column > real_95th_percentile).sum()
+            synthetic_truncated = (synthetic_column > real_95th_percentile).sum()
+            print(f"Number of {type_graph} with more than {real_95th_percentile} codes in real data: {real_truncated}")
+            print(f"Number of {type_graph} with more than {real_95th_percentile} codes in synthetic data: {synthetic_truncated}")
+
+            real_filtered = real_column[real_column <= real_95th_percentile]
+            synthetic_filtered = synthetic_column[synthetic_column <= real_95th_percentile]
+            max_value = real_95th_percentile
+            min_value = 0
+        else:
+            real_filtered = real_column
+            synthetic_filtered = synthetic_column
+            max_value = max(real_column.max(), synthetic_column.max())
+            min_value = min(0, real_column.min(), synthetic_column.min())
+
+        bins = np.linspace(min_value, max_value, 25)
+        #bins = calculate_adaptive_bins(real_filtered, synthetic_filtered)
+        sns.histplot(real_filtered, color='blue', label='Real', bins=bins, stat='count', alpha=0.5, ax=ax)
+        sns.histplot(synthetic_filtered, color='#B8860B', label='Synthetic', bins=bins, stat='count', alpha=0.5, ax=ax)
+
+        wd = wasserstein_distance(real_filtered, synthetic_filtered)
+
+        #ax.set_title(f'{subtitle}\nWasserstein Distance: {wd:.2f}')
+        ax.set_title(f'{subtitle.capitalize()}', fontsize=14, fontweight='bold')
+        ax.text(1.1, 1.1, f'Wasserstein Distance: {wd:.2f}', 
+            horizontalalignment='right',
+            verticalalignment='top',
+            transform=ax.transAxes,
+            fontsize=12)
+
+
+        ax.set_xlabel(xlabel)
+        if type_graph == "admissions":
+            ax.set_ylabel('Number of admissions')
+        else:
+            ax.set_ylabel('Number of patients')
+                
+        ax.legend(title='Data Type')
+        ax.set_xlim(left=0, right=max_value)
+        ax.set_ylim(bottom=0)
+
+    fig, axs = plt.subplots(3, 2, figsize=(20, 24))
+
+    plot_types = ['unique', 'total']
+    code_types = ['drugs', 'diagnoses', 'procedures']
+
+    for i, code_type in enumerate(code_types):
+        print(i)
+        print(code_type)
+        for j, plot_type in enumerate(plot_types):
+            column_name = f"{plot_type}_{code_type}"
+            print(column_name)
+            subtitle = f"{code_type}"
+            xlabel = f"Number of {plot_type} codes"
+            #title = f"{plot_type.capitalize()} {code_type.capitalize()} per patient"
+            #xlabel = f"Number of {plot_type.capitalize()} {code_type.capitalize()}"
+            #plot_histogram(axs[i, j], real_stats[column_name], synthetic_stats[column_name], title, xlabel)
+            title = code_type.capitalize()
+            if type_graph =="admissions":
+                plot_histogram(axs[i, j], real_stats[column_name], synthetic_stats[column_name], title, subtitle, xlabel)
+            else:
+                plot_histogram_patient(axs[i, j], real_stats[column_name], synthetic_stats[column_name], title, subtitle, xlabel) 
+    plt.tight_layout()
+    
+    plt.savefig(f'{path_img}_histogram_stats_patient_{type_graph}_.png')
+    plt.show()
+    plt.close()
+    
+    
+def modified_get_proportions(df, type_st):
+    tablas_proporciones = []
+    
+    for column in df.columns:
+        recuento = df[column].value_counts()
+        proporciones = recuento / len(df)
+        
+        # Create a DataFrame with the first 10 visits and aggregate the rest
+        if len(recuento) > 10:
+            top_10 = recuento.head(10)
+            others = pd.Series({'Others': recuento.iloc[10:].sum()})
+            recuento = pd.concat([top_10, others])
+            
+            top_10_prop = proporciones.head(10)
+            others_prop = pd.Series({'Others': proporciones.iloc[10:].sum()})
+            proporciones = pd.concat([top_10_prop, others_prop])
+        
+        tabla_actual = pd.DataFrame({
+            'Category': recuento.index,
+            f'Count {type_st}': recuento.values,
+            f'Proportion {type_st}': proporciones.values.round(4)  # Round to 2 decimal places
+        })
+        
+        tabla_actual['Variable'] = column
+        tablas_proporciones.append(tabla_actual)
+    
+    tabla_proporciones_final = pd.concat(tablas_proporciones, ignore_index=True)
+    return tabla_proporciones_final
+
+# Example usage
+def process_data(train_ehr_dataset, synthetic_ehr_dataset, cols_f):
+    tabla_proporciones_final = modified_get_proportions(train_ehr_dataset[[cols_f]], f"train {cols_f}")
+    tabla_proporciones_final_2 = modified_get_proportions(synthetic_ehr_dataset[[cols_f]], f"synthetic {cols_f}")
+    
+    total = pd.merge(tabla_proporciones_final, tabla_proporciones_final_2, 
+                     on=["Variable", "Category"], how='inner')
+    
+    total = total.round(4)  # Ensure all numeric columns are rounded to 2 decimal places
+    
+    return total
+
+
+from collections import Counter
+
+
+def analyze_diagnosis_frequency(admissions_df, high_proportion_list, top_n=10):
+    # Create a set of drug codes from high_proportion_list for faster lookup
+    high_proportion_drugs = {item[0].split('_')[0] for item in high_proportion_list if item[1] == 'Drugs'}
+    
+    # Separate drug and diagnosis columns
+    drug_columns = [col for col in admissions_df.columns if col.split('_')[0] in high_proportion_drugs]
+    diagnosis_columns = [col for col in admissions_df.columns if col.endswith('_diagnosis')]
+    
+    # Find the most common drugs
+    drug_sums = admissions_df[drug_columns].sum()
+    most_common_drugs = drug_sums.nlargest(top_n)
+    
+    results = {}
+    
+    for drug, drug_count in most_common_drugs.items():
+        # Find rows where this drug is present (count > 0)
+        drug_rows = admissions_df[admissions_df[drug] > 0]
+        
+        # Count the occurrences of each diagnosis in these rows
+        diagnosis_counts = drug_rows[diagnosis_columns].sum()
+        
+        # Sort diagnoses and get top N
+        top_diagnoses = diagnosis_counts.nlargest(top_n)
+        
+        # Store results
+        results[drug] = {
+            'drug_count': drug_count,
+            'top_diagnoses': [(diag.split('_diagnosis')[0], count) for diag, count in top_diagnoses.items()]
+        }
+    
+    return results
+    

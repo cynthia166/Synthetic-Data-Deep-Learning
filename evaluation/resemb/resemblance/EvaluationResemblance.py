@@ -233,13 +233,85 @@ class EHRResemblanceMetrics:
         if "age_occurance_stat" in self.list_metric_resemblance:
             logging.info("age_occurance_stat") 
             results = self.age_occurance_stat()
-               
+        if "plot_genereate_histogramplot_total_unique_stats" in self.list_metric_resemblance:
+            logging.info("plot_genereate_histogramplot_total_unique_stats")
+            results = self.plot_genereate_histogramplot_total_unique_stats()    
+        if "get_domain" in self.list_metric_resemblance:
+            self.get_domain()
+            logging.info(" get_domain")
+        if "get_proportion_visits" in self.list_metric_resemblance:
+            self.get_proportion_visits()
+            logging.info(" get_domain")    
             
         return results
+    def get_proportion_visits(self):
+        result = process_data(self.train_ehr_dataset, self.synthetic_ehr_dataset,  "visit_rank")
+        print(result.to_latex())
+        
+    def get_domain(self):
+        df = self.train_ehr_dataset
+        def get_num_categories(series):
+            return len(series.unique())
+
+        # Function to get range for continuous variables
+        def get_range(series):
+            return f"{series.min()}-{series.max()}"
+
+    
+        # Get information about the variables
+        lis_cat =list(self.columnas_demograficas )+ ["month","year"]
+        info = {
+            'Static Categorical': {col: get_num_categories(df[col]) for col in lis_cat},
+            'Continuous': {
+                'Age': get_range(df['Age']),
+                'Last Admission': get_range(df['days from last visit']),
+                'Length of Stay': get_range(df['LOSRD_avg'])
+            },
+                 }
+
+        # Count columns containing drugs, diagnosis, and procedures
+        count_columns = {
+            'Drugs': sum('drug' in col.lower() for col in df.columns),
+            'Diagnosis': sum('diagnosis' in col.lower() for col in df.columns),
+            'Procedures': sum('procedures' in col.lower() for col in df.columns)
+        }
+
+        # Print the information
+        print("Variable Information:")
+        for category, vars in info.items():
+            print(f"\n{category}:")
+            for var, value in vars.items():
+                print(f"  {var}: {value}")
+
+        print("\nCount of columns containing:")
+        for item, count in count_columns.items():
+            print(f"  {item}: {count}")
+
+        # Display the first few rows of the dataframe
+        print("\nFirst few rows of the dataframe:")
+        print(df.head())
+
+        # Display dataframe info
+        print("\nDataframe Info:")
+        df.info()
+    def plot_genereate_histogramplot_total_unique_stats(self):
+        logging.info("admission_level")
+        compare_and_plot_datasets_patients_syn(self.train_ehr_dataset, self.synthetic_ehr_dataset, self.cols_diagnosis,self.cols_drugs, self.cols_procedures, self.path_img, truncated=True,type_graph="admissions")
+        #compare_and_plot_datasets_patients_diag(self.train_ehr_dataset, self.synthetic_ehr_dataset, self.cols_diagnosis,self.cols_drugs, self.cols_procedures, self.path_img, truncated=True)
+        #compare_and_plot_datasets(self.train_ehr_dataset, self.synthetic_ehr_dataset, self.cols_diagnosis,self.cols_drugs, self.cols_procedures, self.path_img)
+        # compare_and_plot_datasets(real_data, synthetic_data, diagnosis_cols, drug_cols, procedure_cols, type_level)
+        logging.info("patient_leve")
+        all_code_cols = self.cols_diagnosis.to_list() + self.cols_drugs.to_list() + self.cols_procedures.to_list()
+  
+        train_ehr_dataset_grouped = self.train_ehr_dataset.groupby("id_patient").sum().reset_index()
+        synthetic_ehr_dataset_grouped =  self.synthetic_ehr_dataset.groupby("id_patient").sum().reset_index()
+        compare_and_plot_datasets_patients_syn(train_ehr_dataset_grouped, synthetic_ehr_dataset_grouped, self.cols_diagnosis,self.cols_drugs, self.cols_procedures, self.path_img, truncated=True,type_graph="patients")
+        #compare_and_plot_datasets_patients(train_ehr_dataset_grouped, synthetic_ehr_dataset_grouped, self.cols_diagnosis,self.cols_drugs, self.cols_procedures, self.path_img)
+        
     def age_occurance_stat(self):
         results = analyze_diagnoses(self.train_ehr_dataset, self.synthetic_ehr_dataset, self.cols_diagnosis)
         
-        results.to_csv("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF/ARF_demo/"+synthetic_type+"edad_ocurrance.csv")
+        results.to_csv("generated_synthcity_tabular/ARF"+self.synthetic_type+"edad_ocurrance.csv")
        
 
         return results
@@ -409,8 +481,8 @@ class EHRResemblanceMetrics:
 
     def get_stat_patients(self):
         #patient_level
-        patient_level_stats = False
-        admission_level_stats = True
+        patient_level_stats = True
+        admission_level_stats = False
         if patient_level_stats: 
             all_code_cols = diagnosis_columns + medication_columns + procedure_columns
             columns_for_max = ['visit_rank']
@@ -1265,8 +1337,33 @@ class EHRResemblanceMetrics:
                 ['Procedures'] * len(procedure_features)
             )
         })
-
-        #plot_data = remove_outliers(plot_data, 'Real')
+        
+        def find_high_proportion_features(plot_data, threshold=0.6):
+            # Filter rows where either Real or Synthetic proportion is greater than the threshold
+            high_proportion = plot_data[(plot_data['Real'] > threshold) | (plot_data['Synthetic'] > threshold)]
+            
+            # Create a list of tuples containing the feature, its type, and proportions
+            high_proportion_list = []
+            for index, row in high_proportion.iterrows():
+                high_proportion_list.append((
+                    index,  # This is the feature name
+                    row['Feature'],
+                    f"Real: {row['Real']:.2f}",
+                    f"Synthetic: {row['Synthetic']:.2f}"
+                ))
+            
+            return high_proportion_list
+        high_proportion_list = find_high_proportion_features(plot_data, threshold=0.6)
+        cols_to_consider =self.cols_diagnosis.to_list() +self.cols_drugs.to_list()
+        result =analyze_diagnosis_frequency(self.train_ehr_dataset[cols_to_consider], high_proportion_list)
+        for i in high_proportion_list:
+            print(i)
+        print(result)  
+        for drug, data in result.items():
+            print(f"Top diagnoses for {drug}:")
+            for diagnosis, count in data['top_diagnoses']:
+                print(f"  - {diagnosis}: {count}")
+      #plot_data = remove_outliers(plot_data, 'Real')
         #plot_data = remove_outliers(plot_data, 'Synthetic')
 
         # Encontrar los límites máximos para ajustar los ejes
@@ -1291,12 +1388,12 @@ class EHRResemblanceMetrics:
         plt.ylim(0, axis_limit)
 
         # Añadir títulos y etiquetas
-        plt.title('Comparison of unique code mean in real and synthetic data')
-        plt.xlabel('Real Features Mean')
-        plt.ylabel('Synthetic Features Mean')
+        plt.title('Comparison of Proportions of Occurrences  in  Real and Synthetic Medical Codes')
+        plt.xlabel('Real Proportion of Occurrences in Medical Codes')
+        plt.ylabel('Synthetic Proportion of Occurrences in Medical Codes')
 
         # Ajustar la leyenda para que quede dentro del gráfico
-        plt.legend(title='Feature', loc='upper left', bbox_to_anchor=(0.75, 0.75))
+        plt.legend(title='Medical codes', loc='upper left', bbox_to_anchor=(0.75, 0.75))
         plt.tight_layout()
         plt.show()
 
@@ -1542,8 +1639,8 @@ class EHRResemblanceMetrics:
             
             tabla_proporciones_final = get_proportions(train_ehr_dataset[cols_f],"train "+ i)
             tabla_proporciones_final_2= get_proportions(synthetic_ehr_dataset[cols_f],"synthetic "+i)
-            plot_pie_proportions(cols_f, tabla_proporciones_final, "Train data")
-            plot_pie_proportions(cols_f, tabla_proporciones_final_2, "Synthetic data")
+            #plot_pie_proportions(cols_f, tabla_proporciones_final, "Train data")
+            #plot_pie_proportions(cols_f, tabla_proporciones_final_2, "Synthetic data")
             total = pd.merge(tabla_proporciones_final,tabla_proporciones_final_2,  on=["Variable","Category "], how='inner') 
             #total = total['Variable','Category ]+test_ehr_dataset[cols_f],"test "+ i]
             prop_datafram.append(total)
@@ -1553,10 +1650,10 @@ class EHRResemblanceMetrics:
                plot_vistis(    total )
                total.drop(columns= "Variable",inplace = True)
                total.columns = [col.replace('visit_rank', '') for col in total.columns]
-               general_l = latex_general(total,"Count number of visist and proportioncs between real and synthetic data","tab:visit_counts_1",integer_columns = ["Category ","Count train ","Count synthetic "],num_decimales =2 )
+               general_l = latex_general(total,"Count number of visist and proportioncs between real and synthetic data","tab:visit_counts_1",integer_columns = ["Category ","Count train ","Count synthetic "],num_decimales =5 )
                print(general_l)
             print(latex_code)
-            general_l = latex_general(total,"Count number of visist and proportioncs between real and synthetic data","tab:visit_counts_1")
+            general_l = latex_general(total,"Count number of visist and proportioncs between real and synthetic data","tab:visit_counts_1",num_decimales =5)
             
             print(general_l)
         return total.to_dict()  
