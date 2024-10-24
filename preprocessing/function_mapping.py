@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.datasets import make_blobs
 from sklearn.cluster import AgglomerativeClustering
-from model_eval import *
+#from model_eval import *
 #from yellowbrick.cluster import KElbowVisualizer
 
 import matplotlib.cm as cm
@@ -39,6 +39,74 @@ from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OrdinalEncoder
 
+import pandas as pd
+import pickle
+import gzip
+
+import os
+
+def listar_archivos(ruta):
+    try:
+        # Obtener la lista de todos los archivos en la ruta especificada
+        archivos = os.listdir(ruta)
+        
+        # Filtrar solo los archivos (excluir directorios)
+        archivos = [archivo for archivo in archivos if os.path.isfile(os.path.join(ruta, archivo))]
+        
+        return archivos
+    except FileNotFoundError:
+        print(f"Error: La ruta '{ruta}' no existe.")
+        return []
+    except PermissionError:
+        print(f"Error: No tienes permisos para acceder a la ruta '{ruta}'.")
+        return []
+
+def filter_non_numeric_columns(df):
+    # Función para intentar convertir una columna a numérica
+    def is_numeric(col):
+        try:
+            pd.to_numeric(df[col])
+            return True
+        except ValueError:
+            return False
+    
+    # Filtrar las columnas no numéricas
+    non_numeric_columns = [col for col in df.columns if not is_numeric(col)]
+    
+    return df[non_numeric_columns]
+
+
+def load_data(file_path):
+    try:
+        with gzip.open(file_path, 'rb') as f:
+             return pickle.load(f)
+    except:
+            with open(file_path, 'rb') as f:
+                data = pickle.load(f)
+                return data
+            
+def get_best_prepro_by_silhouette(df, output_file):
+    # Read the CSV file
+
+
+    # Group by 'Name' and find the row with the highest silhouette_avg for each group
+    best_prepro = df.loc[df.groupby('Name')['silhouette_avg'].idxmax()]
+
+    # Select only the required columns
+    
+    result = best_prepro[['Name', 'Prepro', 'silhouette_avg',"Num Cluster"]]
+
+    # Sort by Name for consistency
+    result = result.sort_values('Name')
+
+    # Reset the index
+    result = result.reset_index(drop=True)
+
+    # Save the result to a new CSV file
+    result.to_csv(output_file, index=False)
+
+    print(f"Results saved to {output_file}")
+    return result
 
 
 def string_list(x):
@@ -835,9 +903,15 @@ def fit_kmean_model(ficheros,ejemplo_dir,type_a,num,prepo):
                 joblib.dump(kmeans, 'models_cluster/patient/modelo1_'+ name + '_std_4_visit.pkl')
         
 
+def clustering_icdcodes(X,norm_str):
+    #X = firs_preprocesing(pivot_df,type_a,agregacion_cl,categorical_cols)
+    X = preprocess(X, norm_str)
+    return X
+
+    
 
 
-def clustering_icdcodes(df,real,df1,type_a,norm_str,nam_p,categorical_cols,archivo,filtered):
+def clustering_icdcodes_real(df,real,type_a,norm_str,nam_p,categorical_cols,archivo,filtered):
     '''function tha conglomerate all function to obtain the final features, it also apply a general preprocessing to the icdecode matrix and the 
     demographics features
     Input
@@ -862,20 +936,21 @@ def clustering_icdcodes(df,real,df1,type_a,norm_str,nam_p,categorical_cols,archi
     elif nam_p == "Threshold":
         #nuevo_df2_gen = desconacat_codes(df,real)
         #nuevo_df_x  = nuevo_df2_gen.copy()
-        nuevo_df_x = desconacat_codes(df,"ICD9_CODE_procedures",filtered)
-        nuevo_df4 = desconacat_codes(df1,real,filtered)
+        #nuevo_df_x = desconacat_codes(df,"ICD9_CODE_procedures",filtered)
+        #nuevo_df4 = desconacat_codes(df1,real,filtered)
         #print(nuevo_df2_gen.SUBJECT_ID.nunique())
-        duplicados = merge_df(df,nuevo_df4,nuevo_df_x,real,categorical_cols)
-        pivot_df,agregacion_cl = pivotm(duplicados,real,type_a,categorical_cols,archivo)
+        #duplicados = merge_df(df,nuevo_df4,nuevo_df_x,real,categorical_cols)
+        #pivot_df,agregacion_cl = pivotm(df,real,type_a,categorical_cols,archivo)
+        pass
     else:
         #nuevo_df2_gen = desconacat_codes(df,real)
-        #nuevo_df_x  = nuevo_df2_gen.copy()
+        #nuevo_sdf_x  = nuevo_df2_gen.copy()
         nuevo_df_x = desconacat_codes(df,"ICD9_CODE_procedures",filtered)
         nuevo_df4 = desconacat_codes(df,real,filtered)
         #print(nuevo_df2_gen.SUBJECT_ID.nunique())
         duplicados = merge_df(df,nuevo_df4,nuevo_df_x,real,categorical_cols)
         pivot_df,agregacion_cl = pivotm(duplicados,real,type_a,categorical_cols,archivo)
-    X = firs_preprocesing(pivot_df,type_a,agregacion_cl,categorical_cols)
+    #X = firs_preprocesing(pivot_df,type_a,agregacion_cl,categorical_cols)
     X = preprocess(X, norm_str)
     return X
     #X = preprocess(X, "std")    
@@ -1030,7 +1105,7 @@ def get_kmeans_score(data, center):
     
     return score
 
-def clustering_(X,name,num_clusters,meethod,type_a):
+def clustering_(X,name,num_clusters,meethod,type_a,output_path):
     ''' Function that evaluates the performance of the cluster
     with m ,silhouette_avg,davies_bouldin_avg scores it re runs the k mean algorith
     10 times and average the score, 
@@ -1049,10 +1124,10 @@ def clustering_(X,name,num_clusters,meethod,type_a):
     ccscodes_rand_l = []
     silhouette_avg,davies_bouldin_avg,kmeans_labels,kmeans = cluster_scores(num_clusters,X,meethod) 
     kmeans_labels_l.append(kmeans_labels)
-    if type_a == "outs_visit":
-       joblib.dump(kmeans, 'models_cluster/visit/modelo1_'+ name + '_std_4_visit.pkl')
+    if type_a == "visit":
+       joblib.dump(kmeans, output_path+'kmeans/visit/modelo1_'+ name + '_std_4_visit.pkl')
     else:
-       joblib.dump(kmeans, 'models_cluster/patient/modelo1_'+ name + '_std_4_visit.pkl')
+       joblib.dump(kmeans, output_path+ 'kmeans/patient/modelo1_'+ name + '_std_4_visit.pkl')
     return silhouette_avg,davies_bouldin_avg
  
  

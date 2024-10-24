@@ -1,37 +1,27 @@
-import sqlite3
+
 import pandas as pd
 import numpy as np
 import time
+import pickle
 #import pacmap
 from sklearn.model_selection import cross_val_score, train_test_split, GridSearchCV, StratifiedKFold, KFold
 import matplotlib.pyplot as plt
-import seaborn as sns
+#import seaborn as sns
 import os
-from datetime import datetime as dt
-from itertools import product as itertools_product  # Renamed to avoid confusion with the product function from numpy
 
 from sklearn.linear_model import LogisticRegression, Lasso
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, BaggingClassifier, GradientBoostingClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.naive_bayes import GaussianNB
 
+import gzip
 from sklearn.feature_selection import SelectFromModel
 from sklearn.metrics import (confusion_matrix, classification_report, precision_score, recall_score, roc_curve, auc, 
                              accuracy_score, f1_score)
 
-from scipy import interp
-
-from imblearn.over_sampling import RandomOverSampler
-from imblearn.under_sampling import RandomUnderSampler
-
-import xgboost as xgb
+#from scipy import interp
 from xgboost.sklearn import XGBClassifier
 from xgboost import plot_importance
 
 from sklearn.preprocessing import StandardScaler, MaxAbsScaler, PowerTransformer
 
-import matplotlib.patches as patches
 from tqdm import tqdm
 
 import warnings
@@ -646,7 +636,7 @@ def function_models(model, sampling,li_feature_selection,kfolds,lw,K,type_reg,X,
     
     return rf_sen,rf_spe,rf_prec,rf_acc,mean_auc_,rf_conf,rf_sen_t,rf_spe_t,rf_prec_t,rf_acc_t,f1,f1_t,var_moin,var_ini
         
-import wandb
+#import wandb
 def modelo_df_aux_grid_search(X,y,name_p,type_reg,model,sampling,li_feature_selection,kfolds,lw,K,models_config,config):
     #BaggingClassifier(KNeighborsClassifier(),max_samples=0.5, max_features=0.5),
 
@@ -1075,6 +1065,79 @@ def label_fun(days,archivo_input_label):
     readmit_df.to_csv("./results_pred/label_"+days+"j.csv")
     return readmit_df
 
+
+def load_data(file_path):
+    with gzip.open(file_path, 'rb') as f:
+        return pickle.load(f)
+    
+def label_funv2(days,ADMISSIONS, df):
+    '''Funcion que obtiene las readmissiones que son mayores a un numero de dias '''
+    '''input
+    days: numero de dias los cuales se consideran como una readmission
+    return: regresa un dataframe donde se tiene los intervalos de visita y ultima visitam como el rankeo de las visitas y las etiqueta de 
+    readimission.
+    '''
+    # Admissions 
+
+    
+    #the dataframe is ranked, by admission time, 
+    a = ADMISSIONS[['SUBJECT_ID', 'HADM_ID', 'ADMITTIME', 'DISCHTIME']]
+    print(a.shape)
+    a = a[a["ADMITTIME"].notnull()]
+    print(a.shape)
+    a['ADMITTIME_RANK'] = a.groupby('SUBJECT_ID')['ADMITTIME'].rank(method='first')
+
+    # The last admission date is obtained
+    b = a.groupby('SUBJECT_ID')['ADMITTIME_RANK'].max().reset_index()
+    b.rename(columns={'ADMITTIME_RANK': 'MAX_ADMITTIME_RANK'}, inplace=True)
+
+    #Each rank matches the max rank
+    readmit_df = pd.merge(a, b, on='SUBJECT_ID', how='left')
+
+    # date types are changed
+    #readmit_df[['ADMITTIME','DISCHTIME']] = readmit_df[['ADMITTIME','DISCHTIME']].apply(lambda x: pd.to_datetime(x, format='%Y-%m-%d'))
+    #readmit_df[['ADMITTIME','DISCHTIME']] = readmit_df[['ADMITTIME','DISCHTIME']].apply(lambda x: pd.to_datetime(x, format='%Y-%m-%d %H:%M:%S'))
+    # readmission is sorted descending considering the admission time
+    #readmit_df['ADMITTIME'] =  pd.to_datetime( readmit_df['ADMITTIME'],format='%Y-%m-%d')
+    readmit_df['ADMITTIME'] = pd.to_datetime(readmit_df['ADMITTIME'], format='%Y-%m-%d %H:%M:%S')
+
+    readmit_df['DISCHTIME'] =  pd.to_datetime( readmit_df['DISCHTIME'])
+    readmit_df = readmit_df.sort_values(by=['SUBJECT_ID', 'ADMITTIME'])
+
+
+    # the label is shifted one, to obtain the next  amission addtime, the fist admission time is appended in the end
+    next_admittime= readmit_df['ADMITTIME'].values[1:]
+    # The fist label is appende in the last to have the  same dimension but it does not matter because the las label is the max of the subject so it will no be taken into account
+    next_admittime = np.append(next_admittime, next_admittime[0])
+    readmit_df['NEXT_ADMITTIME'] = next_admittime
+    readmit_df['NEXT_ADMITTIME'].shape
+
+    # we star with label as -1
+
+    readmit_df[days +'_READMIT'] = -1
+    # if the rank is equal to the max the its considered as las admission and there is no readmission
+    readmit_df.loc[readmit_df['ADMITTIME_RANK'] == readmit_df['MAX_ADMITTIME_RANK'], days+'_READMIT'] = 0
+    # to analyse does that are possible readmission we filter the ones left -1
+    readmit_sub_df = readmit_df[readmit_df[days +'_READMIT']==-1]
+    print(readmit_sub_df.shape)
+
+    # the interval of day between next admission and the actual discharfe time is obatain
+    interval = (readmit_sub_df['NEXT_ADMITTIME'] - readmit_sub_df['DISCHTIME']).dt.days.values
+
+    # if it lower than n days then it would be readmission 0 otherwise
+    readmit_df.loc[readmit_df[days+'_READMIT']==-1, 'INTERVAL'] = interval 
+
+    readmit_df.loc[readmit_df['INTERVAL']<=int(days), days+'_READMIT'] = 1
+    readmit_df.loc[readmit_df['INTERVAL']>int(days),  days+'_READMIT'] = 0
+    print("ADMISSIONS",ADMISSIONS.shape)
+    print("ADMISSIons null values",ADMISSIONS.isnull().sum())
+    
+    
+    readmit_df_merged = pd.merge(df, readmit_df[[days+'_READMIT','SUBJECT_ID', 'HADM_ID']], on=['SUBJECT_ID', 'HADM_ID'], how='left')
+    print("readmit_df_merged",readmit_df_merged.shape)
+    print("readmit_df_merged null values",readmit_df_merged.isnull().sum())
+    return readmit_df_merged
+
 def read_director(ejemplo_dir):
     'Function that give you all the files int and archive'
     with os.scandir(ejemplo_dir) as ficheros:
@@ -1394,9 +1457,10 @@ def kernel_density_plot(var,concat_var,title,path,name_p):
     
 # Logistic Regression by variable
 
-def var_demos(demo,concat_var):
+def var_demos(demo,concat_var,days):
     # Assuming 'target_variable' is your response variable
     # 'data' is your DataFrame containing all independent variables
+    
     error_df = {'Variable':[],'Training Error':[], 'Test Error':[],
                 'sensitivity_test':[],
                 'specificity_test':[],
@@ -1464,13 +1528,329 @@ def var_demos(demo,concat_var):
 
     return pd.DataFrame(error_df)
  
-                                            
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, confusion_matrix
+
+
+def calculate_metrics(y_true, y_pred):
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+    sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0
+    specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+    accuracy = (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) > 0 else 0
+    f1 = f1_score(y_true, y_pred)
+    return {
+        'sensitivity': sensitivity,
+        'specificity': specificity,
+        'precision': precision,
+        'accuracy': accuracy,
+        'f1': f1
+    }
+
+
+        
+def train_and_evaluate(X, y,  classifier_type,name):
+    error_df = {
+         'Name': [],
+        'Classifier': [],
+        'Training Error': [],
+        'Test Error': [],
+        'sensitivity_test': [],
+        'specificity_test': [],
+        'precision_test': [],
+        'accuracy_test': [],
+        'f1_test': [],
+        'sensitivity_train': [],
+        'specificity_train': [],
+        'precision_train': [],
+        'accuracy_train': [],
+        'f1_train': []
+    }
+
+    import cupy as cp
+    # Initialize the classifier based on the input
+    if classifier_type.lower() == 'logistic':
+        model = LogisticRegression(random_state=42)
+    elif classifier_type.lower() == 'xgboost':
+        # Configure XGBoost to use GPU
+        model = XGBClassifier(
+            use_label_encoder=False,
+            eval_metric='logloss',
+            random_state=42,
+            tree_method='gpu_hist',  # Use GPU histogram algorithm
+            gpu_id=0  # Specify the GPU device to use (0 for the first GPU)
+        )
+    else:
+        raise ValueError("Invalid classifier type. Choose 'logistic' or 'xgboost'.")
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    
+    # Convert data to GPU if using XGBoost
+    if classifier_type.lower() == 'xgboost':
+        X_train_gpu = cp.array(X_train)
+        y_train_gpu = cp.array(y_train)
+        X_test_gpu = cp.array(X_test)
+    else:
+        X_train_gpu, y_train_gpu, X_test_gpu = X_train, y_train, X_test
+
+    # Train the model
+    model.fit(X_train_gpu, y_train_gpu)
+
+    # Make predictions
+    if classifier_type.lower() == 'xgboost':
+        y_pred_train = model.predict(X_train_gpu)
+        y_pred_test = model.predict(X_test_gpu)
+        # Convert back to CPU for metric calculation
+        y_pred_train = cp.asnumpy(y_pred_train)
+        y_pred_test = cp.asnumpy(y_pred_test)
+    else:
+        y_pred_train = model.predict(X_train)
+        y_pred_test = model.predict(X_test)
+    # Calculate errors
+    train_error = 1 - accuracy_score(y_train, y_pred_train)
+    test_error = 1 - accuracy_score(y_test, y_pred_test)
+
+    # Calculate metrics
+    metrics_train = calculate_metrics(y_train, y_pred_train)
+    metrics_test = calculate_metrics(y_test, y_pred_test)
+
+    # Append results
+    
+    error_df['Name'].append(name)
+    error_df['Classifier'].append(classifier_type)
+    error_df['Training Error'].append(train_error)
+    error_df['Test Error'].append(test_error)
+    error_df['sensitivity_test'].append(metrics_test['sensitivity'])
+    error_df['specificity_test'].append(metrics_test['specificity'])
+    error_df['precision_test'].append(metrics_test['precision'])
+    error_df['accuracy_test'].append(metrics_test['accuracy'])
+    error_df['f1_test'].append(metrics_test['f1'])
+    error_df['sensitivity_train'].append(metrics_train['sensitivity'])
+    error_df['specificity_train'].append(metrics_train['specificity'])
+    error_df['precision_train'].append(metrics_train['precision'])
+    error_df['accuracy_train'].append(metrics_train['accuracy'])
+    error_df['f1_train'].append(metrics_train['f1'])
+
+    return pd.DataFrame(error_df)
+                  
+from sklearn.model_selection import KFold
+from sklearn.metrics import accuracy_score
+from sklearn.linear_model import LogisticRegression
+from xgboost import XGBClassifier
+import numpy as np
+import pandas as pd
+
+def train_and_evaluate(X, y, classifier_type, name):
+    error_df = {
+        'Name': [],
+        'Classifier': [],
+        'Fold': [],
+        'Training Error': [],
+        'Test Error': [],
+        'sensitivity_test': [],
+        'specificity_test': [],
+        'precision_test': [],
+        'accuracy_test': [],
+        'f1_test': [],
+        'sensitivity_train': [],
+        'specificity_train': [],
+        'precision_train': [],
+        'accuracy_train': [],
+        'f1_train': []
+    }
+
+    # Convert to numpy array if it's a DataFrame
+    if isinstance(X, pd.DataFrame):
+        X = X.values
+    if isinstance(y, pd.Series):
+        y = y.values
+
+    # Initialize 5-fold cross-validation
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+
+    for fold, (train_index, test_index) in enumerate(kf.split(X), 1):
+        X_train, X_test = X[train_index], X[test_index]
+        y_train, y_test = y[train_index], y[test_index]
+
+        # Initialize the classifier based on the input
+        if classifier_type.lower() == 'logistic':
+            model = LogisticRegression(random_state=42)
+        elif classifier_type.lower() == 'xgboost':
+            model = XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
+        else:
+            raise ValueError("Invalid classifier type. Choose 'logistic' or 'xgboost'.")
+
+        # Train the model
+        model.fit(X_train, y_train)
+
+        # Make predictions
+        y_pred_train = model.predict(X_train)
+        y_pred_test = model.predict(X_test)
+
+        # Calculate errors
+        train_error = 1 - accuracy_score(y_train, y_pred_train)
+        test_error = 1 - accuracy_score(y_test, y_pred_test)
+
+        # Calculate metrics
+        metrics_train = calculate_metrics(y_train, y_pred_train)
+        metrics_test = calculate_metrics(y_test, y_pred_test)
+
+        # Append results
+        error_df['Name'].append(name)
+        error_df['Classifier'].append(classifier_type)
+        error_df['Fold'].append(fold)
+        error_df['Training Error'].append(train_error)
+        error_df['Test Error'].append(test_error)
+        error_df['sensitivity_test'].append(metrics_test['sensitivity'])
+        error_df['specificity_test'].append(metrics_test['specificity'])
+        error_df['precision_test'].append(metrics_test['precision'])
+        error_df['accuracy_test'].append(metrics_test['accuracy'])
+        error_df['f1_test'].append(metrics_test['f1'])
+        error_df['sensitivity_train'].append(metrics_train['sensitivity'])
+        error_df['specificity_train'].append(metrics_train['specificity'])
+        error_df['precision_train'].append(metrics_train['precision'])
+        error_df['accuracy_train'].append(metrics_train['accuracy'])
+        error_df['f1_train'].append(metrics_train['f1'])
+
+    return pd.DataFrame(error_df)
+        
+        
+def train_and_evaluate_ori2(X, y,  classifier_type,name):
+    error_df = {
+         'Name': [],
+        'Classifier': [],
+        'Training Error': [],
+        'Test Error': [],
+        'sensitivity_test': [],
+        'specificity_test': [],
+        'precision_test': [],
+        'accuracy_test': [],
+        'f1_test': [],
+        'sensitivity_train': [],
+        'specificity_train': [],
+        'precision_train': [],
+        'accuracy_train': [],
+        'f1_train': []
+    }
+
+    # Split the data
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # Initialize the classifier based on the input
+    if classifier_type.lower() == 'logistic':
+        model = LogisticRegression(random_state=42)
+    elif classifier_type.lower() == 'xgboost':
+        model = XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
+    else:
+        raise ValueError("Invalid classifier type. Choose 'logistic' or 'xgboost'.")
+
+    # Train the model with default settings
+    model.fit(X_train, y_train)
+
+    # Make predictions
+    y_pred_train = model.predict(X_train)
+    y_pred_test = model.predict(X_test)
+
+    # Calculate errors
+    train_error = 1 - accuracy_score(y_train, y_pred_train)
+    test_error = 1 - accuracy_score(y_test, y_pred_test)
+
+    # Calculate metrics
+    metrics_train = calculate_metrics(y_train, y_pred_train)
+    metrics_test = calculate_metrics(y_test, y_pred_test)
+
+    # Append results
+    
+    error_df['Name'].append(name)
+    error_df['Classifier'].append(classifier_type)
+    error_df['Training Error'].append(train_error)
+    error_df['Test Error'].append(test_error)
+    error_df['sensitivity_test'].append(metrics_test['sensitivity'])
+    error_df['specificity_test'].append(metrics_test['specificity'])
+    error_df['precision_test'].append(metrics_test['precision'])
+    error_df['accuracy_test'].append(metrics_test['accuracy'])
+    error_df['f1_test'].append(metrics_test['f1'])
+    error_df['sensitivity_train'].append(metrics_train['sensitivity'])
+    error_df['specificity_train'].append(metrics_train['specificity'])
+    error_df['precision_train'].append(metrics_train['precision'])
+    error_df['accuracy_train'].append(metrics_train['accuracy'])
+    error_df['f1_train'].append(metrics_train['f1'])
+
+    return pd.DataFrame(error_df)
+                  
+def listar_archivos(ruta):
+    try:
+        # Obtener la lista de todos los archivos en la ruta especificada
+        archivos = os.listdir(ruta)
+        
+        # Filtrar solo los archivos (excluir directorios)
+        archivos = [archivo for archivo in archivos if os.path.isfile(os.path.join(ruta, archivo))]
+        
+        return archivos
+    except FileNotFoundError:
+        print(f"Error: La ruta '{ruta}' no existe.")
+        return []
+    except PermissionError:
+        print(f"Error: No tienes permisos para acceder a la ruta '{ruta}'.")
+        return []
+    
+def save_pickle(data, file_path):
+    with open(file_path, 'wb') as f:
+        pickle.dump(data, f)    
+                                                
 if __name__ == "__main__":
-    #ficheros = read_director(ejemplo_dir,)
-    #fichero_x = ficheros[2]
-    #ejemplo_dir2 = '/Users/cgarciay/Desktop/Laval_Master_Computer/research/y_readmission_label/'
-    #fichero_y ='label_'+days+'j.csv'
-    prepo = "std"
-    var_demos(demo,concat_var)
-    #readmit_df = label_fun(days,archivo_input_label,)
-    #X,y ,concat_var  = lectura_variables(readmit_df,fichero_x,fichero_y,prepo,ejemplo_dir,days)
+
+    classifiers = ['logistic', 'xgboost']
+    #inputs
+    
+    archivo = "/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/preprocessing2/"
+    archivo_input_label =archivo + "input/ADMISSIONS.csv.gz"
+    category = "diagnosis"
+    output_path = archivo + "results/models_cluster/"+category+"/prediction/"
+    
+    days = "30"
+    type_a="visit"
+    archivo_completa =archivo + "input/"+category+"_visit"
+         
+    list_cat_aux= listar_archivos(archivo_completa)
+ 
+    # Initialize an empty list to store all results
+    df_final = []
+    admission_file = pd.read_csv(archivo_input_label)
+
+
+    
+    for i, name in enumerate(list_cat_aux):
+        for classifier_type in classifiers:
+            ruta = os.path.join(archivo_completa, name)
+            df = pd.read_csv(ruta)
+            df = df.iloc[:, 1:]
+            #df = df[:2000]
+            
+            readmit_df = label_funv2(days,admission_file, df)
+            readmit_df.drop(columns='DISCHTIME', inplace=True)
+            
+            prepo = "std"
+            
+            X = readmit_df[[col for col in readmit_df.columns if col != f'{days}_READMIT']]
+            X = preprocess(X, prepo)
+            y = readmit_df[f'{days}_READMIT']
+            
+            df_res = train_and_evaluate(X, y, classifier_type,name)
+            df_final.append(df_res)
+            
+            # Save accumulated results after each iteration
+            save_pickle(df_final, output_path+ "accumulates_res.pkl")
+            
+            print(f"Processed {name} with {classifier_type}")
+    
+    # Concatenate all results into a single DataFrame
+    final_df = pd.concat(df_final, ignore_index=True)
+    
+    # Save the final results as CSV
+    save_pickle(df_final, output_path+ f"final_results_{type_a}_{days}.pkl")
+    
+    

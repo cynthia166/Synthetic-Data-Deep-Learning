@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+import sys
+sys.path.append('')
+sys.path.append('preprocessing')
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
 import pandas as pd
@@ -6,7 +9,7 @@ import polars as pl
 import glob
 import numpy as np
 import pandas as pd
-import plotly.express as px
+#import plotly.express as px
 import os
 import glob
 #import psycopg2
@@ -113,13 +116,12 @@ def concat_input(df_procedures,df_diagnosis,df_drugs,name_df,columns_to_drop_fin
     df_procedures = pd.read_csv(df_procedures)
     df_diagnosis =pd.read_csv(df_diagnosis)
     df_drugs = pd.read_csv(df_drugs)
-    categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
-                    'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
+    categorical_cols = [  'RELIGION',
                     'MARITAL_STATUS',  'ETHNICITY','GENDER']
-    numerical_cols =  ['Age_max', 'LOSRD_sum',
-            'LOSRD_avg','L_1s_last_p1']
-
-    columnas = categorical_cols+numerical_cols
+    numerical_cols =  ['Age_max', 'LOSRD_avg',
+            'days from last visit','year','month','visit_rank']
+    
+    columnas = categorical_cols+numerical_cols +['LOSRD_sum']
     drugs_cols = [col for col in df_drugs.columns if any(item in col for item in columnas)]
     catnum_cols = [col for col in df_procedures.columns if any(item in col for item in columnas)]
     categorical = list(set(catnum_cols+drugs_cols))
@@ -145,15 +147,145 @@ def concat_input(df_procedures,df_diagnosis,df_drugs,name_df,columns_to_drop_fin
     result = pd.merge(df_diagnosis, df_drugs, on=["SUBJECT_ID","HADM_ID"], how='outer')
     result_final = pd.merge(result, df_procedures, on=["SUBJECT_ID","HADM_ID"], how='outer')
     cols_to_drop_unnamed = result_final.filter(like='Unnamed', axis=1).columns
-    cols_to_drop = cols_to_drop_unnamed + columns_to_drop_final
+    col_dis = [i for i in result_final.columns if "DISCHTIME" in i or  "ADMITTIME" in i or "LOSRD_sum" in i ]
+    cols_to_drop =list(cols_to_drop_unnamed)  + columns_to_drop_final +col_dis 
     # Drop these columns
+    
     result_final.drop(cols_to_drop, axis=1, inplace=True)
+     #hacer un check de las columnas
+    identify_non_medical_columns(result_final)
+    identify_medical_pattern_columns(result_final)
+    print(pd.__version__) 
+    
     res = result_final.fillna(0)
-    res.to_csv(DARTA_INTERM_intput+ name_df)
+    res.to_pickle("/Users/cynthiagarcia/Desktop/Synthetic-Data-Deep-Learning/data/intermedi/SD/inpput/second/representation2/"+ name_df)
 
 # Assuming df is your DataFrame
+def identify_medical_pattern_columns(df):
+    """
+    Identifica columnas con patrones médicos específicos sin números antes del asterisco
+    
+    Args:
+        df (pd.DataFrame): DataFrame a analizar
+    Returns:
+        dict: Diccionario con las columnas clasificadas por tipo
+    """
+    diagnosis_cols = []
+    drug_cols = []
+    procedure_cols = []
+    
+    # Expresiones regulares para encontrar columnas que no tienen números antes del *
+    import re
+    
+    for col in df.columns:
+        # Verificar si la columna tiene el patrón deseado
+        if '*diagnosis' in col.lower():
+            # Verificar que no hay números antes del *
+            prefix = col.split('*')[0]
+            if not any(char.isdigit() for char in prefix):
+                diagnosis_cols.append(col)
+                
+        elif '*drug' in col.lower():
+            prefix = col.split('*')[0]
+            if not any(char.isdigit() for char in prefix):
+                drug_cols.append(col)
+                
+        elif '*procedure' in col.lower():
+            prefix = col.split('*')[0]
+            if not any(char.isdigit() for char in prefix):
+                procedure_cols.append(col)
+    
+    # Imprimir resumen
+    print("\n=== Columnas Médicas Identificadas ===")
+    print(f"\nColumnas de diagnóstico: {len(diagnosis_cols)}")
+    for col in sorted(diagnosis_cols):
+        print(f"- {col}")
+        
+    print(f"\nColumnas de medicamentos: {len(drug_cols)}")
+    for col in sorted(drug_cols):
+        print(f"- {col}")
+        
+    print(f"\nColumnas de procedimientos: {len(procedure_cols)}")
+    for col in sorted(procedure_cols):
+        print(f"- {col}")
+    
+    return {
+        'diagnosis': sorted(diagnosis_cols),
+        'drugs': sorted(drug_cols),
+        'procedures': sorted(procedure_cols)
+    }
 
+# Ejemplo de uso:
+"""
+# Para usar la función:
+medical_columns = identify_medical_pattern_columns(df)
 
+# Para acceder a tipos específicos:
+diagnosis_columns = medical_columns['diagnosis']
+drug_columns = medical_columns['drugs']
+procedure_columns = medical_columns['procedures']
+"""
+
+def identify_non_medical_columns(df):
+    """
+    Identifica y categoriza columnas que no están relacionadas con códigos médicos
+    
+    Args:
+        df: DataFrame con todas las columnas
+        
+    Returns:
+        dict: Diccionario con las columnas categorizadas
+    """
+    # Identificar columnas médicas
+    medical_keywords = ['diagnosis', 'procedure', 'procedures', 'drug', 'drugs']
+    medical_cols = set()
+    for col in df.columns:
+        if any(keyword.lower() in col.lower() for keyword in medical_keywords):
+            medical_cols.add(col)
+    
+    # Obtener todas las columnas que no son médicas
+    non_medical_cols = set(df.columns) - medical_cols
+    
+    # Categorizar las columnas no médicas
+    numeric_cols = set(df[list(non_medical_cols)].select_dtypes(include=['float64', 'int64']).columns)
+    categorical_cols = set(df[list(non_medical_cols)].select_dtypes(include=['object', 'category']).columns)
+    other_cols = non_medical_cols - numeric_cols - categorical_cols
+    
+    # Crear resumen
+    print("\n=== Análisis de Columnas No Médicas ===")
+    print(f"\nTotal columnas no médicas: {len(non_medical_cols)}")
+    print(f"Columnas numéricas: {len(numeric_cols)}")
+    print(f"Columnas categóricas: {len(categorical_cols)}")
+    print(f"Otras columnas: {len(other_cols)}")
+    
+    # Mostrar detalles de cada categoría
+    print("\n1. Columnas Numéricas:")
+    for col in sorted(numeric_cols):
+        non_null = df[col].notna().sum()
+        print(f"- {col}")
+        print(f"  Tipo: {df[col].dtype}")
+        print(f"  Valores no nulos: {non_null} ({(non_null/len(df))*100:.2f}%)")
+        print(f"  Rango: [{df[col].min():.2f}, {df[col].max():.2f}]")
+    
+    print("\n2. Columnas Categóricas:")
+    for col in sorted(categorical_cols):
+        unique_vals = df[col].nunique()
+        non_null = df[col].notna().sum()
+        print(f"- {col}")
+        print(f"  Tipo: {df[col].dtype}")
+        print(f"  Valores únicos: {unique_vals}")
+        print(f"  Valores no nulos: {non_null} ({(non_null/len(df))*100:.2f}%)")
+    
+    print("\n3. Otras Columnas:")
+    for col in sorted(other_cols):
+        print(f"- {col} (tipo: {df[col].dtype})")
+    
+    return {
+        'numeric': sorted(numeric_cols),
+        'categorical': sorted(categorical_cols),
+        'other': sorted(other_cols),
+        'medical': sorted(medical_cols)
+    }
 
 
 
@@ -331,17 +463,18 @@ def main(task,preprocessing):
     '''
     import pickle
     import gzip
-    if preprocessing=="True":
-       name_df = "raw_input.csv"
+    if preprocessing==True:
+       name_df = "raw_input.pkl"
     else:
-       name_df = "raw_input_non_preprocess.csv"
-    columns_to_drop_final = ['LOSRD_sum', 'L_1s_last_p1','HADM_ID']          
+       name_df = "raw_input_non_preprocess.pkl"
+    columns_to_drop_final = ['HADM_ID']          
     
     if task =="concat":
-        if preprocessing=="True":
-            df_procedures = DARTA_INTERM_intput+"CCS CODES_procedures.csv"
-            df_diagnosis =DARTA_INTERM_intput+"CCS CODES_diagnosis.csv"
-            df_drugs = DARTA_INTERM_intput+"ATC3_drug2.csv"
+        if preprocessing:
+            
+            df_procedures = "/Users/cynthiagarcia/Desktop/Synthetic-Data-Deep-Learning/data/intermedi/SD/inpput/second/representation2/procedures_CCS CODES_procedures_non_prepo.csv"
+            df_diagnosis ="/Users/cynthiagarcia/Desktop/Synthetic-Data-Deep-Learning/data/intermedi/SD/inpput/second/representation2/diagnosis_CCS CODES_diagnosis_non_prepo.csv"
+            df_drugs = "/Users/cynthiagarcia/Desktop/Synthetic-Data-Deep-Learning/data/intermedi/SD/inpput/second/representation2/drugs_threshold_presence_0.8_drugst_non_prepo.csv"
             df =  concat_input(df_procedures,df_diagnosis,df_drugs,name_df,columns_to_drop_final)
         else:
             df_procedures = DARTA_INTERM_intput+"CCS CODES_procedures_non_prep.csv"
@@ -416,20 +549,14 @@ if __name__ == "__main__":
     and the outcomes.'''
     import argparse
     import os
-    name_entire = "entire_ceros"
-    ruta = DARTA_INTERM_intput+ name_entire+"_.parquet"
-
-    if os.path.exists(ruta):
-        print("La ruta existe.")
-    else:
-        print("La ruta no existe.")
-
+   
     parser = argparse.ArgumentParser(description="Scripti input special SD model")
     parser.add_argument("task", type=str, choices=["concat","entire_ceros","temporal_state","tabular_data_beteween_visits"],default="temporal_state",
                         help="Tipo de procesamiento a realizar.")
     parser.add_argument("preprocessing", choices=["True","False"],default="True",
                         help="Esta preprocess")
-    args = parser.parse_args()
-    task = args.task
-    preprocessing = args.preprocessing  
+    #args = parser.parse_args()
+    #task = args.task
+    task ="concat"
+    preprocessing = True
     main(task,preprocessing)

@@ -24,36 +24,7 @@ if __name__=="__main__":
        #create electorni 
     test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,features  = load_create_ehr(read_ehr,save_ehr,file_path_dataset,sample_patients_path,file,valid_perc,features_path,name_file_ehr,type_file=type_archivo)
     print(file)
-    def compare_dataset_columns(dataset1, dataset2, name1="Dataset 1", name2="Dataset 2"):
-        """
-        Compare the columns of two datasets and report any differences.
-        
-        Parameters:
-        dataset1 (pd.DataFrame): The first dataset
-        dataset2 (pd.DataFrame): The second dataset
-        name1 (str): Name of the first dataset (for reporting)
-        name2 (str): Name of the second dataset (for reporting)
-        
-        Returns:
-        bool: True if the datasets have the same columns, False otherwise
-        """
-        columns1 = set(dataset1.columns)
-        columns2 = set(dataset2.columns)
-        
-        if columns1 == columns2:
-            print(f"{name1} and {name2} have the same columns.")
-            return True
-        else:
-            print(f"{name1} and {name2} have different columns.")
-            only_in_1 = columns1 - columns2
-            only_in_2 = columns2 - columns1
-            
-            if only_in_1:
-                print(f"Columns only in {name1}:", only_in_1)
-            if only_in_2:
-                print(f"Columns only in {name2}:", only_in_2)
-            
-            return False
+
 
 
     if exclude_codes:
@@ -64,38 +35,7 @@ if __name__=="__main__":
     # the only thing that is done is subject_id is change to patient id and logging and clipping negstive values
     
        #constrains  
-    if get_synthetic_subject_clustering:
-        if make_cosin_sim:
-            c = EHRDataConstraints( train_ehr_dataset, 
-                 test_ehr_dataset,
-                 synthetic_ehr_dataset,
-                 [],
-                 cols_continuous ,
-                 create_visit_rank_col=False,
-                propagate_fistvisit_categoricaldata=False,
-                adjust_age_and_dates_get=False,
-                get_remove_duplicates=False,
-                get_handle_hospital_expire_flag=False,
-                get_0_first_visit=False,
-                get_sample_synthetic_similar_real=False,
-                create_days_between_visits_by_date_var=False
-                 ,eliminate_negatives_var=True ,
-                 get_days_grom_visit_histogram=False,
-                 get_admitted_time=False,
-                 
-                type_archivo = type_archivo,
-                encoder = encoder 
-           )
-    
-            synthetic_ehr_dataset, train_ehr_dataset, test_ehr_dataset = c.initiate_processing()
-            subs = creating_SyntheticSubject(train_ehr_dataset, 
-                        test_ehr_dataset,
-                        synthetic_ehr_dataset,file_data,folder ,name_file_similaritymatrixcos ) 
-            synthetic_ehr_dataset   = subs.get_most_similar_visit_syntheticehr()        
-        else:
-            synthetic_ehr_dataset = load_pkl(file_data+folder +name_file_similaritymatrixcos)
-                
-       
+         
     train_ehr_dataset,synthetic_ehr_dataset,test_ehr_dataset = make_read_constraints( make_contrains,
                           save_constrains,
                           train_ehr_dataset,

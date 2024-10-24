@@ -10,10 +10,10 @@ from evaluation_framework import EvaluationFramework
 #os.chdir("/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning")
 file_principal = os.getcwd()
 os.chdir(file_principal )
-import sys
+import sys    
 sys.path.append('evaluation/resemb/resemblance/utils_stats/')
 sys.path.append('evaluation')
-from  config import diagnosis_columns,procedure_columns,medication_columns,set_graph_settings
+from  preprocessing.config import diagnosis_columns,procedure_columns,medication_columns,set_graph_settings
 
 sys.path.append(file_principal )
 from evaluation.resemb.resemblance.utilsstats import *

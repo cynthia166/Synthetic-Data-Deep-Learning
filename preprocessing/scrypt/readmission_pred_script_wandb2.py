@@ -1,64 +1,143 @@
-from random import randint, uniform
-from preprocessing.function_pred import *
+import sys
+sys.path.append('preprocessing')
+from function_pred import *
 import pandas as pd
-import csv
-import json
 import yaml
 
-import argparse
 import json
 import wandb
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.metrics import roc_auc_score
+    
+def replace_nan_with_zero(d):
+    """
+    Recursively replace NaN values with 0 in a dictionary, including NaN values in arrays.
+    
+    :param d: Input dictionary
+    :return: Dictionary with NaN values replaced by 0
+    """
+    for k, v in d.items():
+        if isinstance(v, dict):
+            d[k] = replace_nan_with_zero(v)
+        elif isinstance(v, list):
+            d[k] = [replace_nan_with_zero(x) if isinstance(x, dict) else x for x in v]
+            d[k] = [0 if isinstance(x, float) and np.isnan(x) else x for x in d[k]]
+        elif isinstance(v, np.ndarray):
+            d[k] = np.nan_to_num(v, nan=0.0)
+        elif isinstance(v, float) and np.isnan(v):
+            d[k] = 0
+    return d
+
+
+def train(X, y, splits, days, name, project_name, param_grid,model):
+    try:
+        X = X.values
+    except:
+        pass
+    
+    try:
+        y = y[days + "_READMIT"].to_numpy()
+    except:
+        pass
+
+    result = {
+        'f1_test': 0, 'f1_train': 0,
+        'sensitivity_test': 0, 'specificity_test': 0, 'precision_test': 0, 'accuracy_test': 0,
+        'sensitivity_train': 0, 'specificity_train': 0, 'precision_train': 0, 'accuracy_train': 0,
+        'confusion_matrix': 0, 'auc_train': 0, 'auc_test': 0,
+        'Classifiers': 0, 'Mapping': 0,
+        'mean_test_scores_folds': 0, 'mean_train_scores_folds': 0,
+        'time_model': 0, "prepo": 0,
+        "best_params": {}
+    }
+
+    start_time = time.time()
+    model_results = function_modelov2(X, y, splits, param_grid,model)
+    result.update(model_results)
+    result['time_model'] = time.time() - start_time
+    result['Mapping'] = name
+    result['Classifiers'] = str(model)
+    result= replace_nan_with_zero(result)
+    wandb.init(project=project_name, name=f"experiment_{name}", config=param_grid)
+    wandb.log(result)
+    wandb.finish()
+
+    return result
 
 
 
 
+def function_modelov2(X, y, splits, param_grid, model):
+    train_size = int(len(X) * 0.75)
+    val_size = int(len(X) * 0.15)
+    X_train, X_val, X_test = X[:train_size], X[train_size:train_size+val_size], X[train_size+val_size:]
+    y_train, y_val, y_test = y[:train_size], y[train_size:train_size+val_size], y[train_size+val_size:]
+
+    tscv = KFold(n_splits=splits, shuffle=False)
+
+    # Configurar parámetros específicos según el tipo de modelo
+    if isinstance(model, XGBClassifier):
+        model.set_params(use_label_encoder=False, eval_metric='logloss')
+        fit_params = {'eval_set': [(X_val, y_val)], }
+    elif isinstance(model, LogisticRegression):
+        fit_params = {}
+    else:
+        fit_params = {}
+
+    # Eliminar parámetros no válidos del param_grid
+    valid_params = model.get_params().keys()
+    param_grid = {k: v for k, v in param_grid.items() if k in valid_params}
+
+    grid_search = RandomizedSearchCV(
+        estimator=model,
+        param_distributions=param_grid,
+        cv=tscv,
+        scoring="f1",
+        return_train_score=True,
+        n_iter=50,  # Ajusta este número según tus necesidades
+        n_jobs=-1   # Usa todos los núcleos disponibles
+    )
+
+    # Ajustar el modelo
+    grid_search.fit(X_train, y_train, **fit_params)
+
+    # Obtener resultados
+    best_model = grid_search.best_estimator_
+    y_pred_train = best_model.predict(X_train)
+    y_pred_test = best_model.predict(X_test)
+
+    results = {
+        'best_params': grid_search.best_params_,
+        'mean_test_scores_folds': grid_search.cv_results_['mean_test_score'],
+        'mean_train_scores_folds': grid_search.cv_results_['mean_train_score']
+    }
+
+    # Calcular métricas
+    results.update(calculate_metrics(y_test, y_pred_test, 'test'))
+    results.update(calculate_metrics(y_train, y_pred_train, 'train'))
+
+    return results
+
+def calculate_metrics(y_true, y_pred, prefix):
+    try:
+        conf_matrix = confusion_matrix(y_true, y_pred)
+        tn, fp, fn, tp = conf_matrix.ravel()
+        return {
+            f'{prefix}_confusion_matrix': conf_matrix,
+            f'sensitivity_{prefix}': tp / (tp + fn),
+            f'specificity_{prefix}': tn / (tn + fp),
+            f'precision_{prefix}': tp / (tp + fp),
+            f'accuracy_{prefix}': (tp + tn) / (tp + tn + fp + fn),
+            f'f1_{prefix}': f1_score(y_true, y_pred, average='macro'),
+            f'auc_{prefix}': roc_auc_score(y_true, y_pred)
+        }
+    except:
+        return {f'{prefix}_metrics_error': 'Error calculating metrics'}
 
 
-
-def train(json_config, readmit_df,fichero,i,project_name,param_grid):
+def train_ori(X,y, splits, days,name,project_name,param_grid):
     # Inicializa WandB
-      # Puedes combinar aquí la configuración cargada desde el archivo JSON si es necesario
- 
-    nom_t = json_config["nom_t"]
-    ejemplo_dir = json_config["ejemplo_dir"]
-    
-   
-    days_list = json_config["days_list"]
-    ficheros = read_director(ejemplo_dir)
 
-   
-    
-    # Instantiate the model based on the string in the JSON
-    #models_config = config["model"]
-    #model = initialize_models(models_config)
- 
-  
-      #list_cat = config["list_cat"]
-    #prepro = json_config["prepro"]
-    #LogisticRegression,"Xgboost"   
-    #model = json_config["model"]
-    splits = json_config["splits"]
-    
-    #     make_preds(ejemplo_dir, path, days, ficheros, kfolds, type_reg, prepro,
-    #               archivo_input_label, nom_t, model, sampling, li_feature_selection,
-    #                lw, K,models_config,config)
-    days = "30"
-    #readmit_df = label_fun(days,archivo_input_label)
-    #archivo_input_label = config["archivo_input_label"]
-    fichero_y ="label_"+days+"j.csv"
-    
-    # Se obtiene dataframe que sera el output del perfomance del entrenamiento
-    j = i
-    # se obtiene el respectivo preprocesing de acuerdo al experimento que se realizo
-    
-        #concat_var_ = create_var(ejemplo_dir,i,readmit_df)
-    #eda_embedding(path,i,concat_var_,i)
-    
-
-    
- 
-    
-    X,y ,concat_var  = lectura_variables_aux(readmit_df,fichero,ejemplo_dir,days)
     try:
         X = X.values
         
@@ -138,7 +217,7 @@ def train(json_config, readmit_df,fichero,i,project_name,param_grid):
     result['confusion matrix']=rf_conf
     result['auc_train']=auc_train
     result['auc_test']=auc_test
-    result['Mapping']=fichero
+    result['Mapping']=name
     result["mean_test_scores_folds"]=mean_test_scores_folds
     result["mean_train_scores_folds"]=mean_train_scores_folds
     result["time_model"]=time_model
@@ -156,9 +235,9 @@ def train(json_config, readmit_df,fichero,i,project_name,param_grid):
     result["best_reg_lambda"] = best_reg_lambda
     result["best_scale_pos_weight"] = best_scale_pos_weight
     result["best_subsample"] = best_subsample
-        #result["fichero"]=i
+        #result["name"]=i
     
-    wandb.init(project=project_name,name =f"experiment_{fichero}" ,config = param_grid )
+    wandb.init(project=project_name,name =f"experiment_{name}" ,config = param_grid )
 
     wandb.log(result)
     wandb.finish()
@@ -181,17 +260,14 @@ def train(json_config, readmit_df,fichero,i,project_name,param_grid):
 # se guarda dataframes    
 #df_res_aux.to_csv("./results_pred/results_prediction_"+days+"+non_filtered"+nom_t+".csv")   
 
-from sklearn.model_selection import TimeSeriesSplit
-from sklearn.model_selection import RandomizedSearchCV
-from sklearn.metrics import roc_auc_score
-from scipy.stats import loguniform
+
 
 
 def load_yaml_config(yaml_path):
     with open(yaml_path, 'r') as file:
         return yaml.safe_load(file)         
 
-def function_models2(X,y,model,splits,wandb):
+def function_models2_ori(X,y,model,splits,wandb):
     
     #train_size = int(len(X) * 0.75)  # 75% for training
     #X_train, X_test = X[:train_size], X[train_size:]
@@ -232,7 +308,7 @@ def function_models2(X,y,model,splits,wandb):
 
 # Registrar los resultados en WandB
     for i in range(len(results['params'])):
-        wandb.init(project=project_name,config = json_config )
+        wandb.init(project=project_name )
         
         wandb.log({
             'mean_test_score': results['mean_test_score'][i],
@@ -290,36 +366,9 @@ def function_models2(X,y,model,splits,wandb):
 
     
 
-    
-
-
-
-
-    
- 
-def main(json_config, readmit_df,fichero,i,project_name,param_grid):
-
-     train(json_config, readmit_df,fichero,i,project_name,param_grid)
-    
-    
-if __name__ == "__main__":
-    global days,param_grid,model
-    project_name =   "Predic_Readmission_procedures_Xgboost_kfolds_preproC_new"
-    # PARAMETRO NO FIJO#######
-    arconfig_path = "input_json/config_procedures.json"
-    def load_json_config(config_path):
-        with open(config_path, 'r') as file:
-            return json.load(file)
-      # Analizar los argumentos de la línea de comandos
-    #sweep_id = wandb.sweep(sweep_config, project="your_project_name")
-    json_config = load_json_config(arconfig_path)
-    # Run the sweep
-    # PARAMETRO NO FIJO#######
-    ejemplo_dir ="./input_pred_p/"
-    model  = json_config["model"]
-    print(model)
-    if model == "Xgboost":
-        model = XGBClassifier()
+def parameters_fun(model):
+    if model == "xgboost":
+        model = XGBClassifier(early_stopping_rounds=3,gpu_id=0)
         param_grid = {
         # Reducir el rango de 'learning_rate' para enfocarse en valores que permitan aprendizaje más lento y estable
         'learning_rate': [0.01, 0.05, 0.1,.5,1],
@@ -380,7 +429,7 @@ if __name__ == "__main__":
         'subsample': [0.1, 0.5, 1]
          }'''
 
-    elif model == "LogisticRegression":
+    elif model == "logistic":
             model = LogisticRegression()
             '''param_grid = {	
             'penalty': ['l1', 'l2', 'elasticnet', 'none'],  # Type of regularization to be applied
@@ -395,25 +444,62 @@ if __name__ == "__main__":
             'max_iter': [100, 1000],  # Reducción de opciones para max_iter, enfocándose en valores más comunes
             'l1_ratio': np.linspace(0, 1, 5)  # Solo necesario si 'elasticnet' es elegido; equilibrio entre l1 y l2
         }
-    # PARAMETRO NO FIJO#######     
-    ficheros = read_director(ejemplo_dir)
-    # PARAMETRO FIJO#######
-    archivo_input_label = "data_preprocess_nonfilteres.csv"
-    days = "30"
-    readmit_df = label_fun(days,archivo_input_label)
-    
-    
-    
-    for i,fichero in enumerate(ficheros):
-        print(i)
-        print(fichero)
-    # This lambda function will be called for each set of parameters
-        main(json_config, readmit_df,fichero,i,project_name,param_grid)
-          
-    wandb.finish()
+    return model ,param_grid       
+        
+
+
+
 
     
+ 
     
+if __name__ == "__main__":
+    
+    archivo = "/Users/cynthiagarcia/Desktop/Synthetic-Data-Deep-Learning/data/intermedi/SD/inpput/second/"
+    archivo_input_label ="/Users/cynthiagarcia/Desktop/Synthetic-Data-Deep-Learning/data/raw/MIMIC/ADMISSIONS.csv.gz"
+    output_path = "results/models_cluster/drugs/prediction/"
+
+  
+    project_name =   "Predic_Readmission_procedures_Xgboost_kfolds_preproC_new"
+    splits = 5
+
+    classifiers = ['logistic', 'xgboost']
+    #inputs
+        
+    days = "30"
+    type_a="visit"
+    archivo_completa =archivo + "drugs_visit"
+         
+    list_cat_aux= listar_archivos(archivo_completa)
+ 
+    # Initialize an empty list to store all results
+    df_final = []
+    admission_file = pd.read_csv(archivo_input_label)
+
+
+    
+    for i, name in enumerate(list_cat_aux):
+        for model in classifiers:
+            # por cada modelo en cada threshold
+            ruta = os.path.join(archivo_completa, name)
+            df = pd.read_csv(ruta)
+            df = df.iloc[:, 1:]
+            df = df[:2000]
+            readmit_df = label_funv2(days,admission_file, df)
+            readmit_df.drop(columns='DISCHTIME', inplace=True)
+            
+            prepo = "std"
+            
+            X = readmit_df[[col for col in readmit_df.columns if col != f'{days}_READMIT']]
+            X = preprocess(X, prepo)
+            y = readmit_df[f'{days}_READMIT']
+            
+            model ,param_grid =parameters_fun(model)
+            
+            train(X, y, splits, days, name, project_name, param_grid,model)
+
+    
+    wandb.finish()
         
             
     

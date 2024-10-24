@@ -10,11 +10,7 @@ print(os.getcwd())
 sys.path.append('../../')
 import os
 #sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/preprocessing')
-#sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/evaluation/evaluation/utility')
-#sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/evaluation/evaluation/functions')
-#sys.path.append('/home-local2/cyyba.extra.nobkp/Synthetic-Data-Deep-Learning/evaluation')
 from sklearn import metrics
-from evaluation.functions import *
 # stdlib
 import platform
 from abc import abstractmethod
@@ -42,7 +38,7 @@ from sklearn.cluster import KMeans
 from collections import Counter
 from typing import Any, Dict
 from sklearn.decomposition import PCA
-from config import *
+
 import numpy as np
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedKFold
@@ -255,12 +251,12 @@ def get_cols_diag_proc_drug(train_ehr_dataset):
     keywords = ['diagnosis', 'procedures', 'drugs']
     columnas_test_ehr_dataset = [col for col in train_ehr_dataset.columns if any(palabra in col for palabra in keywords)]
     return columnas_test_ehr_dataset
-    
+   
 def obtain_most_freuent(train_ehr_dataset,columnas_test_ehr_dataset,num):
     code_sums = train_ehr_dataset[columnas_test_ehr_dataset].sum(axis=0).sort_values(ascending=False)
     top_300_codes = code_sums.head(num).index.tolist()
     return top_300_codes
-
+  
 def change_tosyn_stickers_temporal(synthetic_ehr_dataset,columnas_test_ehr_dataset,id_patient):
     scaler = MinMaxScaler(feature_range=(-1, 1), copy=True)
     scaler.fit(synthetic_ehr_dataset[columnas_test_ehr_dataset])
@@ -340,8 +336,9 @@ def calc_attribute_risk(train_dataset, reference_dataset, k):
        
     return f1
 
-def attribute_attack(synthetic_ehr_dataset,test_ehr_dataset,train_ehr_dataset,K,synthetic_ehr,top_300_codes,columnas_test_ehr_dataset):
+def attribute_attack(synthetic_ehr_dataset,test_ehr_dataset,train_ehr_dataset,K,num,columnas_test_ehr_dataset):
     ''''funcion que realiza el attack attribu HALO_Synthetic'''
+    top_300_codes =obtain_most_freuent(train_ehr_dataset,columnas_test_ehr_dataset,num)
     num_filas = {
             "synthethic": synthetic_ehr_dataset.shape[0],
             "valid": test_ehr_dataset.shape[0],
@@ -352,7 +349,7 @@ def attribute_attack(synthetic_ehr_dataset,test_ehr_dataset,train_ehr_dataset,K,
     min_filas_df = min(num_filas, key=num_filas.get)
 
     print(min_filas_df)
-    synthetic_ehr_dataset = synthetic_ehr[:num_filas[min_filas_df]]
+    synthetic_ehr_dataset = synthetic_ehr_dataset[:num_filas[min_filas_df]]
     test_ehr_dataset = test_ehr_dataset[:num_filas[min_filas_df]]
     train_ehr_dataset = train_ehr_dataset[:num_filas[min_filas_df]]
 
@@ -546,128 +543,4 @@ def calc_nnaar(train, evaluation, synthetic,NUM_SAMPLES):
     aaet = (0.5 * val3) + (0.5 * val4)
     return aaes - aaet
 
-def evaluate_attacks(list_metric, test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,synthetic_ehr, top_300_codes, columnas_test_ehr_dataset):
-    list_res = []
-    result_final = {}
 
-
-
-    if "attributes_attack" in list_metric:
-        K = 1
-
-        result = attribute_attack(synthetic_ehr,test_ehr_dataset,train_ehr_dataset,K,synthetic_ehr,top_300_codes,columnas_test_ehr_dataset)
-        list_res.append(result)
-
-    #################################################M
-    #################################################M
-    #################################################MEMBERShip attributes_
-    #################################################M
-    #################################################M
-    #################################################M
-
-
-
-
-    if "memebership_attack" in list_metric:
-        import random
-        NUM_TEST_EXAMPLES = 40
-        NUM_TOT_EXAMPLES = 40
-        NUM_VAL_EXAMPLES = 20
-        synthetic_ehr_ = change_tosyn_stickers_temporal(synthetic_ehr_dataset,columnas_test_ehr_dataset,True)
-    
-        #synthetic_ehr_ = change_tosyn_stickers_temporal(synthetic_ehr,columnas_test_ehr_dataset,True)
-      
-        results = membership_attack(train_ehr_dataset, test_ehr_dataset,synthetic_ehr_,columnas_test_ehr_dataset,NUM_TEST_EXAMPLES,NUM_TOT_EXAMPLES,NUM_VAL_EXAMPLES)
-        list_res.append(results)
-
-    #################################################M
-    #################################################M
-    #################################################MNEIGHTBOUr DISTANCE
-    #################################################M
-    #################################################M
-    #################################################M
-    # Example usage
-
-
-
-    if "nn_distance_attack" in list_metric:
-
-
-        dataset_train = obtain_dataset(train_ehr_dataset,columnas_test_ehr_dataset)
-        dataset_test = obtain_dataset(test_ehr_dataset,columnas_test_ehr_dataset)
-
-        synthetic_ehr = change_tosyn_stickers_temporal(synthetic_ehr_dataset,columnas_test_ehr_dataset,True)
-        dataset_syn = obtain_dataset(synthetic_ehr,columnas_test_ehr_dataset)
-
-
-        NUM_SAMPLES = min(len(dataset_train), len(dataset_test), len(synthetic_ehr))
-        dataset_train = np.random.choice(dataset_train, NUM_SAMPLES)
-        dataset_test = np.random.choice(dataset_test, NUM_SAMPLES)
-        synthetic_ehr = np.random.choice([p for p in dataset_syn if len(p['visits']) > 0], NUM_SAMPLES)
-
-
-        nnaar = calc_nnaar(dataset_train, dataset_test, synthetic_ehr,NUM_SAMPLES)
-        results = {
-            "nn_distance_attack": nnaar
-        }
-        list_res.append(results)
-
-    if "delta" in list_metric:
-        train_test= " test"
-        delta = DeltaPresence()
-        delta_s = delta.evaluate(test_ehr_dataset.values,synthetic_ehr_dataset.iloc[:,1:].values)
-        print("Delta Presence:", delta_s)
-        results["Delta Presence "+train_test] = delta_s
-        list_res.append(results)
-    
-    for i in list_res:
-        result_final.update(i)   
-    return  result_final 
-
-#codigo para attribute attack    
-if __name__ == "__main__":
-    path_o = "train_sp/"    
-    attributes_path_train= "non_prepo/DATASET_NAME_non_preprotrain_data_attributes.pkl"
-    features_path_train = "non_prepo/DATASET_NAME_non_preprotrain_data_features.pkl"
-    features_path_valid = "non_prepo/DATASET_NAME_non_preprovalid_data_features.pkl"
-    attributes_path_valid = "non_prepo/DATASET_NAME_non_preprovalid_data_attributes.pkl"
-    synthetic_path_attributes = 'non_prepo/DATASET_NAME_non_prepronon_prepo_synthetic_attributes_10.pkl'
-    synthetic_path_features = 'non_prepo/DATASET_NAME_non_prepronon_prepo_synthetic_features_10.pkl'
-
-    # se lee los archivos y se obtiene del la longitude de valid
-    total_features_synthethic, total_fetura_valid,total_features_train,attributes =  get_valid_train_synthetic (path_o, attributes_path_train, features_path_train, features_path_valid, attributes_path_valid,synthetic_path_attributes,synthetic_path_features)
-    # se transforma de numpy array 3 dimensiones a dataframe
-    total_features_synthethic,total_fetura_valid,total_features_train = obtener_dataframe_inicial_denumpyarrray(total_features_synthethic, total_fetura_valid,total_features_train )
-
-    # esta es para agregar la columnas
-    dataset_name = 'DATASET_NAME_non_prepo'
-    file_name = "train_sp/non_prepo/DATASET_NAME_non_prepo_non_preprocess.pkl"
-    aux = load_data(file_name)
-    #aux = load_data(DARTA_INTERM_intput + dataset_name + '_non_preprocess.pkl')
-    con_cols = list(aux[0].columns)
-    static = pd.read_csv("train_sp/non_prepo/static_data_non_preprocess.csv")
-    # Suponiendo que 'total_features_synthethic' es tu DataFrame
-    if 'Unnamed' in static.columns:
-        static = static.drop(columns=['Unnamed'])
-    cat = list(static.columns[2:]) +["visit_rank","id_patient"  ] 
-    del aux
-    total_cols =  con_cols+cat 
-    cat1 = list(static.columns[2:]) +["visit_rank","id_patient","max_consultas"     ]
-    total_cols1 =  con_cols+cat1 
-
-    #tengo eliminacion de una colman se va tener que modificar mas adelante 
-    test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset = preprocess_data(total_cols,total_features_synthethic,total_cols1,total_fetura_valid,total_features_train)
-
-
-    #obtener coluans que contenga diagnosis,procedures,drugs
-    columnas_test_ehr_dataset = get_cols_diag_proc_drug(train_ehr_dataset)
-
-    #obtener n mas frequent codes
-    top_300_codes = obtain_most_freuent(train_ehr_dataset,columnas_test_ehr_dataset,100)
-
-    #obtener un syntethic datafram que considere el percentil y si es mayor a eso se considera 1 si no 0, si es false no se le agrega la columnas id_patient
-    synthetic_ehr = change_tosyn_stickers_temporal(synthetic_ehr_dataset,columnas_test_ehr_dataset,False)
-           
-    list_metric = ["attributes_attack","memebership_attack","nn_distance_attack","delta"]
-    results = evaluate_attacks(list_metric, test_ehr_dataset,train_ehr_dataset,synthetic_ehr_dataset,synthetic_ehr, top_300_codes, columnas_test_ehr_dataset) 
-    print (results   )

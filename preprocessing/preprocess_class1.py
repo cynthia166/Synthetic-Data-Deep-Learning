@@ -2,9 +2,9 @@
 import sys
 sys.path.append('')
 sys.path.append('preprocessing')
-
 from preprocess_input1 import *
-from config import *
+from preprocessing.config import *
+
 import logging
 logging.basicConfig(
     filename='app.log',  # Log file name
@@ -30,10 +30,12 @@ class DataPreprocessor:
                                   cols_to=None,
                                     normalize_matrix=False,
                                       log_transformation=False, encode_categorical=False,
-                                        final_preprocessing=False,proportion = False,prop = 0.09,
+                                        final_preprocessing=False,proportion = False,prop = 0.8,
                                          make_initial_preprocess = True,
                                           features_path = "",
-                                           create_added_paste_feautres_actual_summed=True ):
+                                           create_added_paste_feautres_actual_summed=True,
+                                           plot_matrix=True,
+                                           save_prproces=True,read_archivo_threshold=True):
         self.type_p = type_p  #drugs procedures diagnosis
         self.doc_path = doc_path # Path to the document above
         self.admissions_path = admissions_path #admissions_path
@@ -59,6 +61,9 @@ class DataPreprocessor:
         self.cols_to_accumulate = cols_to_accumulate
         self.feature_accumulative_path = feature_accumulative_path
         self.save_accumulate_df = save_accumulate_df
+        self.plot_matrix =plot_matrix
+        self.save_prproces=save_prproces
+        self.read_archivo_threshold=read_archivo_threshold
     def initialize(self):
         if self.make_initial_preprocess == True:
            self.df = self.run()
@@ -100,15 +105,20 @@ class DataPreprocessor:
     def load_data_clean_data(self, type_p):
         #clean data, and create indiidual counts of drugs or codes
         if type_p == "procedures":
-            data = procedures(self.doc_path, self.n, self.name)
+            data = procedures(self.doc_path, self.n, self.name,self.plot_matrix)
         elif type_p == "diagnosis":
-            data = diagnosis(self.doc_path, self.n, self.name)
+            data = diagnosis(self.doc_path, self.n, self.name,self.plot_matrix)
         elif  type_p == "drug2":
-            data = drug2(self.doc_path)
+            data = drug2(self.doc_path,self.plot_matrix)
             # ATC
-        elif  type_p == "drug1":
+        elif  type_p == "drugst":
             # thresholds
-              data = drugs1(self.doc_path, self.n, self.name)  
+              data = drugst(self.doc_path, self.n, self.name, 
+                            save_path_prefix="data/analysis/drugs/drugs2",
+                            administrations=False,
+                            plot_matrix=self.plot_matrix,
+                            save_prproces=self.save_prproces,
+                            analyze_distributions=False)  
         return data
 
 
@@ -125,14 +135,14 @@ class DataPreprocessor:
 
     def calculate_demographics(self, data):
         #calculates demographical data
-        cat_considered = ['ADMITTIME', 'ADMISSION_TYPE', 'ADMISSION_LOCATION', 'DISCHARGE_LOCATION', 'INSURANCE', 'RELIGION', 'MARITAL_STATUS', 'ETHNICITY', 'DEATHTIME'] + ['DISCHTIME', 'SUBJECT_ID', 'HADM_ID']
+        cat_considered = ['ADMITTIME', 'RELIGION', 'MARITAL_STATUS', 'ETHNICITY', 'DEATHTIME', 'DISCHTIME'] + [ 'SUBJECT_ID', 'HADM_ID']
         return calculate_agregacion_cl(self.admissions_path, self.patients_path, self.categorical_cols, self.level, cat_considered, data)
 
 
     def apply_log_transformation(self, data):
         #transform the lenght of stay variable
         if self.log_transformation:
-            return apply_log_transformation(data, 'L_1s_last_p1')
+            return apply_log_transformation(data, 'days from last visit')
         return data
 
     def merge_data(self, demographic_data, count_data):
@@ -142,7 +152,7 @@ class DataPreprocessor:
     def encode_categorical_data(self, data):
         #encode categorical data
         if self.encode_categorical:
-            return encoding(data, self.categorical_cols, 'onehot', self.proportion,self.prop)
+            return encoding(data, self.categorical_cols, 'label', self.proportion,self.prop)
         return data
 
     def final_preprocessing_fun(self, data):
@@ -156,7 +166,37 @@ class DataPreprocessor:
 
     def run(self,type_p):
         # run the whole process sequentially
-        data = self.load_data_clean_data(type_p)
+        if type_p == "drugst":
+            if self.read_archivo_threshold:
+                archivo2 = "/Users/cynthiagarcia/Desktop/Synthetic-Data-Deep-Learning/data/intermedi/SD/inpput/second/with_ascii_codes_mapping_drugs.pkl"
+                data = load_data(archivo2)
+                for i in data:
+                    print(i)
+                    print("categorias unicas",data[i].nunique())
+            else:
+                data = self.load_data_clean_data(type_p)
+        elif type_p == "procedures":
+                   if self.read_archivo_threshold:
+                      archivo2 = "/Users/cynthiagarcia/Desktop/Synthetic-Data-Deep-Learning/data/intermedi/SD/inpput/second/procedures/ procedures_total.pkl"
+                      data = load_data(archivo2)
+                      for i in data:
+                        print(i)
+                        print("categorias unicas",data[i].nunique())
+                   else:
+                      data = self.load_data_clean_data(type_p)
+   
+               
+        else:    
+            if self.read_archivo_threshold:
+                    archivo2 = "/Users/cynthiagarcia/Desktop/Synthetic-Data-Deep-Learning/data/intermedi/SD/inpput/second/diagnosis/diagnosis_total.pkl"
+                    data = load_data(archivo2)
+                    for i in data:
+                        print(i)
+                        print("categorias unicas",data[i].nunique())
+            else:
+                    data = self.load_data_clean_data(type_p)
+   
+        
         count_matrix = self.calculate_count_matrix(data)
         count_matrix = self.normalize_count_matrix(count_matrix)
         demographics = self.calculate_demographics(count_matrix)
@@ -182,73 +222,152 @@ class DataPreprocessor:
 # the DataPreprocessor class is in charge of coordinating the execution of these functions
 # the functions are defined in the preprocess_input1.py file
 
-def procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing):
-    name="ICD9_CODE"   
+def procedures_data(type_p, doc_path, admissions_path, patients_path, numerical_cols, n, categorical_cols, 
+                    normalize_matrix, log_transformation, encode_categorical, final_preprocessing,
+                    columns_to_drop, cols_to_accumulate, feature_accumulative_path, save_accumulate_df,plot_matrix,real,level,read_archivo_threshold):
+    name = real
     prepomax = 'std'
-    type_p = "procedures"
-    name="ICD9_CODE"
-    prepomax = 'std'
-    real = "CCS CODES"
-    level = "Otro"
-    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=normalize_matrix, log_transformation=log_transformation, encode_categorical=encode_categorical, final_preprocessing=final_preprocessing,proportion = True)
+    name = "ICD9_CODE"
+ 
+    
+
+    
+    
+    preprocessor = DataPreprocessor(type_p,
+                                    doc_path,
+                                    admissions_path, 
+                                    patients_path,
+                                    categorical_cols,
+                                    real,
+                                    level, 
+                                    numerical_cols,
+                                    prepomax,
+                                    name,
+                                    n,
+                                    columns_to_drop,
+                                    cols_to_accumulate,
+                                    feature_accumulative_path,
+                                    save_accumulate_df,
+                                    cols_to=None,
+                                    normalize_matrix=normalize_matrix, 
+                                    log_transformation=log_transformation,
+                                    encode_categorical=encode_categorical, 
+                                    final_preprocessing=final_preprocessing,
+                                    proportion=False,
+                                    plot_matrix=plot_matrix,read_archivo_threshold=read_archivo_threshold)
     df_final = preprocessor.run(type_p)
-    df_final.to_csv(str(DARTA_INTERM_intput) + real +"_"+type_p+"_non_prep.csv")
+    df_final.to_csv("/Users/cynthiagarcia/Desktop/Synthetic-Data-Deep-Learning/data/intermedi/SD/inpput/second/representation2/procedures_"+real + "_" + type_p + "_non_prepo.csv")
     print(" Procedures Done")
     
     
-def drugs_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing):
+def drugs_data(type_p, doc_path,
+               admissions_path, patients_path, 
+               numerical_cols, n, categorical_cols, 
+               normalize_matrix, log_transformation, 
+               encode_categorical, final_preprocessing,
+               columns_to_drop, cols_to_accumulate,
+               feature_accumulative_path,
+               save_accumulate_df,plot_matrix,real,level,read_archivo_threshold):
     prepomax = 'std'
     name = "DRUG"
-    real = "ATC3"
-    level = "Otro"
-    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=normalize_matrix, log_transformation=log_transformation, encode_categorical=encode_categorical, final_preprocessing=final_preprocessing,proportion=True)
-    aux = preprocessor.load_data_clean_data(type_p)
+ 
+
+    save_prproces=True
+    preprocessor = DataPreprocessor(
+        type_p, doc_path, admissions_path, patients_path, categorical_cols, 
+        real, level, numerical_cols, prepomax, name, n, 
+        columns_to_drop, cols_to_accumulate, feature_accumulative_path, save_accumulate_df,
+        cols_to=None, normalize_matrix=normalize_matrix, 
+        log_transformation=log_transformation, encode_categorical=encode_categorical, 
+        final_preprocessing=final_preprocessing, proportion=False,plot_matrix=plot_matrix,save_prproces=True,
+    read_archivo_threshold=read_archivo_threshold
+    )
+    #aux = preprocessor.load_data_clean_data(type_p)
     df_final = preprocessor.run(type_p)
-    df_final.to_csv(str(DARTA_INTERM_intput)+ real +"_"+type_p+"_non_prepo.csv")
+    df_final.to_csv("/Users/cynthiagarcia/Desktop/Synthetic-Data-Deep-Learning/data/intermedi/SD/inpput/second/representation2/drugs_" + real + "_" + type_p + "_non_prepo.csv")
     print(" Drugs Done")
     
-def diagnosis_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing):
+def diagnosis_data(type_p, doc_path, admissions_path, patients_path, numerical_cols, n, categorical_cols,
+                   normalize_matrix, log_transformation,
+                   encode_categorical, final_preprocessing, 
+                   columns_to_drop, cols_to_accumulate, feature_accumulative_path,
+                   save_accumulate_df,plot_matrix,real,level,read_archivo_threshold,):
     type_p = "diagnosis"
-    name="ICD9_CODE"
+    name = "ICD9_CODE"
     prepomax = 'std'
-    real = "CCS CODES"
-    level = "Otro"
-    preprocessor = DataPreprocessor(type_p,doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax,name,n, cols_to = None,normalize_matrix=normalize_matrix, log_transformation=log_transformation, encode_categorical=encode_categorical, final_preprocessing=final_preprocessing,proportion=True)
+
+ 
+    preprocessor = DataPreprocessor(type_p, doc_path, admissions_path, patients_path, categorical_cols, real, level, numerical_cols, prepomax, name, n, 
+                                    columns_to_drop, cols_to_accumulate, feature_accumulative_path, save_accumulate_df,
+                                    cols_to=None, normalize_matrix=normalize_matrix, log_transformation=log_transformation, 
+                                    encode_categorical=encode_categorical, final_preprocessing=final_preprocessing, proportion=False,plot_matrix=plot_matrix,
+                                    read_archivo_threshold=read_archivo_threshold)
     df_final = preprocessor.run(type_p)
-    df_final.to_csv(str(DARTA_INTERM_intput)+ real +"_"+type_p+"_non_prepo.csv")
+    df_final.to_csv("/Users/cynthiagarcia/Desktop/Synthetic-Data-Deep-Learning/data/intermedi/SD/inpput/second/representation2/diagnosis_" + real + "_" + type_p + "_non_prepo.csv")
     print(" Diagnosis Done")
 
-def main(type_p,normalize_matrix, log_transformation, encode_categorical,final_preprocessing):
-    import sys
-    sys.path.append('')
-    sys.path.append('preprocessing')
-    MIMIC = Path('data/raw/MIMIC/')
     
-    admissions_path = MIMIC/'ADMISSIONS.csv.gz'
-    patients_path = MIMIC /'PATIENTS.csv.gz'
-    numerical_cols =  ['Age_max', 'LOSRD_sum',
-            'LOSRD_avg','L_1s_last_p1']        
-    n = [.88,.95,.98,.999]
-    categorical_cols = ['ADMISSION_TYPE', 'ADMISSION_LOCATION',
-                    'DISCHARGE_LOCATION', 'INSURANCE',  'RELIGION',
-                    'MARITAL_STATUS',  'ETHNICITY','GENDER']
+
+def run_preprocessing(
+    admissions_path, 
+    patients_path,
+    type_p="diagnosis", 
+    normalize_matrix=False,
+    log_transformation=False,
+    encode_categorical=True, 
+    final_preprocessing=False,
+    mimic_path='data/raw/MIMIC/',
+    numerical_cols=['Age_max',  'LOSRD_avg', 'days from last visit'],
+    n=[.88, 0.9,.95, .98, .999],
+    categorical_cols=['RELIGION', 'MARITAL_STATUS', 'ETHNICITY', 'GENDER','DISCHTIME'],
+    MIMIC=Path('data/raw/MIMIC/'),
+    columns_to_drop=[],
+    cols_to_accumulate=[],
+    feature_accumulative_path="",
+    save_accumulate_df=False,
+    plot_matrix =True,
+    real="CCS CODES",level="Otro",
+    read_archivo_threshold=True
+
+):
+    
+    print(f"Process: {type_p}")
+    print(f"Standard matrix: {normalize_matrix}")
+    print(f"Logarithmic transformation: {log_transformation}")
+    print(f"Codify categorical variables: {encode_categorical}")
+    print(f"Final preprocessing: {final_preprocessing}")
+    print(f"MIMIC path: {MIMIC}")
+    print(f"Numerical columns: {numerical_cols}")
+    print(f"n values: {n}")
+    print(f"Categorical columns: {categorical_cols}")
+    
     if type_p == "diagnosis":       
         doc_path = MIMIC/'DIAGNOSES_ICD.csv.gz'  
-        diagnosis_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing)
+        list_ral = ['threshold_'+ str(i)  for i in n  ] + ["CCS CODES","LEVE3 CODES"] 
+        for real in ["CCS CODES"]:
+      
+            diagnosis_data(type_p, doc_path, admissions_path, patients_path, numerical_cols, n, categorical_cols, 
+                        normalize_matrix, log_transformation, encode_categorical, final_preprocessing,
+                        columns_to_drop, cols_to_accumulate, feature_accumulative_path, save_accumulate_df,plot_matrix,real,level,read_archivo_threshold)
 
     elif type_p == "procedures":
-        
         doc_path = MIMIC/'PROCEDURES_ICD.csv.gz'
-        procedures_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing)
+        list_ral = ['threshold_'+ str(i)  for i in n  ] + ["CCS CODES"] 
+        for real in ["CCS CODES"]:
+            procedures_data(type_p, doc_path, admissions_path, patients_path, numerical_cols, n, categorical_cols, 
+                            normalize_matrix, log_transformation, encode_categorical, final_preprocessing,
+                            columns_to_drop, cols_to_accumulate, feature_accumulative_path, save_accumulate_df,plot_matrix,real,level,read_archivo_threshold)
 
-    elif type_p in ["drug1", "drug2"]:
-        
+    elif type_p in ["drugst", "drug2"]:
         doc_path = MIMIC/'PRESCRIPTIONS.csv.gz'
-        drugs_data(type_p,doc_path,admissions_path,patients_path,numerical_cols,n,categorical_cols,normalize_matrix, log_transformation, encode_categorical,final_preprocessing)
+        list_ral = ['threshold_presence_'+ str(i)  for i in n ]
+        for real in ['threshold_presence_0.8']:
+            drugs_data(type_p, doc_path, admissions_path, patients_path, numerical_cols, n, categorical_cols, 
+                    normalize_matrix, log_transformation, encode_categorical, final_preprocessing,
+                    columns_to_drop, cols_to_accumulate, feature_accumulative_path, save_accumulate_df,plot_matrix,real,level,read_archivo_threshold)
     else:
         print("Tipo de procesamiento no reconocido.")
 
-      
 if __name__ == "__main__":
     import argparse
     import os
@@ -257,33 +376,41 @@ if __name__ == "__main__":
     sys.path.append('')
     sys.path.append('preprocessing')
     import config 
-  
-    parser = argparse.ArgumentParser(description="Script para procesar datos de salud con opciones adicionales.")
+    #args
 
-    #This argumer is for which option is the process goin to tun
-    parser.add_argument("type_p", type=str, choices=["diagnosis", "procedures", "drug1", "drug2"],default="diagnosis",
-                        help="Tipo de procesamiento a realizar.")
-
-    # normalize matrix, true if it is adde when the function is run
-    parser.add_argument("--normalize_matrix", action="store_true", 
-                        help="Normaliza la matriz durante el procesamiento. Por defecto es True para depuración.")
-    #log transformation, true if it is adde when the function is run
-    parser.add_argument("--log_transformation", action="store_true", 
-                        help="Aplica transformación logarítmica durante el procesamiento. Por defecto es True para depuración.")
-    #encode categorical,true if it is adde when the function is run
-    parser.add_argument("--encode_categorical", action="store_true", 
-                        help="Codifica variables categóricas durante el procesamiento. Por defecto es True para depuración.")
-    parser.add_argument("--final_preprocessing", action="store_true", 
-                        help="Codifica variables categóricas durante el procesamiento. Por defecto es True para depuración.")
-
-
-    args = parser.parse_args()
-
-    print(f"Process: {args.type_p}")
-    print(f"Standard matriz: {args.normalize_matrix}")
-    print(f"Logarithmic transformation: {args.log_transformation}")
-    print(f"Codify categorical variables: {args.encode_categorical}")
-    print(f"Final preprocessing: {args.final_preprocessing}")
-        
-    main(args.type_p, args.normalize_matrix, args.log_transformation, args.encode_categorical,args.final_preprocessing)    
+    MIMIC = Path('data/raw/MIMIC/')
     
+    admissions_path = MIMIC/'ADMISSIONS.csv.gz'
+    patients_path = MIMIC /'PATIENTS.csv.gz'
+    numerical_cols =  ['Age_max',
+            'LOSRD_avg','days from last visit']        
+    n = [0.8,.9,.95,.98,.999]
+    categorical_cols = [  'RELIGION',
+                    'MARITAL_STATUS',  'ETHNICITY','GENDER']
+    read_archivo_threshold=True
+    plot_matrix=False
+    level = "visit"   #"Patient" "visit"
+    print(level)
+    run_preprocessing(
+        admissions_path, 
+        patients_path,
+        type_p="drugst", #diagnosis, procedures, drugst, drug2
+        normalize_matrix=False,
+        log_transformation=False,
+        encode_categorical=True,
+        final_preprocessing=False,
+        mimic_path='data/raw/MIMIC/',
+        numerical_cols=['Age_max', 'LOSRD_avg', 'days from last visit'],
+        n=[0.8,0.85,.9, .95, .98, .999],
+        categorical_cols=[ 'RELIGION', 'MARITAL_STATUS', 'ETHNICITY', 'GENDER'],
+        MIMIC=Path('data/raw/MIMIC/'),
+        columns_to_drop=[],
+        cols_to_accumulate=[],
+        feature_accumulative_path="",
+        save_accumulate_df=False,
+        plot_matrix =plot_matrix,level=level,
+        read_archivo_threshold=read_archivo_threshold
+    )
+  
+
+

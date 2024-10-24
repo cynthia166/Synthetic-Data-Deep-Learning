@@ -11,6 +11,7 @@ data_dir = Path('data/')
 input_model_pred =  data_dir/'preprocessed/input_model_pred'
 DARTA_INTERM =  data_dir/ 'intermedi/'
 DARTA_INTERM_intput= "data/intermedi/SD/inpput/"
+DARTA_INTERM_intput_redoo= "data/intermedi/SD/inpput/second/"
 RAW =  data_dir/ 'raw/'
 MIMIC = RAW /'MIMIC/'
 # Directorio principal de resultados

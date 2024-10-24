@@ -18,7 +18,7 @@ from scipy.stats import beta, uniform, triang, truncnorm, expon, kstest, gaussia
 from sklearn.mixture import GaussianMixture
 from threadpoolctl import threadpool_limits
 
-
+from evaluation.resemb.resemblance.config import *
 
 print(current_directory)
 import sys
@@ -88,9 +88,39 @@ import logging
 
 # Configura el logging
 logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
-from  config import set_graph_settings
-set_graph_settings()
 
+
+def compare_dataset_columns(dataset1, dataset2, name1="Dataset 1", name2="Dataset 2"):
+    """
+    Compare the columns of two datasets and report any differences.
+    
+    Parameters:
+    dataset1 (pd.DataFrame): The first dataset
+    dataset2 (pd.DataFrame): The second dataset
+    name1 (str): Name of the first dataset (for reporting)
+    name2 (str): Name of the second dataset (for reporting)
+    
+    Returns:
+    bool: True if the datasets have the same columns, False otherwise
+    """
+    columns1 = set(dataset1.columns)
+    columns2 = set(dataset2.columns)
+    
+    if columns1 == columns2:
+        print(f"{name1} and {name2} have the same columns.")
+        return True
+    else:
+        print(f"{name1} and {name2} have different columns.")
+        only_in_1 = columns1 - columns2
+        only_in_2 = columns2 - columns1
+        
+        if only_in_1:
+            print(f"Columns only in {name1}:", only_in_1)
+        if only_in_2:
+            print(f"Columns only in {name2}:", only_in_2)
+        
+        return False
+    
 def consistent_sort_demographic_classes(df):
     # Define the custom order for Demographic_Class
     # Ensure this list is exhaustive for your dataset

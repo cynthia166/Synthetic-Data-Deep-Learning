@@ -26,8 +26,7 @@ if remote:
     train_data_features = load_data("generative_input/entire_ceros_tabular_data.pkl")
 else:
     train_data_features = load_data("data/intermedi/SD/inpput/entire_ceros_tabular_data.pkl")
-    path_arf = "C:/Users/cyn_n/Desktop/Synthetic-Data-Deep-Learning/
-generated_synthcity_tabular/ARF_local/todas_var_cat/"
+    path_arf = "C:/Users/cyn_n/Desktop/Synthetic-Data-Deep-Learning/generated_synthcity_tabular/ARF_local/todas_var_cat/"
 
 
 
